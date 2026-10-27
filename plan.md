@@ -1,74 +1,65 @@
 # MobiDesk Android — Implementation Plan
 
-## Goal and scope
+## Current goal
 
-Build a polished Android client for students to authenticate, see only their assigned Cloud PC, request authorized VM actions, and enter a native Windows RDP session. A role-protected administrator surface may be added only when the backend supports trusted roles and server authorization. The first deliverable is a native Android foundation and verified FreeRDP integration path; no current backend, assignments, VM endpoint, or external RDP transport have been supplied or verified.
+Deliver a polished Android app for students to sign in, see only their assigned Windows Cloud PC, and later open a native FreeRDP desktop session through an authorized control plane. Keep the control path (identity, assignments, VM actions, tickets) separate from the desktop data path (RDP graphics/input). Do not display sample accounts or imply a VM is live when the service cannot verify it.
 
-## Architecture
+## Approved architecture
 
-- **Android shell:** Native Android app (Kotlin-first) with responsive student/admin screens and explicit loading, empty, offline, error, and disconnected states.
-- **RDP engine:** Pin upstream FreeRDP Android source at v3.32.0. Reuse its Android `freeRDPCore`/JNI implementation and its established session rendering/input lifecycle. Keep upstream source/licensing notices intact.
-- **Identity/control:** Supabase Auth and trusted profile/assignment data, then a separate authenticated server-side control API for VM status/power and short-lived connection tickets. No service-role credentials or permanent desktop passwords in the APK.
-- **Desktop data path:** Native FreeRDP session connects only using server-issued, expiring connection details over a separately verified secure transport. Never expose TCP/3389 publicly. Do not route screen graphics through the control API.
-- **Testing/release:** Android Gradle build; debug APK for install/testing; Android Emulator checks if this sandbox can run the SDK emulator. No claim of device or end-to-end verification until actual successful results exist.
+- **Android app shell:** Kotlin + Jetpack Compose, chosen over Flutter because the user explicitly allowed any suitable framework and the app must host FreeRDP's native Android Activity/JNI stack. This keeps Android lifecycle and RDP session integration direct.
+- **Authentication/data:** Supabase Auth + PostgREST, using only the project's publishable client key in the Android client and existing RLS policies for identity-scoped reads.
+- **Provisioning:** Existing Auth trigger creates a student profile only when the email matches the private institution roster. The app offers sign-in and password recovery, not self-registration or client-selected roles.
+- **RDP engine:** Pin official FreeRDP v3.32.0 as a git submodule and reuse its `freeRDPCore` Android implementation. No RDP protocol is written from scratch.
+- **Future VM control plane:** A trusted server-side API must authorize each status/power/session request and issue a short-lived connection ticket. No service-role key, permanent Windows password, client-supplied VM ID, or public TCP/3389 exposure.
+- **Desktop transport:** Must be separately verified for real external Android networks; an HTTPS Cloudflare Tunnel is not assumed to transport raw RDP.
 
-## Project structure
+## Verified Supabase baseline
 
-- `app/` — MobiDesk Android shell, navigation, screens, theme, app configuration, and tests.
-- `third_party/FreeRDP/` — pinned FreeRDP upstream git submodule, containing the Android JNI/core code used by the app.
-- `docs/` — screen flows, integration contracts, security decisions, and evidence log.
-- `.github/workflows/` — reproducible Android build and test automation without secrets.
-- `plan.md`, `TODO.md`, `README.md` — architecture, current status, and developer handoff.
+Project `kthfhjwltcpjhjemugwm` contains `students`, `vms`, `student_vm_access`, and private `student_roster` tables, with RLS enabled. Metadata counts are 7 Auth users, 7 roster rows, 7 student rows, 1 VM row, and 1 assignment; no row contents were read. Existing RLS policies scope student rows by `auth.uid()`, assignments by `student_id = auth.uid()`, and VM rows through the signed-in user's assignment. The auth trigger is roster-gated and does not create an admin role.
 
-## Screen inventory and navigation
+The app requests only `students(id,name,college)` and assigned `vms(id,name)`. It does not request `roll_no`, hostnames, Guacamole fields, or VM status. Supabase has no live status field and currently has no Edge Functions or verified power/control/session-ticket API. The one Supabase project change so far is adding the recovery deep link `com.mobidesk.android://auth-callback/recovery` to the redirect allowlist; no schema or data rows were changed. See `docs/SUPABASE_DISCOVERY.md` for exact policies, grants, Auth settings, migrations, and advisor findings.
 
-1. Splash/session restoration → sign-in or dashboard.
-2. Sign-in, recovery/error, and signed-out states.
-3. Student dashboard with exactly the authenticated user's assignment and truthful VM status.
-4. VM start/connect preparation with progress, authorization denial, offline, and retry states.
-5. Native FreeRDP desktop session with connection lifecycle, keyboard/touch, and disconnect behavior.
-6. Reconnecting/disconnected/failure states and safe session exit.
-7. Profile/settings and session management.
-8. Role-protected administrator inventory/actions, only after server roles and authorization are verified.
+## App screens and behavior
 
-Student flow: authenticate → fetch trusted profile and assigned VM → fetch real status → request a one-time connection ticket → launch native session → disconnect/expire → return to dashboard. Admin flow: authenticate → server-verified admin role → fetch authorized inventory → request an audited allowed action. UI visibility alone is never treated as an authorization boundary.
+1. Session restoration → sign-in or authenticated workspace.
+2. School email/password sign-in, safe errors, password reset request, and PKCE recovery callback/new-password screen.
+3. Student dashboard populated from the signed-in student's RLS-scoped profile and VM assignment.
+4. Explicit no-profile, no-assignment, loading, retry, and backend-error states.
+5. Account/settings and sign-out.
+6. Remote session remains visibly disabled until a trusted control endpoint and expiring ticket exist.
+7. No administrator route is exposed until the project has a verified admin-role source and server-side enforcement.
 
-## Initial interaction contract
+## Security decisions
 
-- The dashboard displays `Unknown`/`Not configured` when there is no verified status source; it must not present historical VM names, IPs, or sample data as live data.
-- Students cannot submit an arbitrary VM identifier as authority; the server derives/checks the assignment and returns only an authorized, short-lived connection ticket.
-- The native RDP screen is opened only for a valid ticket. Credentials must not be persisted in plaintext or logged. Certificate validation must not be silently bypassed.
-- Pointer/touch modes, keyboard, special keys, clipboard, scaling, audio, and reconnection are enabled only when the selected FreeRDP build and device behavior are verified. Unimplemented controls stay hidden/disabled with an explanation.
-- Session termination clears temporary connection details and modifier state.
+- Do not add an Android sign-up flow; existing provisioning is roster-controlled.
+- Do not read or mutate other students' rows; use the current Supabase session and existing RLS.
+- Use explicit selected columns only; do not fetch hostnames or Guacamole metadata into Android.
+- Use PKCE for mobile recovery and validate the app scheme/host. Only enter password-reset mode after successful session exchange.
+- Never log passwords, tokens, connection tickets, or raw backend errors.
+- Keep `local.properties` ignored by Git. It may contain the Supabase URL and publishable key, never a service-role key.
+- Leave remote connect/start controls disabled until the API, authorization, ticket expiry, certificate validation, and transport are verified.
 
-## Design system
+## Testing and build requirements
 
-**Direction:** Calm industrial modernism for a personal cloud workstation: precise and trustworthy rather than gamer-like or template-heavy.
+Source tests exist for safe authentication error handling and Compose smoke coverage for sign-in/recovery screens. **They have not run.** The sandbox currently has no Android SDK, Gradle, Kotlin compiler, ADB, Android Studio, or `/dev/kvm`. No SDK/NDK license acceptance or installation has been approved. Therefore there is no locally built APK and no emulator result yet. Do not report compile, test, emulator, or device success until it is actually measured.
 
-**Principles:** one clear primary action; status before decoration; high-contrast accessible controls; data is either verified or explicitly identified as unavailable.
+## Remaining product work
 
-**Color tokens:** `ink` #101923, `panel` #17232F, `paper` #F5F7F8, `muted` #6B7785, signature `signalTeal` #20BFA9, `warning` #D99028, `danger` #C74D4D, `success` #1E8E67. Dark surfaces are the default desktop/session mode; light mode is supported for account/settings surfaces.
-
-**Typography:** Android system sans for headings/body; system monospace only for technical endpoint/session diagnostics. Title 28sp/32sp semibold, section 18sp/24sp semibold, body 16sp/24sp regular, supporting 14sp/20sp, technical labels 12sp/16sp.
-
-**Spacing/radii:** 4dp base; common gaps 8/12/16/24/32dp; cards 18dp; buttons/fields 14dp; controls at least 48dp high. Elevation is restrained and reserved for modal/session overlays.
-
-**Components/states:** Primary/secondary/quiet buttons; email/password inputs; VM status indicator with text label; assigned-PC panel; progress, empty, offline, error, and confirmation surfaces. Focus, pressed, disabled, and loading states must remain visually distinct.
-
-**Motion:** short 160–220ms transitions for state changes; avoid motion during RDP rendering; respect system reduced-motion settings.
-
-**Brand:** “MobiDesk — your assigned Windows workspace, ready on your phone.” Personality: capable, calm, dependable. Headlines are concise; actions state their effect (e.g. “Connect to my Cloud PC”, “Request startup”). Wordmark concept: a compact open desktop-window glyph with a single teal cursor/connection notch, paired with the MobiDesk name.
-
-## Dependencies and material unknowns
-
-- FreeRDP Android upstream documents NDK/CMake/JNI and a Gradle Android client. Use the pinned v3.32.0 release source rather than writing an RDP implementation.
-- Supabase project URL, public anon key, schema/RLS, recovery settings, and test users are not supplied.
-- Control API origin/contracts, VM inventory, server authorization, audit behavior, and operational credentials are not supplied.
-- External native RDP transport without Tailscale is unverified. HTTPS Cloudflare Tunnel is not assumed to carry arbitrary native TCP RDP.
-- This sandbox currently has Java but no Flutter/Android SDK/Gradle/ADB, no Android Studio binary, and no `/dev/kvm`; Android SDK installation and software-emulator viability must be established before claiming emulator tests.
-- Historical infrastructure and student mappings are excluded from app defaults until independently verified.
+- Build the project with the authorized Android SDK/NDK/CMake toolchain; resolve compile/native issues.
+- Run Gradle unit tests, instrumentation tests, install on an Android Emulator, and test the UI.
+- Validate live Supabase login and recovery with an authorized account; verify email delivery (custom SMTP is currently disabled).
+- Add explicit cross-student/anonymous RLS checks without exposing row data.
+- Define the administrator-role model if the separate admin dashboard remains in scope.
+- Design/deploy an authenticated VM control API with status, power, connection-ticket, audit, and error contracts.
+- Build and launch the FreeRDP Android session only from authorized short-lived tickets; verify TLS/certificate behavior and external RDP transport.
+- Test real Windows sessions, touch/pointer, keyboard, modifiers, scaling, clipboard, reconnect, background/foreground, and performance on representative devices.
+- Produce a signed release APK only with an owner-controlled signing key and final security review.
 
 ## Decision log
 
-- **2026-10-27:** User authorized a from-scratch implementation and allowed stack choice; retained the MobiDesk purpose and native FreeRDP desktop path. Chosen initial direction: native Android shell + upstream FreeRDP Android core, because this avoids Flutter/native bridge complexity and can reuse a maintained Android RDP client. This is a project decision, not a claim that integration or transport is already working.
-- **2026-10-27:** Created a new private repo `master43721/mobidesk-android`. A separate public repo `master43721/mobidesk-updated` exists, but the user asked for a clean start; it remains untouched.
+- **2026-10-27:** User authorized a clean start and selected the new private repo `master43721/mobidesk-android`; the separate public `mobidesk-updated` repo remains untouched.
+- **2026-10-27:** User allowed the agent to choose a non-Flutter implementation. Selected Kotlin/Jetpack Compose for a direct Android host around FreeRDP's Kotlin/Java/JNI Activity.
+- **2026-10-27:** Pinned official FreeRDP source to v3.32.0 commit `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`.
+- **2026-10-27:** Confirmed the connected Supabase schema, existing student provisioning trigger, row counts, RLS, and Auth configuration without reading student or VM row values.
+- **2026-10-27:** Added the MobiDesk Android password-recovery deep link to Supabase's Redirect URLs allowlist; no provider setting, Site URL, SMTP setting, database schema, or row was changed.
+- **2026-10-27:** Integrated Supabase Auth/session/recovery and student/assignment repository code in the app source. Build and runtime behavior remain unverified until a licensed Android toolchain is approved and used.

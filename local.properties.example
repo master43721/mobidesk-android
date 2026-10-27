@@ -1,0 +1,3 @@
+# Copy this file to local.properties for local builds. Never place service-role credentials here.
+SUPABASE_URL=https://kthfhjwltcpjhjemugwm.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_WITH_THE_PROJECT_PUBLISHABLE_KEY
