@@ -12,7 +12,8 @@
         android:label="MobiDesk"
         android:supportsRtl="true"
         android:theme="@style/Theme.MobiDesk"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="false"
+        tools:replace="android:theme">
 
         <activity
             android:name=".MainActivity"

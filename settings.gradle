@@ -18,3 +18,4 @@ rootProject.name = 'MobiDesk'
 include ':app'
 include ':freeRDPCore'
 project(':freeRDPCore').projectDir = file('third_party/FreeRDP/client/Android/Studio/freeRDPCore')
+project(':freeRDPCore').buildFileName = '../../../../../../gradle/freerdpcore.gradle'
