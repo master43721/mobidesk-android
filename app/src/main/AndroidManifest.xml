@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_mobidesk"
+        android:label="MobiDesk"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MobiDesk"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|density|screenLayout"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name="com.freerdp.freerdpcore.presentation.SessionActivity"
+            android:exported="false"
+            tools:replace="android:exported" />
+        <activity
+            android:name="com.freerdp.freerdpcore.services.SessionRequestHandlerActivity"
+            android:exported="false"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

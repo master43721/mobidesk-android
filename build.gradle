@@ -1,0 +1,54 @@
+buildscript {
+    ext.kotlin_version = '2.3.21'
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:9.2.1'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version"
+    }
+}
+
+ext {
+    compileApi = 37
+    targetApi = 37
+    minApi = 29
+    toolsVersion = '37.0.0'
+    ndkVersion = '29.0.13113456'
+    abiFilters = ['arm64-v8a', 'x86_64']
+    splitArchs = ['arm64-v8a', 'x86_64']
+    splitEnabled = false
+    universal = true
+    cmakeVersion = '4.1.2'
+    cmakeArguments = [
+        '-DWITH_FFMPEG=ON',
+        '-DWITH_OPENH264=ON',
+        '-DWITH_OPUS=ON',
+        '-DWITH_WEBP=ON',
+        '-DWITH_JPEG=ON',
+        '-DWITH_PNG=ON',
+        '-DWITH_CJSON=ON',
+        '-DWITH_OPENSSL=ON'
+    ]
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    subprojects {
+        afterEvaluate { project ->
+            if (project.hasProperty('android')) {
+                project.android {
+                    if (namespace == null) {
+                        namespace 'com.freerdp.' + project.name.toLowerCase()
+                    }
+                }
+            }
+        }
+    }
+}

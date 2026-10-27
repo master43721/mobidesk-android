@@ -1,0 +1,26 @@
+# Gradle / Android
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# Local signing/configuration
+*.jks
+*.keystore
+release.properties.local
+.env
+.env.*
+!.env.example
+
+# Android emulator state
+.avd/
+*.hprof
+
+# OS/editor
+.DS_Store
+Thumbs.db
