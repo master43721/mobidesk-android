@@ -1,6 +1,6 @@
 # MobiDesk security boundaries
 
-> **Status note (2026-11-03):** This file records the earlier Android/security baseline. The code has since been built, but the native RDP session, broker, WSS transport and physical security tests remain incomplete. The owner-review draft [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf) and current [`TEST_PLAN.md`](../TEST_PLAN.md) define the proposed release requirements; approval is pending.
+> **Status note (2026-11-03):** This file records the earlier Android/security baseline. The code has since been built, but the native RDP session, broker, WSS transport and physical security tests remain incomplete. The owner-review draft [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf) and current [TEST_PLAN.md](TEST_PLAN.md) define the release acceptance requirements. The Project Owner declared PRD v1.2 final on 3 Nov 2026; the PDF's cover status label remains a documented mismatch.
 
 ## Earlier implementation baseline (compiled historically; RDP still incomplete)
 
