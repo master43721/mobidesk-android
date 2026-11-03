@@ -34,11 +34,11 @@
 | MD-G2-04 Implement WSS binary relay, pin metadata, queue bounds and cleanup | 14–18 h | MD-G2-03; stable WSS/TLS route | Project Owner | 24 Nov; relay integration tests |
 | MD-G2-05 Implement active session/assignment recheck and 30-second termination | 8–10 h | MD-G2-04 | Project Owner | 25 Nov; revocation test |
 | MD-G3-01 Inspect pinned FreeRDP raw transport, callbacks, renderer and RDPEDISP | 12–18 h | G1; exact v3.32.0 gitlink | Project Owner | 2 Dec; pinned-source spike report |
-| MD-G3-02 Prove descriptor/socket bridge and malicious-local-app rejection | 10–14 h | MD-G3-01 | Project Owner | 4 Dec; local-hijack test |
-| MD-G3-03 Implement SessionCoordinator, BrokerClient and StatusRepository | 12–16 h | G2; MD-G3-01 | Project Owner | 8 Dec; unit/contract tests |
-| MD-G3-04 Implement RdpSessionActivity, RdpRenderTarget and input overlay | 16–24 h | MD-G3-01 | Project Owner | 11 Dec; surface/input instrumentation |
-| MD-G3-05 Implement separate credential prompt, NLA/certificate callbacks and cleanup | 12–18 h | MD-G3-02/04 | Project Owner + Lab IT consulted | 15 Dec; credential/cert lifecycle tests |
-| MD-G3-06 Connect WSS relay to exact FreeRDP custom stream and prove display/session lifecycle | 18–30 h | MD-G2-04; MD-G3-02/05 | Project Owner | 18–30 Dec forecast; end-to-end RDP proof |
+| MD-G3-02 Prove descriptor/socket bridge and malicious-local-app rejection | 10–14 h | MD-G3-01 | Project Owner | 7–9 Dec; local-hijack test |
+| MD-G3-03 Implement SessionCoordinator, BrokerClient and StatusRepository | 12–16 h | G2; MD-G3-01 | Project Owner | 10–14 Dec; unit/contract tests |
+| MD-G3-04 Implement RdpSessionActivity, RdpRenderTarget and input overlay | 16–24 h | MD-G3-01/03 | Project Owner | 15–18 Dec; surface/input instrumentation |
+| MD-G3-05 Implement separate credential prompt, NLA/certificate callbacks and cleanup | 12–18 h | MD-G3-02/04 | Project Owner + Lab IT consulted | 21–23 Dec; credential/cert lifecycle tests |
+| MD-G3-06 Connect WSS relay to exact FreeRDP custom stream and prove display/session lifecycle | 18–30 h | MD-G2-04; MD-G3-02/05 | Project Owner | 24–31 Dec forecast; end-to-end RDP proof |
 | MD-G4-01 Confirm RD-1 physical device and controlled Wi-Fi baseline | 2–4 h | Owner device access | Project Owner | Before G4; device/build evidence |
 | MD-G4-02 Run 20 attempts, FPS, input latency and recovery procedures | 16–22 h | G3; test VM/route | Project Owner | 12 Jan 2027; raw attempt ledger and performance report |
 | MD-G4-03 Run 20-cycle cleanup, negative security, log/packet/static scans | 12–16 h | G2/G3 | Project Owner | 15 Jan 2027; signed test evidence |
