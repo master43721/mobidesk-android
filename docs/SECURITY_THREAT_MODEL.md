@@ -42,9 +42,9 @@
 - Future Raspberry Pi dock (R2).
 
 ### Explicit assumptions / limits
-- **[VERIFIED: `README.md` at `main@a6c7282`]** The current app is a native Kotlin/Jetpack Compose client; current RDP integration is not complete.
-- **[VERIFIED: `.gitmodules` and gitlink at `main@a6c7282`]** FreeRDP is pinned at `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`; the upstream commit identifies itself as release 3.32.0.
-- **[VERIFIED: `app/src/main/AndroidManifest.xml` at `main@a6c7282`]** Current manifest disables cleartext traffic.
+- **[VERIFIED: `README.md` at `main@5979320`]** The current app is a native Kotlin/Jetpack Compose client; current RDP integration is not complete.
+- **[VERIFIED: `.gitmodules` and gitlink at `main@5979320`]** FreeRDP is pinned at `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`; the upstream commit identifies itself as release 3.32.0.
+- **[VERIFIED: `app/src/main/AndroidManifest.xml` at `main@5979320`]** Current manifest disables cleartext traffic.
 - **[UNKNOWN]** A physical RD-1 Pixel 6 is not verified as available for security tests.
 - **[UNKNOWN]** Exact FreeRDP raw-stream injection, callback and local descriptor APIs have not yet been proven against the pinned source.
 - **[UNKNOWN]** The active-session lookup implementation and its minimum Supabase privilege path are not yet deployed.
