@@ -34,3 +34,5 @@
 ## Handling rule
 
 At this audit snapshot, docs/prd-v1.2-suite was 18 commits ahead and one commit behind main; its three-dot compare contained only documentation paths. Recheck the branch head before opening the PR. An open item may be closed only with its stated evidence and owner decision. Keep VM4 excluded until verified. Never put student identifiers, passwords, private IPs, hostnames, secret keys, grant values or access tokens into this file.
+
+| OI-17 | GitHub Actions run 41595687606 failed before Gradle: hosted runner could not locate `platforms;android-37` during SDK package installation. Test/build/verification steps were skipped. [VERIFIED: run 41595687606, job 125782381543, 3 Nov 2026] | Project Owner | 5 Nov 2026 | In a separate CI-only change, choose a supported API 37 installation source or runner image, preserve the pinned SDK baseline, then rerun and record a green JVM/debug build. This docs PR must not edit workflow or Gradle. | OPEN — CI build blocker |
