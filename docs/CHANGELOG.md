@@ -29,3 +29,5 @@ Initial engineering suite derived from MobiDesk PRD v1.2.
 
 - Widened the G3 forecast to 18–31 Dec 2026 and moved G4/G5 to 8–15 Jan and 20–28 Jan 2027 to reflect the 80–120 hour one-person integration range and hand-off risk.
 - Removed the loopback IP literal and changed the wireframe email to a reserved non-deliverable placeholder; the OpenAPI file contains no deployment hostname.
+
+- Recorded GitHub Actions run 41595687606 failing before Gradle because the hosted runner could not locate `platforms;android-37`; added a separate CI follow-up without changing workflow or Gradle.
