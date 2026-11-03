@@ -8,10 +8,10 @@
 
 | ID | Topic | Current decision / position | Evidence or reason | State |
 |---|---|---|---|---|
-| DEC-01 | Canonical repository | Use only master43721/mobidesk-android | [VERIFIED: GitHub repo metadata and main@a6c7282] Main is the native Kotlin/Jetpack Compose app named by PRD §6.1. | CONFIRMED |
-| DEC-02 | Client stack | Native Kotlin + Jetpack Compose; no Flutter PlatformView architecture | [VERIFIED: settings.gradle, MainActivity.kt, app/build.gradle at main@a6c7282] | CONFIRMED |
-| DEC-03 | Android SDK baseline | minSdk29 / compileSdk37 / targetSdk37; Java/Kotlin target11; ABIs arm64-v8a + x86_64 | [VERIFIED: build.gradle, app/build.gradle, release.properties at main@a6c7282]. API29 in PRD §8.1 agrees with NFR-COMP-01 preservation. | CONFIRMED |
-| DEC-04 | FreeRDP version | Keep exact pinned v3.32.0 gitlink for the current R1 integration spike | [VERIFIED: .gitmodules/gitlink at main@a6c7282; upstream signed release commit d27a4f7...] | CONFIRMED |
+| DEC-01 | Canonical repository | Use only master43721/mobidesk-android | [VERIFIED: GitHub repo metadata and main@5979320] Main is the native Kotlin/Jetpack Compose app named by PRD §6.1. | CONFIRMED |
+| DEC-02 | Client stack | Native Kotlin + Jetpack Compose; no Flutter PlatformView architecture | [VERIFIED: settings.gradle, MainActivity.kt, app/build.gradle at main@5979320] | CONFIRMED |
+| DEC-03 | Android SDK baseline | minSdk29 / compileSdk37 / targetSdk37; Java/Kotlin target11; ABIs arm64-v8a + x86_64 | [VERIFIED: build.gradle, app/build.gradle, release.properties at main@5979320]. API29 in PRD §8.1 agrees with NFR-COMP-01 preservation. | CONFIRMED |
+| DEC-04 | FreeRDP version | Keep exact pinned v3.32.0 gitlink for the current R1 integration spike | [VERIFIED: .gitmodules/gitlink at main@5979320; upstream signed release commit d27a4f7...] | CONFIRMED |
 | DEC-05 | Assignment authority | Broker derives exactly one VM assignment from authenticated subject and trusted server data; client never selects target | PRD §§6.3, 9; API_CONTRACT.md | REQUIRED |
 | DEC-06 | Windows guest auth | Student enters separate Windows NLA credentials each session; broker never receives guest password | PRD §6.4; DESIGN.md §5.4 | REQUIRED |
 | DEC-07 | Grant semantics | 256-bit+ CSPRNG grant; 60s maximum TTL; single-use; hash at rest; bound to user/session/assignment | PRD §§6.3, 9; API_CONTRACT.md | REQUIRED |
@@ -25,7 +25,7 @@
 | DEC-15 | VM4 | Keep VM4 excluded until OS/endpoint verification and owner/Lab IT approval | PRD §§10, 15; OPEN_ITEMS.md OI-09 | EXCLUDED |
 | DEC-16 | Reference device | PRD nominates Pixel 6 / Android16 / API36 / arm64; actual physical availability is UNKNOWN | PRD §8.1; OI-06 | OPEN |
 | DEC-17 | Distribution | Public Play vs permanently private organization-only Play vs owner-managed APK/MDM | OPERATIONS.md §2; OI-08 | OWNER DECISION |
-| DEC-18 | Repository visibility | GitHub currently reports public; README says private | [VERIFIED: GitHub metadata and README at main@a6c7282] | OWNER DECISION |
+| DEC-18 | Repository visibility | GitHub currently reports public; README says private | [VERIFIED: GitHub metadata and README at main@5979320] | OWNER DECISION |
 | DEC-19 | PRD approval label | Owner says v1.2 is final; PDF cover still says review draft / approval required | Owner instruction and PRD PDF p.2 | OWNER DOCUMENTATION DECISION |
 | DEC-20 | FR-SEC numbering | FR-SEC-01..03 are not defined in v1.2; candidate wording is in PRD_V1_3_CHANGES.md | Direct source inventory | OWNER APPROVAL REQUIRED |
 | DEC-21 | Windows account operations | Per-student guest account lifecycle/lockout/reset must be approved with Lab IT | PRD §9 item 13; OI-10 | OPEN |
