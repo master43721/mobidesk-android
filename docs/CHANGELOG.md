@@ -31,3 +31,13 @@ Initial engineering suite derived from MobiDesk PRD v1.2.
 - Removed the loopback IP literal and changed the wireframe email to a reserved non-deliverable placeholder; the OpenAPI file contains no deployment hostname.
 
 - Recorded GitHub Actions run 41595687606 failing before Gradle because the hosted runner could not locate `platforms;android-37`; added a separate CI follow-up without changing workflow or Gradle.
+
+
+## 3 November 2026 — Owner-selected feature scope
+
+- Added `FEATURE_INVENTORY.md` with 22 Feature Points (18 R1, 4 R2).
+- Recorded prompt-per-session Windows guest authentication as the selected R1 pilot path.
+- Recorded both Dock render architectures as candidates for a measured comparison; no architecture selected.
+- Recorded no additional scope; clipboard, file transfer and admin console remain excluded.
+- Recorded background-session continuity as an owner-directed proposed amendment to v1.2, not a normative change. Screen-lock behavior remains open.
+- Linked the feature inventory from this index and updated DECISIONS, OPEN_ITEMS, TASKS and PROGRESS.
