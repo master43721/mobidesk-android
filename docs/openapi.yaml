@@ -6,12 +6,9 @@ info:
   description: |
     Target API contract derived from MobiDesk PRD v1.2 §§5.2-5.3, 6.2-6.7,
     9 and 12. This specification is not evidence of a deployed service.
-    All request/response examples use fake values. The control plane accepts
-    a Supabase user access JWT; the WSS relay accepts a separate one-use
-    MobiDesk grant. The client never selects a VM or endpoint.
-servers:
-  - url: https://broker.example.invalid
-    description: Illustrative placeholder only; replace with the owner-approved TLS origin before deployment.
+    All request/response examples use fake values. The control plane accepts a Supabase user access JWT; the WSS relay accepts
+    a separate one-use MobiDesk grant. The client never selects a VM or endpoint.
+    Deployment origin is provided by environment configuration and omitted here.
 tags:
   - name: Health
   - name: Control
