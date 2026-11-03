@@ -6,11 +6,12 @@
 
 ## Repository baseline inspected on 2026-11-03
 
-- Canonical repository: private `master43721/mobidesk-android`; branch `main` was clean at commit `4986006` when inspected.
+- Canonical repository: private `master43721/mobidesk-android`; branch `main` was clean at commit `4986006` when first inspected. PRD documentation was later pushed as `cbcdea6`, and the first CI workflow as `a6c7282`; current CI/manifest/audit fixes are pending validation and push.
 - Android shell, Supabase Auth/session recovery and RLS-scoped student/VM reads exist. The dashboard does not yet launch a remote desktop or query a trusted live-status service.
-- FreeRDP Android is a git submodule pinned to v3.32.0, commit `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`. Existing build documentation reports that the native libraries are packaged for `arm64-v8a` and `x86_64`; that is not proof of an RDP session.
-- The 2026-10-27 build report records a 207,696,333-byte debug-signed APK, unit-test/build success and no emulator, physical-device, real-login or RDP acceptance. It is a historical development artifact, not the final APK.
-- No GitHub Actions workflow existed at the time of this audit.
+- FreeRDP Android is a git submodule pinned to v3.32.0, commit `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`. Existing build documentation reports native libraries for `arm64-v8a` and `x86_64`; that is not proof of an RDP session.
+- A fresh local build after manifest hardening passed 2 JVM unit tests, compiled FreeRDP native code and assembled a debug APK. The merged manifest contains zero exported FreeRDP components. The APK passed ZIP and signature verification; its SHA-256 and size are recorded in `PROGRESS.md`. It is a debug build, not an RDP/emulator/release acceptance artifact.
+- A GitHub Actions workflow now exists. Its first run (`41585309927`) failed before Gradle because the setup action requested the retired `tools` SDK package. The workflow is locally corrected to use the SDK Manager present on the hosted runner; the rerun is pending.
+- The FreeRDP source audit is complete: see [`FREERDP_ANDROID_API_AUDIT.md`](FREERDP_ANDROID_API_AUDIT.md). Native C `rdpTransportIo` hooks exist, but the checked-in Android Java wrapper exposes no raw socket/stream injection method. RD Gateway WebSocket uses HTTP upgrade and RD Gateway framing; it is not a transparent raw-RDP relay. A native/JNI transport spike is a prerequisite, not an optional UI task.
 - A separate local broker prototype exists outside this repository. A read-only audit found 23 passing local unit tests, but the prototype is not deployed or checked into this repository and is not PRD-conformant: it lacks `/v1/vm-status`, active Supabase-session validation, periodic in-session revocation checks, and stable TLS/WSS ingress; it returns VM ID/name in its grant response and its issuance throttling is not the PRD's 5-per-minute policy. Do not expose or deploy it as-is.
 
 ## External baseline checked read-only on 2026-11-03
@@ -30,9 +31,9 @@ The last dated Supabase assignment audit (2026-10-30) records five student-to-VM
 1. Record Owner approval of this PRD and freeze the exact repository commit/submodule.
 2. Complete `API_CONTRACT.md`, `SECURITY_THREAT_MODEL.md`, and `TEST_PLAN.md`; reconcile assignment and server-readiness facts.
 3. Implement broker identity/session checks, unique assignment lookup, live lifecycle plus bounded RDP readiness, one-time grant, allowlist-only relay, and revocation during an active relay.
-4. Inspect the pinned FreeRDP v3.32.0 Android source for its actual session Activity, render surface, credentials, certificate callback, and raw-stream transport APIs. Do not infer intent extras or equate Microsoft RD Gateway WebSocket with the custom raw-byte relay.
-5. Implement a MobiDesk-owned session coordinator and native session Activity, a protected local transport, a separate volatile Windows-credential prompt, certificate pinning, lifecycle cleanup, safe input controls and privacy-safe telemetry.
+4. Use the completed pinned-source audit; build a native/JNI transport spike and prove protected byte-stream composition with FreeRDP TLS/NLA and Android lifecycle before app session implementation. Stop if it cannot meet the threat model.
+5. Implement a MobiDesk-owned session coordinator and non-exported session Activity, protected local transport, separate volatile Windows-credential prompt, certificate pinning, lifecycle cleanup, safe input controls and privacy-safe telemetry.
 6. Run broker/unit/instrumentation and negative authorization tests, then physical-device and controlled-network performance/security gates.
-7. Produce the owner-signed release only after G0–G5 evidence is recorded. A compile, debug APK or mock is not R1 completion.
+7. Produce the Owner-signed release only after G0–G5 evidence is recorded. A compile, debug APK or mock is not R1 completion.
 
 See [`TEST_PLAN.md`](../TEST_PLAN.md), [`OPEN_ITEMS.md`](../OPEN_ITEMS.md), [`PROGRESS.md`](../PROGRESS.md), and [`TODO.md`](../TODO.md) for actionable evidence and gate status.

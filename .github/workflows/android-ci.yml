@@ -28,6 +28,8 @@ jobs:
     permissions:
       contents: read
     env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
     steps:
       - name: Check out source and pinned FreeRDP submodule
@@ -43,8 +45,15 @@ jobs:
           java-version: "21"
           cache: gradle
 
-      - name: Set up Android SDK tools
-        uses: android-actions/setup-android@v3
+      - name: Locate preinstalled Android SDK tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$ANDROID_HOME/cmdline-tools"
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -path '*/bin/sdkmanager' -print | sort -V | tail -n 1)"
+          test -x "$sdkmanager_bin"
+          printf '%s\n' "$(dirname "$sdkmanager_bin")" "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          "$sdkmanager_bin" --version
 
       - name: Install native build prerequisites
         run: |
