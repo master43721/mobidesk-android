@@ -1,6 +1,6 @@
 # Platform notes and source references
 
-> **Historical notes.** The 2026-10-27 build/toolchain facts below remain evidence for that build, but the old claim that the server was not inspected is superseded by the read-only 2026-11-03 inventory in [`../BASELINE_AUDIT.md`](../BASELINE_AUDIT.md). Current product scope is in [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf), which is still pending Owner approval.
+> **Historical notes.** The 2026-10-27 build/toolchain facts below remain evidence for that build, but the old claim that the server was not inspected is superseded by the read-only 2026-11-03 inventory in [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md). Current product scope is in [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf), whose cover still carries a pending-approval label; the Project Owner's 3 Nov 2026 instruction declares v1.2 the final decided baseline.
 
 ## Google AI Studio workspace
 

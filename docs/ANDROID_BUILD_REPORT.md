@@ -1,6 +1,6 @@
 # MobiDesk Android — Build and Delivery Report
 
-> **Historical report (2026-10-27).** Its debug-build evidence remains valid for that source revision, but its statements about server access and stopped testing are no longer current. See [`../PROGRESS.md`](../PROGRESS.md), [`../BASELINE_AUDIT.md`](../BASELINE_AUDIT.md), and [`../TODO.md`](../TODO.md) for the latest state. It does not claim a working RDP session or final release.
+> **Historical report (2026-10-27).** Its debug-build evidence remains valid for that source revision, but its statements about server access and stopped testing are no longer current. See [`PROGRESS.md`](PROGRESS.md), [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md), and [`../TODO.md`](../TODO.md) for the latest state. It does not claim a working RDP session or final release.
 
 **Report date:** 2026-10-27
 
@@ -14,7 +14,7 @@ The Android build completed successfully and produced an installable **debug-sig
 
 ## APK artifact
 
-- **File:** [`app-debug.apk`](../app/build/outputs/apk/debug/app-debug.apk)
+- **Local build output (not committed):** `app/build/outputs/apk/debug/app-debug.apk`. The generated APK was intentionally not stored in the repository.
 - **Package:** `com.mobidesk.android`
 - **Version:** `0.2.0` (version code `1`)
 - **Minimum SDK:** 29
