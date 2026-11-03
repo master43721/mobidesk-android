@@ -1,15 +1,11 @@
 # MobiDesk documentation changelog
 
 ## 1.2 — 3 November 2026
-- Replaced wishlist-style product framing with testable, normative requirements and explicit exclusions.
-- Made server-side identity/assignment derivation mandatory; removed client-selected VM routing.
-- Chose separate per-session Windows guest credentials as the pilot recommendation.
-- Added active Supabase session and assignment revocation requirements.
-- Added certificate identity policy, bridge hijack controls, broker abuse/rate-limit controls and security rollback.
-- Established native RdpSessionActivity boundary and foreground-only R1 lifecycle.
-- Deferred Dock to R2 and required a measured Pi-vs-phone architecture spike.
-- Added performance gates with sample counts, device conditions and privacy-safe telemetry.
-- Preserved repository audit documents as evidence rather than letting code override product requirements.
-
-## 1.1 and earlier
-See repository history and supporting project documentation.
+- Added normative, testable PRD and decision traceability.
+- Added implementation-focused technical specification and architecture-level technical design.
+- Defined server-derived assignment, separate Windows guest authentication, session grant lifecycle and revocation.
+- Added certificate trust, local bridge hijack and broker abuse protections.
+- Defined native RdpSessionActivity boundary and R1 foreground-only lifecycle.
+- Deferred Dock to R2 comparative architecture experiment.
+- Added measured performance, verification, operations and release gates.
+- Preserved baseline audit material as evidence rather than allowing code to override requirements.
