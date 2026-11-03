@@ -1,6 +1,6 @@
 # Supabase discovery — MobiDesk
 
-> **Historical snapshot (2026-10-27).** Counts and assignment statements in this file predate a later 2026-10-30 assignment update. The last dated audit recorded five student assignments; PRD v1.2 says only four RDP endpoints are approved and VM4 is unverified. Re-query the live project and reconcile the approved server allowlist before any R1 test. See [`BASELINE_AUDIT.md`](../BASELINE_AUDIT.md) and [`OPEN_ITEMS.md`](../OPEN_ITEMS.md). No assignment should be inferred from this historical count.
+> **Historical snapshot (2026-10-27).** Counts and assignment statements in this file predate a later 2026-10-30 assignment update. The last dated audit recorded five student assignments; PRD v1.2 says only four RDP endpoints are approved and VM4 is unverified. Re-query the live project and reconcile the approved server allowlist before any R1 test. See [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md) and [`OPEN_ITEMS.md`](OPEN_ITEMS.md). No assignment should be inferred from this historical count.
 
 ## Project and historical data inventory (2026-10-27)
 
