@@ -126,3 +126,10 @@ The detailed requirement-to-test mapping is in `TRACEABILITY_CHECK.md`. This tab
 ## 9. Audit boundary
 
 No source code, Gradle file, git submodule, workflow, Supabase record, server, VM, firewall, certificate or release key was changed during this audit. This documentation branch must remain under `docs/` only.
+
+## 4. CI SDK provisioning observation
+
+- **[VERIFIED: GitHub Actions run `41595687606`, job `125782381543`, 3 Nov 2026]** The `JVM tests and debug APK` job failed in the step `Accept Android SDK licenses and install pinned packages` because the runner package catalog returned `Failed to find package 'platforms;android-37'`. The Gradle test/build, APK verification and emulator steps were skipped.
+- **[VERIFIED: `app/build.gradle` at `main@5979320`]** The app is configured for compileSdk 37 / targetSdk 37. This configuration was not changed by the documentation branch.
+- **Conclusion:** repository source/build settings are observed, but the hosted CI runner's ability to provision API 37 is not verified. Resolve runner SDK availability in a separate CI/build task; this documentation-only PR does not modify CI or Gradle.
+
