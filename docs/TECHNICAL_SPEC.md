@@ -16,9 +16,9 @@
 
 ## 2. Current repository baseline relevant to implementation
 
-- [VERIFIED: settings.gradle at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3] The current Gradle project includes :app and :freeRDPCore; the implementation is a native Kotlin/Jetpack Compose Android application.
-- [VERIFIED: app/build.gradle and build.gradle at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3] Current Android build uses minSdk 29, compileSdk 37, targetSdk 37, Java/Kotlin target 11 and ABIs arm64-v8a and x86_64.
-- [VERIFIED: .gitmodules and repository gitlink at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3] FreeRDP is pinned under third_party/FreeRDP at d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1, the upstream signed release commit identified as v3.32.0.
+- [VERIFIED: settings.gradle at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5] The current Gradle project includes :app and :freeRDPCore; the implementation is a native Kotlin/Jetpack Compose Android application.
+- [VERIFIED: app/build.gradle and build.gradle at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5] Current Android build uses minSdk 29, compileSdk 37, targetSdk 37, Java/Kotlin target 11 and ABIs arm64-v8a and x86_64.
+- [VERIFIED: .gitmodules and repository gitlink at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5] FreeRDP is pinned under third_party/FreeRDP at d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1, the upstream signed release commit identified as v3.32.0.
 - [VERIFIED: app/build.gradle at the same commit] Current app dependencies include Ktor Android client 3.4.3, but the inspected dependency list does not explicitly include a Ktor WebSockets client artifact.
 - [VERIFIED: MobiDeskRepositories.kt at the same commit] Current student workspace queries select the current user's student profile and RLS-filtered VM summary. A broker API client, live status repository, grant coordinator, MobiDesk RDP Activity and protected raw-WSS bridge are not present in the inspected application source.
 - [VERIFIED: AndroidManifest.xml at the same commit] The manifest disables cleartext traffic. Existing upstream FreeRDP activities are non-exported; a MobiDesk-owned RdpSessionActivity is not currently declared.
@@ -140,7 +140,7 @@ The coordinator is serialized: a second Connect request while PREPARING, CONNECT
 - Uses TLS validation and bounded connection/request timeout.
 - Decodes only the PRD §12 error codes; unknown internal error is mapped to a safe catalogue code, never surfaced raw.
 - Grant response is held in memory for the one connection attempt, consumed once and cleared on all exit paths.
-- A WSS client is a separate adapter. [VERIFIED: app/build.gradle at main@a6c7282] Ktor Android client 3.4.3 is present; an explicit Ktor WebSocket client dependency is not listed in the inspected app dependencies. Select a compatible implementation in a separate reviewed source/build change. This document does not add that dependency.
+- A WSS client is a separate adapter. [VERIFIED: app/build.gradle at main@5979320] Ktor Android client 3.4.3 is present; an explicit Ktor WebSocket client dependency is not listed in the inspected app dependencies. Select a compatible implementation in a separate reviewed source/build change. This document does not add that dependency.
 
 ## 5. Connection state machine
 
@@ -345,7 +345,7 @@ Each spike report must include gitlink SHA, inspected file paths, API table, tes
 
 [REPORTED: docs/SUPABASE_DISCOVERY.md historical snapshot dated 27 Oct 2026] The public schema is documented as students, vms, and student_vm_access; the discovery file records students(id,name,college,...), vms(id,name,...), and student_vm_access(student_id,vm_id,granted_at). This schema evidence is historical; revalidate constraints/migrations before implementation.
 
-[VERIFIED: MobiDeskRepositories.kt at main@a6c7282...] The client currently loads students(id,name,college) filtered by the authenticated user ID and an RLS-filtered vms(id,name) list.
+[VERIFIED: MobiDeskRepositories.kt at main@5979320...] The client currently loads students(id,name,college) filtered by the authenticated user ID and an RLS-filtered vms(id,name) list.
 
 Target conceptual model:
 
@@ -419,7 +419,7 @@ Record p50/p90 and sample count in reports. No adoption percentage/vanity metric
 
 ## 12. Build, signing and reproducibility
 
-- [VERIFIED: build.gradle and app/build.gradle at main@a6c7282...] Preserve minSdk29, compileSdk37, targetSdk37, Java/Kotlin target11, arm64-v8a and x86_64 unless a separately approved build change records reason and regression evidence.
+- [VERIFIED: build.gradle and app/build.gradle at main@5979320...] Preserve minSdk29, compileSdk37, targetSdk37, Java/Kotlin target11, arm64-v8a and x86_64 unless a separately approved build change records reason and regression evidence.
 - [VERIFIED: .github/workflows/android-ci.yml at the same commit] CI uses Java21 to run Gradle and the app targets Java/Kotlin bytecode 11; CI builds a debug APK and runs JVM tests. Physical-device RDP testing is not in this workflow.
 - [VERIFIED: app/build.gradle at the same commit] No explicit owner release signingConfig is present in the inspected release block.
 - [UNKNOWN] The owner-controlled release/upload key custody and release distribution channel are not yet approved.
