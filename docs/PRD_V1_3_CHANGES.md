@@ -106,7 +106,7 @@ Do not replace Pixel 6 with a guessed model. The device/build fingerprint belong
 | Guest account / Windows lockout approval | 6 Nov 2026 | Lab IT policy dependency |
 | Stable broker HTTPS/WSS route | 12 Nov 2026 | Owner DNS/TLS/network and WSS tests |
 | G2 broker ready | 25 Nov 2026 | Approximately 48–64 focused hours; session lookup, unique assignment, grant, relay, rate and revocation |
-| G3 native FreeRDP integration | 18–30 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
+| G3 native FreeRDP integration | 18–31 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
 | G4 physical R1 acceptance | 8–15 Jan 2027 | Requires G2/G3 plus RD-1 confirmation and 20-attempt/20-cycle performance/security evidence |
 | G5 signing and operations ready | 20–28 Jan 2027 | Requires G4, distribution/key choice, backup/restore, retention and runbooks |
 
