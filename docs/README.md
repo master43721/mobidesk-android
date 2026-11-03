@@ -64,9 +64,9 @@ Historical evidence must be interpreted using its own snapshot date. In particul
 
 ## G0 findings and open constraints
 
-- [VERIFIED: main@a6c7282] The canonical repository and PRD §6.1 agree on native Kotlin/Jetpack Compose.
-- [VERIFIED: main@a6c7282] minSdk is 29; compileSdk/targetSdk are 37/37; Java/Kotlin target is 11; native ABIs are arm64-v8a and x86_64.
-- [VERIFIED: main@a6c7282 plus pinned upstream FreeRDP commit] FreeRDP is pinned to the signed v3.32.0 release commit.
+- [VERIFIED: main@5979320] The canonical repository and PRD §6.1 agree on native Kotlin/Jetpack Compose.
+- [VERIFIED: main@5979320] minSdk is 29; compileSdk/targetSdk are 37/37; Java/Kotlin target is 11; native ABIs are arm64-v8a and x86_64.
+- [VERIFIED: main@5979320 plus pinned upstream FreeRDP commit] FreeRDP is pinned to the signed v3.32.0 release commit.
 - [UNKNOWN] RD-1 physical phone availability, production broker host/route, guest account lockout model, current backup/restore policy and distribution choice.
 - G3 remains blocked on exact pinned FreeRDP transport, secure LocalBridge, certificate callback, credential lifecycle and render/resize integration proofs.
 - VM4 remains excluded until independently verified and approved.
@@ -74,4 +74,4 @@ Historical evidence must be interpreted using its own snapshot date. In particul
 
 ## Change and review workflow
 
-Work on branch `docs/prd-v1.2-suite`. Each documentation file is committed separately. Review changes against main; no application-code or configuration change is permitted in this branch. Open a pull request for review; do not merge automatically.
+Work on branch `docs/prd-v1.2-suite`. Each documentation file is committed separately. The branch began from an earlier mainline base and was one commit behind main at the 3 Nov 2026 audit; the three-dot compare contained documentation paths only. Review the final diff against main; no application-code or configuration change is permitted. Open a pull request for review; do not merge automatically.
