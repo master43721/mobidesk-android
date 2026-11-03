@@ -173,3 +173,37 @@ These are implementation or documentation conflicts, not permission to relax the
 - [ ] Project Owner approves final v1.3 revision before it supersedes v1.2.
 
 Until all applicable approvals are recorded, PRD v1.2 remains unchanged and authoritative.
+
+
+## 8. Owner-directed change — R1 background session continuity
+
+**Owner direction recorded:** 3 November 2026.  
+**Affected feature:** FP-14 — RDP Session Lifecycle, Background Continuity and Cleanup.  
+**Current normative conflict:** PRD v1.2 §5.3 / §6.8 and current DESIGN.md §7 specify foreground-only R1 behavior and teardown after five seconds of true backgrounding or screen lock.
+
+### Proposed successor-PRD wording
+
+> When a student backgrounds MobiDesk or switches to another application during an authenticated RDP session, MobiDesk SHOULD keep the active session connected while the session remains authorized, the device/network permit it, and the user has not explicitly disconnected. The session controller and transport MUST NOT depend on the RDP Activity remaining visible. The app MUST provide a clear, ongoing user-visible session indication and a direct return/disconnect action. Revocation, assignment change, network loss, explicit disconnect, force-stop or operating-system process termination MUST result in bounded cleanup and safe recovery; session survival after force-stop or process termination is not guaranteed.
+
+The exact use of MUST/SHOULD, background duration, notification behavior and lock-screen behavior must be finalized in the successor PRD.
+
+### Required engineering proof before implementation is considered ready
+
+- Start the long-running session component only from the visible, user-initiated session flow.
+- Identify a foreground-service type and permission that accurately represents this use case; do not label an RDP socket as `dataSync`, `connectedDevice` or `specialUse` without platform/policy validation.
+- Provide the required ongoing notification with return-to-session and explicit disconnect actions if a foreground service is selected.
+- Validate service declaration, type-specific permission, start restrictions and notification behavior on the repository's target SDK and the nominated reference device.
+- Prove the native FreeRDP context, bridge, WSS transport, input state and cleanup remain correct while the Activity is not visible.
+- Test app task switching, return, notification action, network interruption, OS resource pressure, process death and explicit user stop.
+- Measure foreground/background battery, memory, network use, thermal behavior and session reliability.
+- Decide screen-lock/display-off behavior separately; background continuation does not automatically approve displaying or maintaining a session while the device is locked.
+
+### Platform references
+
+- Android foreground service types and type-specific declarations: https://developer.android.com/develop/background-work/services/fgs/service-types
+- Android restrictions on starting foreground services from background: https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start
+- Android foreground-service overview and user-visible notification expectation: https://developer.android.com/develop/background-work/services/fgs
+
+### Status
+
+**OWNER-DIRECTED PROPOSAL — NOT YET NORMATIVE.** PRD v1.2 remains unchanged and continues to specify foreground-only behavior until Project Owner formally approves a successor PRD revision. DEC-27 and DEC-28 track the direction and the unresolved lock-screen question.
