@@ -1,0 +1,480 @@
+openapi: 3.1.0
+info:
+  title: MobiDesk Session Broker API
+  version: 1.0.0
+  summary: R1 control-plane and secure RDP relay contract
+  description: |
+    Target API contract derived from MobiDesk PRD v1.2 §§5.2-5.3, 6.2-6.7,
+    9 and 12. This specification is not evidence of a deployed service.
+    All request/response examples use fake values. The control plane accepts a Supabase user access JWT; the WSS relay accepts
+    a separate one-use MobiDesk grant. The client never selects a VM or endpoint.
+    Deployment origin is provided by environment configuration and omitted here.
+tags:
+  - name: Health
+  - name: Control
+  - name: Session
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Process liveness
+      security: []
+      responses:
+        '200':
+          description: Process can answer requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                timestamp: '2026-11-03T06:00:00Z'
+  /ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Safe broker readiness
+      security: []
+      responses:
+        '200':
+          description: Ready to accept new grants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ready
+                timestamp: '2026-11-03T06:00:00Z'
+        '503':
+          description: Not ready; new grants are disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: not_ready
+                timestamp: '2026-11-03T06:00:00Z'
+  /v1/vm-status:
+    get:
+      tags: [Control]
+      operationId: getAssignedVmStatus
+      summary: Read only the authenticated user's assigned VM status
+      description: |
+        No VM selector is accepted. The broker verifies the caller's JWT and
+        active session, resolves exactly one current assignment server-side,
+        then reads lifecycle and RDP transport readiness. Probe budget is
+        1500 ms. Timeout or unverifiable state is UNKNOWN. Sample is stale
+        after 15 seconds. TCP_REACHABLE does not prove RDP negotiation or
+        Windows NLA authentication.
+      security:
+        - SupabaseAccessToken: []
+      parameters: []
+      responses:
+        '200':
+          description: Status sample; unknown values are returned explicitly.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VmStatusResponse'
+              examples:
+                ready:
+                  value:
+                    lifecycle: RUNNING
+                    rdpTransport: RDP_NEGOTIATION_OK
+                    sampledAt: '2026-11-03T06:00:00Z'
+                    probeDurationMs: 384
+                    staleAfterSeconds: 15
+                    requestId: req_7f1b24a890d643d8
+                timeout:
+                  value:
+                    lifecycle: UNKNOWN
+                    rdpTransport: UNKNOWN
+                    sampledAt: '2026-11-03T06:00:01Z'
+                    probeDurationMs: 1500
+                    staleAfterSeconds: 15
+                    requestId: req_9a26d0f4712a45ef
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '404':
+          $ref: '#/components/responses/AssignmentNotFound'
+        '409':
+          $ref: '#/components/responses/AssignmentAmbiguous'
+        '503':
+          $ref: '#/components/responses/VmUnavailable'
+  /v1/session-grants:
+    post:
+      tags: [Session]
+      operationId: createSessionGrant
+      summary: Issue a single-use RDP session grant
+      description: |
+        The broker derives the assignment from the verified Supabase JWT.
+        The client MUST NOT supply vm_id, VM name, hostname, IP, port,
+        Windows username, Windows password or routing metadata. Grant
+        contains at least 256 bits of entropy, expires within 60 seconds,
+        is bound to user/session/assignment/target and is stored hashed.
+        Grant issuance is rate-limited to five requests per minute per user.
+      security:
+        - SupabaseAccessToken: []
+      requestBody:
+        required: false
+        description: Empty body only. No properties are permitted.
+        content:
+          application/json:
+            schema:
+              type: object
+              maxProperties: 0
+              additionalProperties: false
+            example: {}
+      responses:
+        '200':
+          description: One-time grant returned once.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+              description: Grant response must not be cached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionGrantResponse'
+              example:
+                grant: bXJ0U0Q3ZkJ2ZkR6WjFZQ0h1d2pTNGt4FakeTokenValue
+                expiresAt: '2026-11-03T06:01:00Z'
+                relayPath: /v1/rdp
+                rdpCertificate:
+                  mode: LEAF_X509_DER_SHA256
+                  fingerprintSha256: 7f4a2c9e1d6b8035a7c4e2f90123456789abcdef0123456789abcdef01234567
+                requestId: req_70d6ad416fe94b32
+        '401':
+          $ref: '#/components/responses/AuthRequired'
+        '403':
+          $ref: '#/components/responses/GrantDenied'
+        '409':
+          $ref: '#/components/responses/AssignmentAmbiguous'
+        '410':
+          $ref: '#/components/responses/GrantExpired'
+        '429':
+          $ref: '#/components/responses/GrantRateLimited'
+        '503':
+          $ref: '#/components/responses/GrantServiceUnavailable'
+  /v1/rdp:
+    get:
+      tags: [Session]
+      operationId: openRdpRelay
+      summary: Open the binary RDP relay WebSocket
+      description: |
+        This GET is a WebSocket upgrade, not a JSON API response after a
+        successful 101 upgrade. The Authorization bearer value is the
+        separate one-use MobiDesk grant, never the Supabase JWT. Grant MUST
+        NOT appear in the URL. After upgrade, data messages MUST be binary;
+        text data messages are protocol violations. Binary frames carry one
+        ordered byte stream; WebSocket frame boundaries are not RDP packet
+        boundaries. Backpressure, bounded queues, timeouts, ping/pong and
+        half-close cleanup are mandatory.
+      security:
+        - SessionGrant: []
+      parameters:
+        - name: Sec-WebSocket-Protocol
+          in: header
+          required: false
+          description: No application subprotocol is required by R1; reject unapproved subprotocol values.
+          schema:
+            type: string
+      responses:
+        '101':
+          description: WebSocket upgrade accepted; binary RDP relay opened.
+          x-websocket:
+            dataFrames:
+              allowed: [binary]
+              rejected: [text]
+            proposedDefaults:
+              maxBinaryMessageBytes: 65536
+              perDirectionQueueBytes: 1048576
+              queueHighWaterBytes: 786432
+              queueDrainTimeoutSeconds: 10
+              pingIntervalSeconds: 20
+              pongTimeoutSeconds: 10
+              idleTimeoutSeconds: 120
+              maximumRelayDurationSeconds: 14400
+            backpressure: Pause upstream reads at high-water mark; terminate safely if queue cannot drain before timeout.
+            closeCodes:
+              '4401': GRANT-01
+              '4402': GRANT-02
+              '4403': SESSION-02
+              '4404': TUNNEL-01
+              '4405': RDP-CERT-01
+              '4406': SESSION-01
+              '4407': SESSION-03
+              '4408': RDP-01
+            note: Proposed private-use application close codes and limits; validate during contract/load testing.
+        '401':
+          $ref: '#/components/responses/GrantDenied'
+        '403':
+          $ref: '#/components/responses/GrantDenied'
+        '410':
+          $ref: '#/components/responses/GrantExpired'
+        '429':
+          $ref: '#/components/responses/GrantRateLimited'
+        '503':
+          $ref: '#/components/responses/RelayUnavailable'
+components:
+  securitySchemes:
+    SupabaseAccessToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Current Supabase access JWT; used only for control-plane calls.
+    SessionGrant:
+      type: http
+      scheme: bearer
+      bearerFormat: MobiDeskGrant
+      description: Separate one-use MobiDesk grant; never put it in a query string.
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, ready, not_ready]
+        timestamp:
+          type: string
+          format: date-time
+    VmLifecycle:
+      type: string
+      enum: [STOPPED, STARTING, RUNNING, STOPPING, ERROR, UNKNOWN]
+    RdpTransport:
+      type: string
+      enum: [NOT_CHECKED, TCP_UNREACHABLE, TCP_REACHABLE, RDP_NEGOTIATION_OK, UNKNOWN]
+    VmStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [lifecycle, rdpTransport, sampledAt, probeDurationMs, staleAfterSeconds, requestId]
+      properties:
+        lifecycle:
+          $ref: '#/components/schemas/VmLifecycle'
+        rdpTransport:
+          $ref: '#/components/schemas/RdpTransport'
+        sampledAt:
+          type: string
+          format: date-time
+        probeDurationMs:
+          type: integer
+          minimum: 0
+          maximum: 1500
+        staleAfterSeconds:
+          type: integer
+          const: 15
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 64
+    RdpCertificatePolicy:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, fingerprintSha256]
+          properties:
+            mode:
+              type: string
+              const: LEAF_X509_DER_SHA256
+            fingerprintSha256:
+              type: string
+              pattern: '^[a-f0-9]{64}$'
+              description: SHA-256 fingerprint of leaf certificate DER.
+        - type: object
+          additionalProperties: false
+          required: [mode, fingerprintSha256]
+          properties:
+            mode:
+              type: string
+              const: INTERNAL_CA_X509_DER_SHA256
+            fingerprintSha256:
+              type: string
+              pattern: '^[a-f0-9]{64}$'
+              description: SHA-256 fingerprint of the approved internal CA certificate DER.
+    SessionGrantResponse:
+      type: object
+      additionalProperties: false
+      required: [grant, expiresAt, relayPath, rdpCertificate, requestId]
+      properties:
+        grant:
+          type: string
+          minLength: 43
+          maxLength: 128
+          description: Unpadded base64url token with at least 256 bits of entropy; returned once.
+        expiresAt:
+          type: string
+          format: date-time
+          description: No more than 60 seconds after issuance.
+        relayPath:
+          type: string
+          const: /v1/rdp
+        rdpCertificate:
+          $ref: '#/components/schemas/RdpCertificatePolicy'
+        requestId:
+          type: string
+          minLength: 8
+          maxLength: 64
+    PrdErrorCode:
+      type: string
+      enum:
+        - AUTH-01
+        - ASSIGN-01
+        - ASSIGN-02
+        - ASSIGN-03
+        - VM-01
+        - VM-02
+        - VM-03
+        - GRANT-01
+        - GRANT-02
+        - TUNNEL-01
+        - RDP-CERT-01
+        - RDP-AUTH-01
+        - RDP-01
+        - SESSION-01
+        - SESSION-02
+        - SESSION-03
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable, requestId]
+      properties:
+        code:
+          $ref: '#/components/schemas/PrdErrorCode'
+        message:
+          type: string
+          description: Exact English user-facing message from PRD v1.2 §12.
+        retryable:
+          type: boolean
+        requestId:
+          type: string
+        retryAfterSeconds:
+          type: integer
+          minimum: 0
+  responses:
+    AuthRequired:
+      description: Supabase identity/session invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: AUTH-01
+            message: Your sign-in session expired. Sign in again.
+            retryable: true
+            requestId: req_fake_01
+    AssignmentNotFound:
+      description: No Cloud PC assigned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: ASSIGN-01
+            message: No Cloud PC is assigned to your account. Contact the lab administrator.
+            retryable: false
+            requestId: req_fake_02
+    AssignmentAmbiguous:
+      description: Assignment could not be uniquely verified or needs administrator review.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: ASSIGN-03
+            message: Your Cloud PC assignment needs administrator review.
+            retryable: false
+            requestId: req_fake_03
+    VmUnavailable:
+      description: Status could not be established within the probe budget.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: VM-03
+            message: Your Cloud PC cannot be reached right now.
+            retryable: true
+            requestId: req_fake_04
+    GrantDenied:
+      description: Grant authorization denied using a PRD §12 safe error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: GRANT-01
+            message: We could not authorize a session. Try again.
+            retryable: true
+            requestId: req_fake_05
+    GrantExpired:
+      description: Grant expired or was already consumed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: GRANT-02
+            message: This session request expired. Try connecting again.
+            retryable: true
+            requestId: req_fake_06
+    GrantRateLimited:
+      description: Per-user grant rate or concurrency policy was reached.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: GRANT-01
+            message: We could not authorize a session. Try again.
+            retryable: true
+            requestId: req_fake_07
+            retryAfterSeconds: 60
+    GrantServiceUnavailable:
+      description: Broker cannot safely authorize a session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: GRANT-01
+            message: We could not authorize a session. Try again.
+            retryable: true
+            requestId: req_fake_08
+    RelayUnavailable:
+      description: Relay path unavailable before WebSocket upgrade.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: TUNNEL-01
+            message: The secure connection service could not be reached.
+            retryable: true
+            requestId: req_fake_09
+x-mobidesk-contract:
+  source: MobiDesk PRD v1.2
+  sections: ['5.2', '5.3', '6.2', '6.3', '6.5', '6.6', '6.7', '9', '12']
+  status: proposal-for-G1-review
+  noClientTargetSelector: true
+  maxStatusProbeMs: 1500
+  statusStaleSeconds: 15
+  grantTtlSeconds: 60
+  grantEntropyBits: 256
+  grantRequestsPerUserPerMinute: 5
+  activeSessionRevalidationSeconds: 15
+  revocationCloseDeadlineSeconds: 30
+  vm4: excluded-until-owner-verified
+  notes:
+    - OpenAPI describes the HTTP handshake and uses x-websocket to describe the binary relay after HTTP 101.
+    - Proposed WebSocket transport defaults are not PRD constants and require validation.
+    - No deployment hostname or private endpoint is included in this file.
