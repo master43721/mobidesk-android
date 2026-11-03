@@ -480,4 +480,4 @@ x-mobidesk-contract:
   notes:
     - OpenAPI describes the HTTP handshake and uses x-websocket to describe the binary relay after HTTP 101.
     - Proposed WebSocket transport defaults are not PRD constants and require validation.
-    - No production hostname is specified; broker.example.invalid is a documentation placeholder only.
+    - No deployment hostname or private endpoint is included in this file.
