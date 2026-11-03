@@ -10,11 +10,11 @@
 | G0 — Product/baseline freeze | Repository/stack audit, build/submodule snapshot, PRD-to-repo reconciliation, branch and change-control freeze | 4–6 h | Owner PRD direction; GitHub access | 4 Nov 2026 | 4 Nov 2026 | LOW — stack/repo match verified; visibility/status questions remain |
 | G1 — Contract and threat-model freeze | Exact requirement inventory; API/OpenAPI; error schema; security/STRIDE; data/RLS model; UX/technical design; traceability and review | 24–32 h | G0; owner confirmation of unresolved policy choices | Broker design target 6 Nov; API/authorization completion target 8 Nov | 11 Nov 2026 | HIGH — more complete than an API-only draft; security and API decisions must be testable |
 | G2 — Broker ready | Session/JWT validation; active session_id check; unique assignment resolution; VM4 exclusion; lifecycle/readiness probe; grants; rate/concurrency; certificate data; WSS relay; periodic revocation; operations metrics | 48–64 h | G1; server-side Supabase access; VM allowlist; stable TLS/WSS route; certificate policy | 8 Nov 2026 | 25 Nov 2026 | HIGH — prototype is not deployed or conforming; stable WSS and session lookup are unresolved |
-| G3 — Android native session ready | FreeRDP source/API spikes; SessionCoordinator; CredentialPrompt; protected LocalBridge; RdpSessionActivity; RdpRenderTarget; certificate/NLA callbacks; input model; rotation/cleanup; raw-WSS transport integration | 80–120 h | G1; G2 contract; exact pinned FreeRDP APIs; test VM and certificate | 10 Nov 2026 | 18 Dec 2026 | VERY HIGH — 10 Nov is at risk; no native session or protected raw-stream bridge is evidenced |
-| G4 — Physical R1 acceptance | RD-1 confirmation; 20 connection attempts; 120-second FPS workload; input latency; 20 cleanup cycles; recovery; security negatives; packet/log/static scan | 36–48 h | G2 and G3; available physical device; controlled Wi-Fi; four approved endpoints | 12 Nov 2026 | 30 Dec 2026 | HIGH — physical RD-1 device availability is UNKNOWN |
-| G5 — Release and operations ready | Distribution decision; owner signing/upload key; reproducible artifact; signing/hash/source record; pin rotation runbook; backup/restore; retention; incident/rollback; support readiness | 24–32 h | G4; owner/Lab IT approvals; distribution and data policies | 13 Nov 2026 | 7 Jan 2027 | HIGH — channel, key custody, backup/retention and VM lifecycle are open |
+| G3 — Android native session ready | FreeRDP source/API spikes; SessionCoordinator; CredentialPrompt; protected LocalBridge; RdpSessionActivity; RdpRenderTarget; certificate/NLA callbacks; input model; rotation/cleanup; raw-WSS transport integration | 80–120 h | G1; G2 contract; exact pinned FreeRDP APIs; test VM and certificate | 10 Nov 2026 | 18–24 Dec 2026 | VERY HIGH — 10 Nov is at risk; no native session or protected raw-stream bridge is evidenced |
+| G4 — Physical R1 acceptance | RD-1 confirmation; 20 connection attempts; 120-second FPS workload; input latency; 20 cleanup cycles; recovery; security negatives; packet/log/static scan | 36–48 h | G2 and G3; available physical device; controlled Wi-Fi; four approved endpoints | 12 Nov 2026 | 30 Dec 2026–5 Jan 2027 | HIGH — physical RD-1 device availability is UNKNOWN |
+| G5 — Release and operations ready | Distribution decision; owner signing/upload key; reproducible artifact; signing/hash/source record; pin rotation runbook; backup/restore; retention; incident/rollback; support readiness | 24–32 h | G4; owner/Lab IT approvals; distribution and data policies | 13 Nov 2026 | 7–15 Jan 2027 | HIGH — channel, key custody, backup/retention and VM lifecycle are open |
 
-**Total estimated engineering effort:** 216–302 hours (midpoint approximately 259 hours). The forecast assumes one owner working approximately six focused hours per weekday and no major FreeRDP incompatibility. A failed raw-stream/surface spike, unavailable VM endpoint, missing Windows guest account policy or unavailable physical device extends the dates.
+**Total estimated engineering effort:** 216–302 hours (midpoint approximately 259 hours), equivalent to approximately 36–51 focused working days at six hours per weekday. Forecast dates are ranges for the one-person Project Owner + AI-assistance model, exclude weekends/holidays, and are not a delivery promise. The upper end pushes G5 to 15 Jan 2027. A failed raw-stream/surface spike, unavailable VM endpoint, missing Windows guest account policy or unavailable physical device extends the dates.
 
 ## 2. Task breakdown
 
@@ -38,14 +38,14 @@
 | MD-G3-03 Implement SessionCoordinator, BrokerClient and StatusRepository | 12–16 h | G2; MD-G3-01 | Project Owner | 8 Dec; unit/contract tests |
 | MD-G3-04 Implement RdpSessionActivity, RdpRenderTarget and input overlay | 16–24 h | MD-G3-01 | Project Owner | 11 Dec; surface/input instrumentation |
 | MD-G3-05 Implement separate credential prompt, NLA/certificate callbacks and cleanup | 12–18 h | MD-G3-02/04 | Project Owner + Lab IT consulted | 15 Dec; credential/cert lifecycle tests |
-| MD-G3-06 Connect WSS relay to exact FreeRDP custom stream and prove display/session lifecycle | 18–30 h | MD-G2-04; MD-G3-02/05 | Project Owner | 18 Dec forecast; end-to-end RDP proof |
+| MD-G3-06 Connect WSS relay to exact FreeRDP custom stream and prove display/session lifecycle | 18–30 h | MD-G2-04; MD-G3-02/05 | Project Owner | 18–24 Dec forecast; end-to-end RDP proof |
 | MD-G4-01 Confirm RD-1 physical device and controlled Wi-Fi baseline | 2–4 h | Owner device access | Project Owner | Before G4; device/build evidence |
-| MD-G4-02 Run 20 attempts, FPS, input latency and recovery procedures | 16–22 h | G3; test VM/route | Project Owner | 23 Dec; raw attempt ledger and performance report |
-| MD-G4-03 Run 20-cycle cleanup, negative security, log/packet/static scans | 12–16 h | G2/G3 | Project Owner | 30 Dec; signed test evidence |
+| MD-G4-02 Run 20 attempts, FPS, input latency and recovery procedures | 16–22 h | G3; test VM/route | Project Owner | 4 Jan 2027; raw attempt ledger and performance report |
+| MD-G4-03 Run 20-cycle cleanup, negative security, log/packet/static scans | 12–16 h | G2/G3 | Project Owner | 5 Jan 2027; signed test evidence |
 | MD-G5-01 Decide Play vs private channel and key custody | 2–4 h | Owner decision | Project Owner | 6 Nov decision; see OPERATIONS.md |
-| MD-G5-02 Build reproducible signed artifact and record certificate/hash/source | 6–8 h | G4; key custody | Project Owner | 4 Jan 2027; release evidence |
-| MD-G5-03 Approve pin rotation, Windows lockout, backup/restore/retention and semester-end policy | 8–12 h | Lab IT/owner | Project Owner + Lab IT consulted | 6 Jan; approved runbooks |
-| MD-G5-04 Incident, support, rollback and pilot go/no-go | 8–10 h | G4/G5 evidence | Project Owner | 7 Jan; signed go/no-go record |
+| MD-G5-02 Build reproducible signed artifact and record certificate/hash/source | 6–8 h | G4; key custody | Project Owner | 7 Jan 2027; release evidence |
+| MD-G5-03 Approve pin rotation, Windows lockout, backup/restore/retention and semester-end policy | 8–12 h | Lab IT/owner | Project Owner + Lab IT consulted | 13 Jan 2027; approved runbooks |
+| MD-G5-04 Incident, support, rollback and pilot go/no-go | 8–10 h | G4/G5 evidence | Project Owner | 15 Jan 2027; signed go/no-go record |
 
 ## 3. Reforecast of PRD §14
 
@@ -57,9 +57,9 @@
 | Broker session-active lookup and readiness design | 6 Nov 2026 | 11 Nov 2026 | Requires a validated Supabase session lookup path and bounded RDP-negotiation probe contract. |
 | Stable WSS hostname/route | 6 Nov 2026 | 12 Nov 2026 | Owner DNS/TLS/network decision plus handshake/idle test required. |
 | Broker API/authorization changes | 8 Nov 2026 | 25 Nov 2026 | Estimated 48–64 hours including session checks, unique assignment, status, grants, relay, rate limits and revocation. |
-| Native FreeRDP session integration | 10 Nov 2026 | 18 Dec 2026 | **AT RISK.** Estimated 80–120 hours, exact API/surface/bridge support unproven; only five working days remain before 10 Nov. |
-| Physical R1 performance/security acceptance | 12 Nov 2026 | 30 Dec 2026 | Depends on broker and native RDP integration plus RD-1 confirmation. |
-| Signing and pilot distribution | 13 Nov 2026 | 7 Jan 2027 | Depends on G4, distribution choice, key custody and operations policies. |
+| Native FreeRDP session integration | 10 Nov 2026 | 18–24 Dec 2026 | **AT RISK.** Estimated 80–120 hours, exact API/surface/bridge support unproven; only five working days remain before 10 Nov. |
+| Physical R1 performance/security acceptance | 12 Nov 2026 | 30 Dec 2026–5 Jan 2027 | Depends on broker and native RDP integration plus RD-1 confirmation. |
+| Signing and pilot distribution | 13 Nov 2026 | 7–15 Jan 2027 | Depends on G4, distribution choice, key custody and operations policies. |
 
 ## 4. Critical path and stop conditions
 
