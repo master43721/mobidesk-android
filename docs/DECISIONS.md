@@ -13,14 +13,14 @@
 | DEC-03 | Android SDK baseline | minSdk29 / compileSdk37 / targetSdk37; Java/Kotlin target11; ABIs arm64-v8a + x86_64 | [VERIFIED: build.gradle, app/build.gradle, release.properties at main@5979320]. API29 in PRD §8.1 agrees with NFR-COMP-01 preservation. | CONFIRMED |
 | DEC-04 | FreeRDP version | Keep exact pinned v3.32.0 gitlink for the current R1 integration spike | [VERIFIED: .gitmodules/gitlink at main@5979320; upstream signed release commit d27a4f7...] | CONFIRMED |
 | DEC-05 | Assignment authority | Broker derives exactly one VM assignment from authenticated subject and trusted server data; client never selects target | PRD §§6.3, 9; API_CONTRACT.md | REQUIRED |
-| DEC-06 | Windows guest auth | Student enters separate Windows NLA credentials each session; broker never receives guest password | PRD §6.4; DESIGN.md §5.4 | REQUIRED |
+| DEC-06 | Windows guest auth | Student enters separate Windows NLA credentials for each session; broker never receives guest password | Owner confirmed prompt-per-session pilot path on 3 Nov 2026; PRD §6.4; DESIGN.md §5.4 | OWNER CONFIRMED — R1 |
 | DEC-07 | Grant semantics | 256-bit+ CSPRNG grant; 60s maximum TTL; single-use; hash at rest; bound to user/session/assignment | PRD §§6.3, 9; API_CONTRACT.md | REQUIRED |
 | DEC-08 | Revocation | Validate Auth session_id at grant; revalidate session and assignment every <=15s during relay; close within <=30s after revocation/change | PRD §§6.3, 9; API_CONTRACT.md | REQUIRED |
 | DEC-09 | RDP identity | Verify server using grant-bound SHA-256 fingerprint or approved internal CA; no trust-all/accept-any | PRD §6.7; SECURITY_THREAT_MODEL.md | REQUIRED |
 | DEC-10 | LocalBridge | Prefer socketpair/connected descriptor, then app-private Unix socket with peer UID verification; TCP fallback only with authenticated one-shot handshake | PRD §6.6; TECHNICAL_SPEC.md §6 | REQUIRED |
 | DEC-11 | Native session window | Dedicated non-exported RdpSessionActivity with RdpRenderTarget and FLAG_SECURE | PRD §§6.1, 6.8, 9; DESIGN.md | REQUIRED |
 | DEC-12 | RDP status semantics | Separate VM lifecycle from RDP transport; TCP reachability is not RDP negotiation or NLA success | PRD §5.2; API_CONTRACT.md §4 | REQUIRED |
-| DEC-13 | R1 backgrounding | Foreground-only session; true background/screen lock starts a five-second cancelable teardown | PRD §§5.3, 6.8 | REQUIRED |
+| DEC-13 | R1 backgrounding | PRD v1.2 normative rule remains foreground-only; Owner has directed background continuity as the desired R1 change | PRD §§5.3, 6.8; see DEC-27 and PRD_V1_3_CHANGES.md | V1.2 BASELINE — CHANGE PROPOSED |
 | DEC-14 | Dock | Dock streaming and cryptographic AOA pairing stay R2; R1 placeholder only | PRD §4.2; DESIGN.md §11 | DEFERRED TO R2 |
 | DEC-15 | VM4 | Keep VM4 excluded until OS/endpoint verification and owner/Lab IT approval | PRD §§10, 15; OPEN_ITEMS.md OI-09 | EXCLUDED |
 | DEC-16 | Reference device | PRD nominates Pixel 6 / Android16 / API36 / arm64; actual physical availability is UNKNOWN | PRD §8.1; OI-06 | OPEN |
@@ -33,6 +33,10 @@
 | DEC-23 | Transport integration | Exact FreeRDP custom raw-stream/socket injection, certificate callback and renderer lifecycle are not proven | TECHNICAL_SPEC.md §7; pinned source inspection | BLOCKING G3 |
 | DEC-24 | Certificate rotation | Current grant contract carries one active fingerprint/CA policy. Use coordinated maintenance rotation unless a reviewed schema extension supports dual pins. | API_CONTRACT.md §5; OPERATIONS.md §5 | SELECTED R1 OPERATION |
 | DEC-25 | Performance thresholds | Use the PRD's 20 attempts, p90, 120s FPS workload, 20-cycle cleanup and recovery criteria; do not report unmeasured outcomes | PRD NFR-PERF; PERFORMANCE_PLAN.md | REQUIRED |
+| DEC-26 | Dock rendering architecture | Compare phone-render/H.264-to-Pi and Pi-native FreeRDP; select only after a measured spike | Owner choice: keep both options open; see FP-20 | OWNER CONFIRMED — SELECTION OPEN |
+| DEC-27 | R1 background session direction | Allow an active RDP session to continue when the user backgrounds MobiDesk/switches apps; do not assume force-stop or OS process-death survival | Owner choice on 3 Nov 2026; conflicts with PRD v1.2 foreground-only/5-second teardown rule | OWNER-DIRECTED PROPOSED PRD CHANGE — NOT NORMATIVE UNTIL V1.3 APPROVAL |
+| DEC-28 | Screen-lock behavior | Decide separately whether screen lock/display-off preserves the session, pauses it or terminates it | Owner's background selection did not expressly settle lock-screen behavior; privacy/battery/platform implications need an explicit decision | OPEN |
+| DEC-29 | Additional product scope | No additional feature scope beyond R1 FPs and R2 Dock FPs; clipboard, file transfer and admin console remain excluded | Owner choice on 3 Nov 2026 | OWNER CONFIRMED |
 
 ## 2. Owner approval register
 
