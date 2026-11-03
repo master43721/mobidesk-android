@@ -27,5 +27,5 @@ Initial engineering suite derived from MobiDesk PRD v1.2.
 - Reforecast G3 FreeRDP integration to 18–24 Dec 2026, G4 physical acceptance to 30 Dec 2026–5 Jan 2027, and G5 readiness to 7–15 Jan 2027 based on 216–302 focused hours for one owner plus AI assistance.
 - Updated supporting-document links and marked uncommitted local APK output as not present in the repository.
 
-- Widened the G3 forecast to 18–30 Dec 2026 and moved G4/G5 to 8–15 Jan and 20–28 Jan 2027 to reflect the 80–120 hour one-person integration range and hand-off risk.
+- Widened the G3 forecast to 18–31 Dec 2026 and moved G4/G5 to 8–15 Jan and 20–28 Jan 2027 to reflect the 80–120 hour one-person integration range and hand-off risk.
 - Removed the loopback IP literal and changed the wireframe email to a reserved non-deliverable placeholder; the OpenAPI file contains no deployment hostname.
