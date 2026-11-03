@@ -1,0 +1,36 @@
+# MobiDesk — Open Items and Owner Decisions
+
+**Specification baseline:** MobiDesk PRD v1.2, 3 November 2026  
+**Snapshot:** 3 November 2026  
+**Rule:** No unknown is silently converted into a decision. Due dates below are proposed closure dates for the one-person Project Owner workflow; they are not completed commitments.
+
+| ID | Item / current evidence | Owner | Proposed due | Closure evidence | Status |
+|---|---|---|---|---|---|
+| OI-01 | Repository visibility conflict. [VERIFIED: GitHub repository metadata at main commit a6c7282] GitHub reports the repository as public; [VERIFIED: README.md at the same commit] README says private. | Project Owner | 4 Nov 2026 | Owner records intended visibility and confirms GitHub setting; if public remains intentional, confirms docs/source contain no restricted information. | OPEN — security decision |
+| OI-02 | PRD approval wording conflict. [OWNER DIRECTION: 3 Nov 2026 task] PRD v1.2 is declared final and decided. [VERIFIED: PRD v1.2 PDF p. 2] Printed status still says owner-review draft and owner approval pending. | Project Owner | 5 Nov 2026 | Owner records approval decision and whether a future PRD revision should update the status text. This suite does not edit the PRD. | OWNER DIRECTION RECORDED; PDF LABEL CONFLICT OPEN |
+| OI-03 | PRD text-copy mismatch. [VERIFIED: main tree at a6c7282] The full 23-page PRD PDF is in docs; docs/PRD.md is absent from main. [VERIFIED: prior branch docs/mobidesk-prd-v1.2] Its docs/PRD.md does not reproduce all PDF sections/IDs. | Project Owner | 6 Nov 2026 | Decide whether PDF alone is canonical or approve a faithful text projection in a separate change. Do not silently edit the PRD copy. | OPEN |
+| OI-04 | Minimum SDK reconciliation. [VERIFIED: build.gradle, app/build.gradle and release.properties at main@a6c7282] minSdk is 29; compile/target are 37/37. [VERIFIED: PRD §8.1 and NFR-COMP-01] API 29 or newer and preservation of repository baseline are consistent. | Project Owner | Closed 3 Nov 2026 | Record API 29 as the minimum; preserve compile/target 37/37 and ABIs arm64-v8a + x86_64 unless an approved change is recorded. | RESOLVED BY G0 AUDIT |
+| OI-05 | FR-SEC-01 through FR-SEC-03 are missing from the PRD numbering; FR-SEC-04 exists. Security duties are present in PRD §9 but not all have FR identifiers. | Project Owner | 6 Nov 2026 | Review proposed identifier additions in PRD_V1_3_CHANGES.md. Do not assign IDs inside the normative PRD without approval. | OPEN — traceability |
+| OI-06 | RD-1 is nominated as Pixel 6 / Android 16 / API 36 / arm64. [VERIFIED: PRD §8.1] The actual available physical test phone is UNKNOWN; no physical-device result is claimed. | Project Owner | 5 Nov 2026 | Record model, OS release, API level, ABI and build fingerprint from the actual test phone. If different, approve a PRD change before G4. | OPEN — G4 blocker |
+| OI-07 | PRD §14 native FreeRDP integration target is 10 Nov 2026. From the 3 Nov 2026 snapshot, this is seven calendar days away; the integration/surface/RDPEDISP/raw-stream work is not demonstrated. | Project Owner | Reforecast 4 Nov 2026 | Approve or amend the estimate/range in TASKS.md; preserve the reason and dependency risks. | REFORECAST REQUIRED — AT RISK |
+| OI-08 | Distribution choice is unresolved: private/institutional distribution versus Google Play. [VERIFIED: current Android manifest/build configuration] No owner-controlled release signing configuration is evidenced. | Project Owner | 6 Nov 2026 | Select channel, package ownership, signing model, tester access and update path. | OPEN — G5 blocker |
+| OI-09 | PRD identifies VM4 as unverified and excluded. The approved endpoint set is four, not five. [VERIFIED: PRD §10, §13 and §15] Do not add a placeholder or reassign its student. | Project Owner + Lab IT | 6 Nov 2026 | Either keep VM4 excluded, or provide owner/Lab IT signed evidence of guest OS, current endpoint verification and approval to update the allowlist. No private endpoint is recorded here. | EXCLUDED — fail closed |
+| OI-10 | Windows guest-account policy is not evidenced as approved. PRD §9 requires account lockout/failed-logon monitoring and per-student least-privilege lab identities. | Project Owner + Lab IT | 6 Nov 2026 | Approve account create/reset/expiry/offboarding, lockout threshold, failed-logon monitoring and helpdesk recovery. | OPEN — G3/G5 dependency |
+| OI-11 | VM persistence, backups, restore drill, data retention and semester-end archive/delete policy are not established. [VERIFIED: PRD §10] | Project Owner + Lab IT | 13 Nov 2026 | Approved lifecycle policy, backup owner/cadence, successful restore evidence, retention and semester rollover procedure. | OPEN — G5 blocker |
+| OI-12 | Stable broker HTTPS/WSS hostname and route are not established. [VERIFIED: PRD §15] No hostname or private route is copied into this file. | Project Owner | 10 Nov 2026 | Owner-controlled DNS/TLS endpoint plus successful external WSS upgrade, idle, reconnect and certificate tests. | OPEN — G2/G3 dependency |
+| OI-13 | Broker session revocation lookup path is not implemented in this Android repository. [VERIFIED: current source tree and PRD §6.5/§9] | Project Owner | 11 Nov 2026 | Approved server-only Supabase session_id lookup design, least-privilege permission model and test proving 15-second checks / 30-second relay close. | OPEN — G2 blocker |
+| OI-14 | RDP certificate fingerprints/internal CA trust material and rotation process are not evidenced. [VERIFIED: PRD §6.7 and §15] | Project Owner + Lab IT | 12 Nov 2026 | Per-approved-VM certificate issuance, out-of-band fingerprint verification, expiry/rotation, mismatch and rollback test evidence. | OPEN — G2/G3 blocker |
+| OI-15 | Pinned FreeRDP custom raw-stream, local socket, credential/certificate callbacks, surface rebind and MS-RDPEDISP behavior require a version-specific spike. [VERIFIED: PRD §§6.6–6.8] | Project Owner | 18 Dec 2026 forecast | Spike report against the exact gitlink: APIs inspected, test harness, byte-stream result, peer-auth/hijack result, display/resize results and supported/unsupported behavior. | NOT PROVEN — G3 blocker |
+| OI-16 | Broker rate-limit, bounded queues, relay capacity and status-probe behavior need deployment values and test evidence. PRD requires 5 grants/min/user and bounded pilot concurrency/resources. | Project Owner | 25 Nov 2026 forecast | Configuration review plus contract/load/abuse test results, including configured pilot cap and queue/frame thresholds. | OPEN — G2 blocker |
+
+## Decision register references
+
+- API and WebSocket contract: API_CONTRACT.md and openapi.yaml.
+- Security control/test register: SECURITY_THREAT_MODEL.md.
+- Schedule and hour estimates: TASKS.md.
+- Requirement/test/release mapping: TRACEABILITY_CHECK.md and TEST_PLAN.md.
+- Proposed PRD edits: PRD_V1_3_CHANGES.md.
+
+## Handling rule
+
+An open item may be closed only with its stated evidence and owner decision. Keep VM4 excluded until verified. Never put student identifiers, passwords, private IPs, hostnames, secret keys, grant values or access tokens into this file.
