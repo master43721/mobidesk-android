@@ -362,7 +362,7 @@ English text below is reproduced exactly from PRD v1.2. Telugu strings are draft
 
 ### Existing palette and typography
 
-- **[VERIFIED: app/src/main/java/com/mobidesk/android/ui/MobiDeskTheme.kt at main@a6c7282...]** Existing dark/light Material 3 schemes define:
+- **[VERIFIED: app/src/main/java/com/mobidesk/android/ui/MobiDeskTheme.kt at main@5979320...]** Existing dark/light Material 3 schemes define:
   - Ink: #101923
   - Panel: #17232F
   - Elevated panel: #1D2B38
@@ -373,7 +373,7 @@ English text below is reproduced exactly from PRD v1.2. Telugu strings are draft
   - Warning: #E4AA4F
   - Danger: #DF7474
 - **[VERIFIED: same file]** Existing typography includes 28sp headline, 20sp titleLarge, 16sp titleMedium/bodyLarge, 14sp bodyMedium and 12sp labelMedium with SansSerif.
-- **[VERIFIED: app/src/main/res/values/styles.xml at main@a6c7282...]** Android status/navigation bar base color is #0B1219 and accent is #20BFA9.
+- **[VERIFIED: app/src/main/res/values/styles.xml at main@5979320...]** Android status/navigation bar base color is #0B1219 and accent is #20BFA9.
 
 ### Usage rules
 - Use existing MobiDesk colors as the starting system; do not introduce arbitrary new brand colors in R1.
