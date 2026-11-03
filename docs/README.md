@@ -17,6 +17,7 @@
 
 | Document | Purpose |
 |---|---|
+| [PRD.md](PRD.md) | Navigational requirement index; the linked PDF remains the normative source |
 | [BASELINE_AUDIT.md](BASELINE_AUDIT.md) | G0 repository/stack/build/submodule/security baseline and requirement implementation snapshot |
 | [OPEN_ITEMS.md](OPEN_ITEMS.md) | Decisions, owners, proposed due dates and closure evidence |
 | [TASKS.md](TASKS.md) | G0–G5 work breakdown, estimates, dependencies and schedule reforecast |
