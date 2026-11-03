@@ -106,9 +106,9 @@ Do not replace Pixel 6 with a guessed model. The device/build fingerprint belong
 | Guest account / Windows lockout approval | 6 Nov 2026 | Lab IT policy dependency |
 | Stable broker HTTPS/WSS route | 12 Nov 2026 | Owner DNS/TLS/network and WSS tests |
 | G2 broker ready | 25 Nov 2026 | Approximately 48–64 focused hours; session lookup, unique assignment, grant, relay, rate and revocation |
-| G3 native FreeRDP integration | 18–24 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
-| G4 physical R1 acceptance | 30 Dec 2026–5 Jan 2027 | Requires G2/G3 plus RD-1 confirmation and 20-attempt/20-cycle performance/security evidence |
-| G5 signing and operations ready | 7–15 Jan 2027 | Requires G4, distribution/key choice, backup/restore, retention and runbooks |
+| G3 native FreeRDP integration | 18–30 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
+| G4 physical R1 acceptance | 8–15 Jan 2027 | Requires G2/G3 plus RD-1 confirmation and 20-attempt/20-cycle performance/security evidence |
+| G5 signing and operations ready | 20–28 Jan 2027 | Requires G4, distribution/key choice, backup/restore, retention and runbooks |
 
 The 10 Nov native integration target is at risk: from the 3 Nov planning snapshot it is seven calendar days away (five weekdays assuming a Monday–Friday schedule). The current native integration estimate is 80–120 focused hours. This reforecast assumes one engineer/Project Owner with AI assistance, approximately six focused engineering hours per weekday and no major upstream transport redesign. Any failed FreeRDP raw-stream or bridge spike extends the forecast.
 
