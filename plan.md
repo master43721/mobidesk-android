@@ -2,9 +2,11 @@
 
 ## Current goal
 
+> **Historical plan, not current release authority.** The owner supplied `docs/MobiDesk_PRD_v1.2.pdf` on 2026-11-03; it is an owner-review draft pending approval. Some environment/test statements below are stale. Use `PROGRESS.md`, `BASELINE_AUDIT.md`, `TEST_PLAN.md`, and `TODO.md` for current evidence. The current user has authorized local repository work and GitHub Actions.
+
 Deliver a polished Android app for students to sign in, see only their assigned Windows Cloud PC, and later open a native FreeRDP desktop session through an authorized control plane. Keep the control path (identity, assignments, VM actions, tickets) separate from the desktop data path (RDP graphics/input). Do not display sample accounts or imply a VM is live when the service cannot verify it.
 
-## Approved architecture
+## Prior architecture proposal (historical; current approval pending)
 
 - **Android app shell:** Kotlin + Jetpack Compose, chosen over Flutter because the user explicitly allowed any suitable framework and the app must host FreeRDP's native Android Activity/JNI stack. This keeps Android lifecycle and RDP session integration direct.
 - **Authentication/data:** Supabase Auth + PostgREST, using only the project's publishable client key in the Android client and existing RLS policies for identity-scoped reads.

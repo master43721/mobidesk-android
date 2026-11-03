@@ -1,5 +1,7 @@
 # Platform notes and source references
 
+> **Historical notes.** The 2026-10-27 build/toolchain facts below remain evidence for that build, but the old claim that the server was not inspected is superseded by the read-only 2026-11-03 inventory in [`../BASELINE_AUDIT.md`](../BASELINE_AUDIT.md). Current product scope is in [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf), which is still pending Owner approval.
+
 ## Google AI Studio workspace
 
 The imported project URL is [MobiDesk in AI Studio](https://aistudio.google.com/apps/33ada769-49b3-4db4-88fc-c2aace7546d4?showAssistant=true&showPreview=true). AI Studio states imported code does not remain synced to GitHub. Its import copied the repository tree but omitted the `third_party/FreeRDP` Git submodule.

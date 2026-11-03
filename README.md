@@ -1,68 +1,49 @@
 # MobiDesk Android
 
-MobiDesk is a native Kotlin/Jetpack Compose Android client prototype for students to sign in and see their assigned Windows Cloud PC. It uses the verified MobiDesk Supabase project and its existing roster provisioning/RLS model. The official FreeRDP Android core is pinned as a submodule and its native libraries are built into the debug APK, but the app does **not** yet launch a remote desktop session.
+MobiDesk is a native Kotlin/Jetpack Compose student client for accessing one assigned Windows Cloud PC. The app currently implements the sign-in/workspace foundation; **native RDP session integration is not complete and no final APK exists**.
 
-## Current delivered build
+> **Current product target:** [`docs/MobiDesk_PRD_v1.2.pdf`](docs/MobiDesk_PRD_v1.2.pdf). It is an owner-review draft; approval is pending. Do not treat it as formally approved or claim a release gate has passed. See [`docs/PRD_TRACEABILITY.md`](docs/PRD_TRACEABILITY.md), [`TEST_PLAN.md`](TEST_PLAN.md), [`OPEN_ITEMS.md`](OPEN_ITEMS.md), [`PROGRESS.md`](PROGRESS.md), and [`TODO.md`](TODO.md).
 
-A debug APK was built successfully on 2026-10-27 at:
+## Implemented
 
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
+- Native Kotlin/Jetpack Compose app shell and student workspace states.
+- Supabase email/password sign-in, persisted Auth session, sign-out, password-recovery request, and PKCE recovery callback flow.
+- RLS-scoped profile and assigned-VM reads using narrow selected columns; no self-registration and no client-selected role.
+- Official FreeRDP Android submodule pinned to v3.32.0 at `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`, plus the Gradle compatibility overlay and native libraries in the historically verified debug APK for `arm64-v8a` and `x86_64`.
 
-- Package: `com.mobidesk.android`
-- Version: `0.2.0` (version code `1`)
-- Minimum Android SDK: 29
-- Compile/target SDK: 37
-- APK size: 207,696,333 bytes (about 198.0 MiB)
-- Signature: Android debug certificate; verified with `apksigner` (APK Signature Scheme v2)
-- FreeRDP native engine libraries included for `arm64-v8a` and `x86_64`
+The app does **not** yet launch a remote desktop, request a conforming broker grant, show trusted live VM/RDP readiness, present separate Windows credentials, validate per-VM RDP certificate pins, or bridge FreeRDP to a secured WSS session. Packaged FreeRDP libraries alone are not RDP integration.
 
-This is an installable development/debug artifact, **not** a production or Play Store release. It is not signed with an owner-controlled release key. The APK is a build output and is not committed to Git.
+## Existing development artifact
 
-## Implemented app behavior
+The historical build report records a debug APK at `app/build/outputs/apk/debug/app-debug.apk`, built on 2026-10-27:
 
-The source includes Supabase email/password sign-in, persisted Android Auth sessions, sign-out, password-reset request, and PKCE recovery deep-link handling. When signed in, it selects only `students(id,name,college)` and the RLS-filtered assigned `vms(id,name)`. The UI contains loading, not-provisioned, no-assignment, backend-error, account/settings, and recovery states. Self-registration is intentionally absent; student provisioning remains controlled by the existing roster-trigger function.
+- Package `com.mobidesk.android`; version `0.2.0` (version code `1`).
+- Minimum SDK 29; compile/target SDK 37.
+- Size 207,696,333 bytes (about 198 MiB).
+- Signed with the Sandbox Android debug key, not an owner-controlled release key.
 
-The Kotlin application and FreeRDP Java core compiled successfully. The JVM unit-test task passed. APK ZIP integrity and debug signature verification passed. The user asked to stop testing while a software-only Android Emulator boot attempt was in progress, so no APK install, Android instrumentation run, emulator UI test, live Supabase sign-in, or real RDP session test is claimed.
+This is an installable development build, not the final R1 product or a Play release. Its earlier build/test evidence and limitations are in [`docs/ANDROID_BUILD_REPORT.md`](docs/ANDROID_BUILD_REPORT.md). Do not infer a current build result from that historical report.
 
-See [`TODO.md`](TODO.md) for phase-by-phase status and [`docs/ANDROID_BUILD_REPORT.md`](docs/ANDROID_BUILD_REPORT.md) for the artifact metadata, evidence, limitations, and completion plan.
+## Build and test locally
 
-## Supabase configuration
-
-The connected project is `kthfhjwltcpjhjemugwm` (`https://kthfhjwltcpjhjemugwm.supabase.co`). The existing student provisioning trigger and RLS policies were inspected. The only project-side change was adding `com.mobidesk.android://auth-callback/recovery` to the Auth Redirect URLs allowlist. Site URL, provider/signup settings, email templates, SMTP settings, schema, and data rows were left unchanged. Custom SMTP is disabled, so actual student recovery email delivery has not been verified.
-
-For local builds, copy `local.properties.example` to `local.properties` and set `SUPABASE_URL` and the **publishable** `SUPABASE_PUBLISHABLE_KEY`. The file is ignored by Git. Never put a Supabase service-role key, SMTP credential, Windows password, or signing key in the Android app, Git, logs, or chat.
-
-See [`docs/SUPABASE_DISCOVERY.md`](docs/SUPABASE_DISCOVERY.md) for the verified columns, RLS policies, Auth settings, migrations, and advisor findings. No database DDL or data-row changes were made.
-
-## Build and test
-
-Clone with the native dependency included:
+The pinned project uses the Gradle wrapper and the SDK/NDK/CMake versions in `build.gradle`, with NASM required for the x86_64 OpenH264 native build. Android SDK licenses were accepted by the owner for this project. Keep real project settings in ignored `local.properties`; use only the Supabase publishable key in an Android client. Never use a service-role key, Windows password, tunnel token, or signing key in the app or repository.
 
 ```bash
 git clone --recurse-submodules https://github.com/master43721/mobidesk-android.git
 cd mobidesk-android
 cp local.properties.example local.properties
-# Edit local.properties with this project's URL and publishable key.
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
+# Set only the Supabase URL and publishable key in local.properties.
+./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
 
-The debug APK output is `app/build/outputs/apk/debug/app-debug.apk`. The pinned FreeRDP module requires the Android SDK/Build Tools, NDK, and CMake versions declared in Gradle, plus NASM for its x86_64 OpenH264 build. The build does not auto-accept Android SDK licenses. On a provisioned emulator, Android instrumentation tests can be run with:
+On a booted emulator, run `./gradlew :app:connectedDebugAndroidTest`. Emulator tests do not replace the PRD's physical-device R1 acceptance. Build and test evidence must be recorded in `PROGRESS.md` and linked to the exact source revision.
 
-```bash
-./gradlew connectedDebugAndroidTest
-```
+## Server and transport status
 
-## FreeRDP and remote access — incomplete
+A read-only Tailscale SSH inventory was completed on 2026-11-03. The server is Ubuntu 22.04.5, five Windows guests were running, and no MobiDesk broker service was deployed. A host xrdp TCP/3389 listener was bound to a wildcard address; public reachability and firewall state were not established. Preserve the existing GUI access path and do not change firewall/RDP services without a reviewed change plan. No server, VM, tunnel, or Supabase configuration was modified during that inventory.
 
-`third_party/FreeRDP` is pinned to official FreeRDP v3.32.0 and retains upstream licensing. The app declares the upstream `freeRDPCore` module and the debug APK contains its native shared libraries, but MobiDesk does not yet invoke `SessionActivity` or pass it an authorized connection configuration.
+A separate local broker prototype exists outside this repository. It is not deployed or release-ready; its gaps are documented in [`docs/PRD_TRACEABILITY.md`](docs/PRD_TRACEABILITY.md). A Cloudflare Quick Tunnel is temporary and is not an acceptable stable WSS endpoint. Public TCP/3389, a client-selected VM/host/port, guessed status, and Supabase-password reuse are prohibited.
 
-A production connection still requires a trusted server-side API to authenticate the Supabase user, verify VM assignment, authorize/audit power actions, and issue a short-lived connection ticket. VM status/power endpoints, ticket issuance, secure transport, certificate behavior, session lifecycle/input/accessibility, external Android network reachability, and physical-device RDP tests are not implemented or verified. Public TCP/3389 exposure is not acceptable; Cloudflare HTTPS is not assumed to carry raw RDP.
+## Source of truth
 
-The user's Ubuntu server was not inspected or modified. Tailscale peer connectivity was verified, but SSH host-key verification failed before authentication; the user asked to stop further server testing. See [`docs/SERVER_IMPLEMENTATION_PLAN.md`](docs/SERVER_IMPLEMENTATION_PLAN.md) for the staged server plan.
-
-## Google AI Studio
-
-The AI Studio workspace is a separate static import, not a live GitHub workspace. Its imported copy omitted the FreeRDP git submodule and later produced a UI-only fallback shell; that copy predates the Supabase Auth implementation and is not the APK documented here. The canonical project is the private GitHub repository: <https://github.com/master43721/mobidesk-android>.
+The private repository `master43721/mobidesk-android` is the current development source. The older Google AI Studio workspace is a separate static copy, not a live GitHub mirror, and omitted the FreeRDP submodule. The current user direction authorizes local repository work and GitHub Actions; do not overwrite the canonical repository with that stale AI Studio copy.

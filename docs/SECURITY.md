@@ -1,6 +1,8 @@
 # MobiDesk security boundaries
 
-## Implemented in source (not yet compiled or tested)
+> **Status note (2026-11-03):** This file records the earlier Android/security baseline. The code has since been built, but the native RDP session, broker, WSS transport and physical security tests remain incomplete. The owner-review draft [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf) and current [`TEST_PLAN.md`](../TEST_PLAN.md) define the proposed release requirements; approval is pending.
+
+## Earlier implementation baseline (compiled historically; RDP still incomplete)
 
 The Android app uses the MobiDesk Supabase URL and a publishable client key only. Auth uses email/password and PKCE recovery deep links; session persistence and refresh follow the pinned `supabase-kt` Android defaults. The app provides no public self-registration and does not trust client-supplied roles. The existing Auth trigger provisions only accounts matching the private institution roster.
 

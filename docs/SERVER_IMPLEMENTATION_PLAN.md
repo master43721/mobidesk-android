@@ -1,12 +1,14 @@
 # MobiDesk Server Implementation Plan
 
+> **Historical plan.** The 2026-11-03 owner-review draft [`MobiDesk_PRD_v1.2.pdf`](MobiDesk_PRD_v1.2.pdf) proposes the current R1 contract and excludes student VM power controls. Owner approval is pending; do not treat this older plan's power/admin/API suggestions as approved scope. Tailscale SSH has now been verified and a read-only host inventory recorded in [`../BASELINE_AUDIT.md`](../BASELINE_AUDIT.md). No server configuration has been changed.
+
 ## Recommended way to connect the server
 
 Use Tailscale for private network access, then use ordinary SSH to the Ubuntu server's Tailscale IP or tailnet name. Do not publish SSH or Windows RDP ports to the internet just so this task can reach the machine. Tailscale authorization should happen in your own browser, and no password, private key, service-role key, or one-time login secret should be pasted into chat.
 
 The current execution environment is a temporary task sandbox. If you later authorize it to join your tailnet, access will last only while that sandbox and its Tailscale state remain available; it is not a permanent management node. We can decide the exact attachment path and confirm the target hostname when you are ready. A desktop GUI is not required for most work. It can remain available for an occasional console or browser approval, but SSH is easier to audit and less fragile than controlling the GUI for server administration.
 
-No server has been accessed or changed yet. The first connected session should be read-only discovery. Do not change firewall rules, libvirt configuration, VM power state, DNS, or Cloudflare routes until the existing environment has been mapped and a change plan is reviewed.
+At the time this historical plan was written, no server had been accessed. Read-only Tailscale SSH discovery was later completed on 2026-11-03; see `../BASELINE_AUDIT.md`. No firewall, libvirt, VM power, DNS, or Cloudflare configuration was changed. Any future changes still require a reviewed plan and appropriate authorization.
 
 ## Verified product constraints
 

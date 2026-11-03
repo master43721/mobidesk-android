@@ -1,5 +1,7 @@
 # MobiDesk Android — Build and Delivery Report
 
+> **Historical report (2026-10-27).** Its debug-build evidence remains valid for that source revision, but its statements about server access and stopped testing are no longer current. See [`../PROGRESS.md`](../PROGRESS.md), [`../BASELINE_AUDIT.md`](../BASELINE_AUDIT.md), and [`../TODO.md`](../TODO.md) for the latest state. It does not claim a working RDP session or final release.
+
 **Report date:** 2026-10-27
 
 **Status:** Debug APK built and artifact-verified; remote-desktop product integration is incomplete.
