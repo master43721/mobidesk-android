@@ -95,7 +95,7 @@ These are layout contracts, not pixel-perfect final artwork. They use existing M
 │  Sign in with your college account   │
 │                                      │
 │  Email                               │
-│  [ name@college.edu                ] │
+│  [ student@example.invalid                ] │
 │                                      │
 │  Password                            │
 │  [ •••••••••••••••••••          ◉  ] │
