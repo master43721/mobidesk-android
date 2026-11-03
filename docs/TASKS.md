@@ -7,7 +7,7 @@
 
 | Gate | Work package | Effort estimate | Dependencies | PRD §14 target | Reforecast | Risk |
 |---|---|---:|---|---|---|---|
-| G0 — Product/baseline freeze | Repository/stack audit, build/submodule snapshot, PRD-to-repo reconciliation, branch and change-control freeze | 4–6 h | Owner PRD direction; GitHub access | 4 Nov 2026 | 4 Nov 2026 | LOW — stack/repo match verified; visibility/status questions remain |
+| G0 — Product/baseline freeze | Repository/stack audit, build/submodule snapshot, PRD-to-repo reconciliation, branch and change-control freeze | 4–6 h | Owner PRD direction; GitHub access | 4 Nov 2026 | 4 Nov 2026 | MEDIUM — stack/repo match verified; CI cannot locate platforms;android-37 before Gradle; visibility remains open |
 | G1 — Contract and threat-model freeze | Exact requirement inventory; API/OpenAPI; error schema; security/STRIDE; data/RLS model; UX/technical design; traceability and review | 24–32 h | G0; owner confirmation of unresolved policy choices | Broker design target 6 Nov; API/authorization completion target 8 Nov | 11 Nov 2026 | HIGH — more complete than an API-only draft; security and API decisions must be testable |
 | G2 — Broker ready | Session/JWT validation; active session_id check; unique assignment resolution; VM4 exclusion; lifecycle/readiness probe; grants; rate/concurrency; certificate data; WSS relay; periodic revocation; operations metrics | 48–64 h | G1; server-side Supabase access; VM allowlist; stable TLS/WSS route; certificate policy | 8 Nov 2026 | 25 Nov 2026 | HIGH — prototype is not deployed or conforming; stable WSS and session lookup are unresolved |
 | G3 — Android native session ready | FreeRDP source/API spikes; SessionCoordinator; CredentialPrompt; protected LocalBridge; RdpSessionActivity; RdpRenderTarget; certificate/NLA callbacks; input model; rotation/cleanup; raw-WSS transport integration | 80–120 h | G1; G2 contract; exact pinned FreeRDP APIs; test VM and certificate | 10 Nov 2026 | 18–31 Dec 2026 | VERY HIGH — 10 Nov is at risk; no native session or protected raw-stream bridge is evidenced |
@@ -22,6 +22,7 @@
 |---|---:|---|---|---|
 | MD-G0-01 Verify repository identity, stack, branch, Gradle, ABIs, manifest and gitlink | 4–6 h | None | Project Owner | DONE 3 Nov 2026; docs/BASELINE_AUDIT.md |
 | MD-G0-02 Resolve repo visibility and record PRD status authority | 1–2 h | MD-G0-01 | Project Owner | 5 Nov; owner decision in OPEN_ITEMS.md |
+| MD-G0-03 Resolve hosted-runner availability for compileSdk 37 | 2–4 h | MD-G0-01; separate CI/build approval | Project Owner | 5 Nov; separate CI-only change and successful SDK install + Gradle test/build run |
 | MD-G1-01 Normalize the PRD requirement inventory without editing PRD | 4–6 h | G0 | Project Owner | 6 Nov; TRACEABILITY_CHECK.md |
 | MD-G1-02 Freeze control API, OpenAPI 3.1 and contract-test checklist | 8–12 h | MD-G1-01 | Project Owner | 9 Nov; API_CONTRACT.md / openapi.yaml |
 | MD-G1-03 Complete STRIDE threat model and mitigations/tests | 6–8 h | MD-G1-01 | Project Owner | 10 Nov; SECURITY_THREAT_MODEL.md |
