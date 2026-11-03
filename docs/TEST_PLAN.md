@@ -284,7 +284,7 @@ Raw test evidence must not contain student identifiers, email, usernames, passwo
 
 ## 10. Current evidence status
 
-- [VERIFIED: .github/workflows/android-ci.yml at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3] CI currently runs JVM unit tests and a debug APK build. API 36 emulator instrumentation is opt-in through manual workflow dispatch.
+- [VERIFIED: .github/workflows/android-ci.yml at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5] CI currently runs JVM unit tests and a debug APK build. API 36 emulator instrumentation is opt-in through manual workflow dispatch.
 - [VERIFIED: README.md and docs/ANDROID_BUILD_REPORT.md at main] Historical build evidence describes a debug-signed artifact, not an owner-signed release or end-to-end RDP.
 - [UNKNOWN] No current physical RD-1 end-to-end RDP performance ledger was found in the inspected repository evidence.
 - [UNKNOWN] No broker production deployment, session_id revocation test, protected LocalBridge hijack test or certificate-pin acceptance dataset is evidenced in the current main source snapshot.
