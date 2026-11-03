@@ -75,3 +75,17 @@ Stop dependent implementation if:
 - the actual physical RD-1 device is unavailable for performance acceptance.
 
 The estimates do not authorize source, Gradle, submodule, CI, database, server or VM changes in this documentation task.
+
+
+## 5. Owner feature decisions — additional planning tasks
+
+These tasks reflect the Owner's 3 November 2026 feature selections. They are planning records, not evidence of implementation.
+
+| Task | Feature | Work | Acceptance / evidence | Status |
+|---|---|---|---|---|
+| MD-FP-01 | FP-01 to FP-18 | Maintain the R1 feature-to-requirement/test traceability matrix | Every R1 FP has requirement links, subtasks, dependencies, negative tests and measurable acceptance evidence | TO DECOMPOSE |
+| MD-FP-02 | FP-19 to FP-22 | Maintain R2 Dock feature-to-test plan | Dock discovery/auth, selected display path, input and lifecycle each have explicit acceptance evidence | TO DECOMPOSE |
+| MD-G1-07 | FP-14 | Draft and approve successor-PRD change for R1 background continuity | Owner-approved wording resolves conflict with v1.2 foreground-only rule; lock-screen decision recorded | OPEN — OWNER/PRD |
+| MD-G3-07 | FP-14 | Prove background session ownership and Android execution model | Session remains usable while app task is backgrounded; correct service declaration/permission/start path/notification proven on target SDK/device; cleanup works after OS/process/network interruption | BLOCKED BY OI-18 |
+| MD-G4-04 | FP-14, FP-17 | Run background session acceptance and resource measurements | Reproducible task-switch/return/notification/disconnect tests plus battery, memory, network and thermal report; no assumed performance pass | NOT STARTED |
+| MD-R2-01 | FP-20 | Compare phone-render/H.264-to-Pi with Pi-native FreeRDP | Same guest/workload and documented FPS, latency, power, thermal, bandwidth, reconnect and security comparison; Owner decision recorded before R2 implementation | DEFERRED — R2 |
