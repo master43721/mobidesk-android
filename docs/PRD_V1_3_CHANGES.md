@@ -14,7 +14,7 @@
 | RD-1 | §8.1 nominates Pixel 6 / Android 16 / API 36 / arm64 | Confirm actual physical device; update only if it differs | Required before G4 |
 | Schedule | §14 targets broker on 8 Nov, native RDP on 10 Nov, device acceptance on 12 Nov, release on 13 Nov | Reforecast sequential one-person work | Required |
 | Approval status | PDF cover says owner-review draft; Project Owner now says v1.2 is final | Change status label in a future approved revision | Required for documentary consistency |
-| PDF / text source | Current main has full PDF; prior docs branch contains a non-faithful docs/PRD.md | Declare PDF canonical until an exact text export is reviewed | Required |
+| PDF / text source | Current main has the full PDF; the prior docs branch contains a non-faithful docs/PRD.md. This suite adds a navigational index, not a full transcription. | PDF remains canonical; approve full text export only if needed | Required |
 | VM4 | §10/§15 excludes unverified VM4 | No change; retain exclusion | Confirm before any later addition |
 | Pinned FreeRDP integration | §6.6–6.8 specify desired stream/render/cert behavior; pinned upstream Java path has unresolved transport and cert integration semantics | No relaxation of security requirements; document specific integration spikes and stop criteria | Required for G3 |
 
@@ -53,7 +53,7 @@ NFR-COMP-01: preserve the repository's verified min/compile/target SDK and ABI b
 ~~~
 
 ### Verified current baseline
-- [VERIFIED: build.gradle and app/build.gradle at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3] minSdk 29, compileSdk 37, targetSdk 37.
+- [VERIFIED: build.gradle and app/build.gradle at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5] minSdk 29, compileSdk 37, targetSdk 37.
 - [VERIFIED: build.gradle and release.properties at the same commit] Required native ABIs arm64-v8a and x86_64.
 - [VERIFIED: app/build.gradle at the same commit] Java/Kotlin target 11.
 
@@ -106,9 +106,9 @@ Do not replace Pixel 6 with a guessed model. The device/build fingerprint belong
 | Guest account / Windows lockout approval | 6 Nov 2026 | Lab IT policy dependency |
 | Stable broker HTTPS/WSS route | 12 Nov 2026 | Owner DNS/TLS/network and WSS tests |
 | G2 broker ready | 25 Nov 2026 | Approximately 48–64 focused hours; session lookup, unique assignment, grant, relay, rate and revocation |
-| G3 native FreeRDP integration | 18 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
-| G4 physical R1 acceptance | 30 Dec 2026 | Requires G2/G3 plus RD-1 confirmation and 20-attempt/20-cycle performance/security evidence |
-| G5 signing and operations ready | 7 Jan 2027 | Requires G4, distribution/key choice, backup/restore, retention and runbooks |
+| G3 native FreeRDP integration | 18–24 Dec 2026 | Approximately 80–120 focused hours; transport, local bridge, surface, NLA, certificate and RDPEDISP spikes unproven |
+| G4 physical R1 acceptance | 30 Dec 2026–5 Jan 2027 | Requires G2/G3 plus RD-1 confirmation and 20-attempt/20-cycle performance/security evidence |
+| G5 signing and operations ready | 7–15 Jan 2027 | Requires G4, distribution/key choice, backup/restore, retention and runbooks |
 
 The 10 Nov native integration target is at risk: from the 3 Nov planning snapshot it is seven calendar days away (five weekdays assuming a Monday–Friday schedule). The current native integration estimate is 80–120 focused hours. This reforecast assumes one engineer/Project Owner with AI assistance, approximately six focused engineering hours per weekday and no major upstream transport redesign. Any failed FreeRDP raw-stream or bridge spike extends the forecast.
 
@@ -130,24 +130,24 @@ Status: Approved baseline — MobiDesk Project Owner confirmed PRD v1.2 as the n
 The printed PDF status must be updated only in a future approved PRD revision. This task does not rewrite the PDF.
 
 ### Canonical-file clarification
-- [VERIFIED: main tree at main@a6c7282...] docs/MobiDesk_PRD_v1.2.pdf exists on main and contains the 23-page PRD.
-- [VERIFIED: current main tree] docs/PRD.md is absent.
-- [VERIFIED: prior branch docs/mobidesk-prd-v1.2] its docs/PRD.md text projection does not reproduce the full 23-page PRD section/requirement structure.
-- Proposed: identify the PDF as canonical until a line-by-line faithful Markdown export is reviewed. Do not present an incomplete docs/PRD.md as equal authority.
+- [VERIFIED: main tree at main@5979320...] docs/MobiDesk_PRD_v1.2.pdf exists on main and contains the 23-page PRD.
+- [VERIFIED: main@5979320] The canonical PDF exists; docs/PRD.md is not present on main.
+- [VERIFIED: prior branch docs/mobidesk-prd-v1.2] its docs/PRD.md text projection is incomplete.
+- This suite adds a short navigational index at docs/PRD.md; it is not a full-text projection. The PDF remains canonical and unchanged.
 
 ## 7. Conflicts discovered while preparing the engineering suite
 
 | Finding | Evidence | Required treatment |
 |---|---|---|
 | Previous audit says Flutter + Kotlin; current PRD says Compose | [VERIFIED: current main source tree, settings.gradle and MainActivity.kt] native Kotlin/Compose matches PRD §6.1. The prior Flutter audit's source repository is UNKNOWN. | No PRD stack edit. Retain current repo audit, record previous audit provenance as unknown. |
-| README says repository is private; GitHub metadata reports public | [VERIFIED: GitHub repo metadata and README at main@a6c7282...] | Owner confirms visibility. Do not put operational secrets or endpoints into repository docs. |
+| README says repository is private; GitHub metadata reports public | [VERIFIED: GitHub repo metadata and README at main@5979320...] | Owner confirms visibility. Do not put operational secrets or endpoints into repository docs. |
 | Pinned FreeRDP Java façade has no obvious connected-FD method in inspected method list | [VERIFIED: pinned FreeRDP LibFreeRDP.java at v3.32.0 gitlink] | G3 raw-stream/bridge spike. No weakening of local peer-auth rule. |
 | Pinned FreeRDP argument builder adds /cert:ignore and upstream Activity supports an accept-all preference | [VERIFIED: pinned FreeRDP LibFreeRDP.java and SessionActivity.java] | Prove exact semantics and force fail-closed pin path; no user override. If it cannot be proven, no RDP release. |
 | Pinned FreeRDP argument builder may place bookmark password into a /p: string argument | [VERIFIED: pinned FreeRDP LibFreeRDP.java] | Do not set persistent BookmarkBase credentials. Use callback with proven buffer lifecycle or redesign adapter. |
 | Upstream SessionActivity resolves conRef/URI/hostname and frees session on Activity destroy | [VERIFIED: pinned FreeRDP SessionActivity.java] | Do not pass user target selectors; prove MobiDesk session/renderer lifecycle separately. |
 | Pinned Android SessionView is bitmap/GDI-backed View; DISP channel implementation exists | [VERIFIED: pinned FreeRDP SessionView.java, android_disp.c, CMakeLists.txt] | Verify render-target rebind, resize and actual RDPEDISP negotiation; do not claim seamless hot-plug. |
 | FreeRDP upstream setConnectionInfo adds clipboard; other redirection flags can be enabled | [VERIFIED: pinned FreeRDP LibFreeRDP.java] | Prove R1 excluded channels are off in MobiDesk argument config and release static scan. |
-| Current repo release build has no explicit signing config | [VERIFIED: app/build.gradle at main@a6c7282...] | Keep G5 blocked pending channel and key custody; do not claim production artifact. |
+| Current repo release build has no explicit signing config | [VERIFIED: app/build.gradle at main@5979320...] | Keep G5 blocked pending channel and key custody; do not claim production artifact. |
 | PRD §9 controls contain FR-SEC-01..03 numbering gap | [VERIFIED: PRD v1.2 PDF] | Apply proposed ID patch only after owner approval. Current test suite traces §9 items using section locators, not invented FR definitions. |
 
 These are implementation or documentation conflicts, not permission to relax the PRD security contract.
