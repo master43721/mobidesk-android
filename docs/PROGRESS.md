@@ -53,3 +53,14 @@ Copy this row for each meaningful engineering/test event. Do not record secrets,
 - A TCP/3389 reachability check is not proof that RDP negotiation or Windows NLA succeeds.
 - A test is PASS only when its procedure, commit, environment, result and evidence artifact are recorded.
 - No G0–G5 gate is declared fully passed in this status report unless every PRD exit criterion has evidence.
+
+
+## 6. Owner feature scope decisions recorded — 3 Nov 2026
+
+- Added `docs/FEATURE_INVENTORY.md` with 22 independently scoped FPs: 18 R1 Mobile Cloud PC FPs and 4 R2 Dock FPs.
+- **OWNER CONFIRMED:** Windows guest credentials are entered separately for every session; FP-05 follows the prompt-per-session pilot path. Broker-issued ephemeral guest passwords and directory-based login are not selected.
+- **OWNER CONFIRMED:** Both R2 Dock desktop delivery options remain open for comparison: phone-side RDP render/H.264-to-Pi and Pi-native FreeRDP. FP-20 must not select an architecture before the comparative spike.
+- **OWNER CONFIRMED:** No additional scope. Clipboard, file transfer and administrative console remain excluded.
+- **OWNER-DIRECTED PROPOSED CHANGE:** R1 active sessions should continue when the user backgrounds the app/switches applications. This conflicts with PRD v1.2 foreground-only/5-second teardown language. It is recorded as a proposed successor-PRD amendment, not a normative v1.2 change.
+- **OPEN:** Screen-lock/display-off behavior remains a separate decision. Background continuation does not imply persistence after force-stop or OS process termination.
+- Updated DECISIONS.md, OPEN_ITEMS.md, TASKS.md and PRD_V1_3_CHANGES.md to maintain traceability. No Android source, Gradle, CI, submodule, broker deployment, Supabase data or VM state was changed.
