@@ -9,21 +9,21 @@
 
 | Gate | PRD meaning | Status on 3 Nov 2026 | Evidence / missing exit criteria |
 |---|---|---|---|
-| G0 — Product/baseline freeze | Owner-approved PRD; repo/branch/FreeRDP gitlink rechecked; source conflicts recorded | PARTIAL / technical baseline PASS | [VERIFIED: main@a6c7282] target repo and Kotlin/Compose stack match PRD §6.1; SDK/ABI baseline and signed FreeRDP v3.32.0 gitlink verified. Owner says v1.2 is final; PDF cover still says review draft. Repository visibility is public despite README saying private. |
+| G0 — Product/baseline freeze | Owner-approved PRD; repo/branch/FreeRDP gitlink rechecked; source conflicts recorded | PARTIAL / technical baseline PASS | [VERIFIED: main@5979320] target repo and Kotlin/Compose stack match PRD §6.1; SDK/ABI baseline and signed FreeRDP v3.32.0 gitlink verified. Owner says v1.2 is final; PDF cover still says review draft. Repository visibility is public despite README saying private. |
 | G1 — Contract/threat-model freeze | No-client-VM-ID grant contract, status, session-active check, guest auth, pin and local bridge are designed and testable | IN PROGRESS | This docs suite is defining contract, OpenAPI, threat model, spec, design, tests and traceability. Passing contract tests and owner decisions are not yet evidenced. |
-| G2 — Broker ready | Auth/assignment/replay/revocation/allowlist; four approved endpoints; status and stable WSS; loopback-only broker binding | NOT STARTED / BLOCKED | [VERIFIED: main source tree and README at main@a6c7282] no broker service/client implementation is in this Android repo; live broker, stable WSS route and active-session recheck are not evidenced. VM4 remains excluded. |
-| G3 — Android session ready | Native RDP Activity, Windows credential prompt, pinned FreeRDP, cert callback and secure local bridge | NOT STARTED / BLOCKED | [VERIFIED: MainActivity.kt, AndroidManifest.xml and app source tree at main@a6c7282] launcher and Compose shell exist; no MobiDesk-owned RdpSessionActivity/session coordinator or protected WSS bridge is present. |
+| G2 — Broker ready | Auth/assignment/replay/revocation/allowlist; four approved endpoints; status and stable WSS; loopback-only broker binding | NOT STARTED / BLOCKED | [VERIFIED: main source tree and README at main@5979320] no broker service/client implementation is in this Android repo; live broker, stable WSS route and active-session recheck are not evidenced. VM4 remains excluded. |
+| G3 — Android session ready | Native RDP Activity, Windows credential prompt, pinned FreeRDP, cert callback and secure local bridge | NOT STARTED / BLOCKED | [VERIFIED: MainActivity.kt, AndroidManifest.xml and app source tree at main@5979320] launcher and Compose shell exist; no MobiDesk-owned RdpSessionActivity/session coordinator or protected WSS bridge is present. |
 | G4 — Physical R1 acceptance | Correct assigned VM and all authorization/performance/recovery/cleanup gates pass on RD-1 | NOT STARTED / BLOCKED | RD-1 physical availability is UNKNOWN. No physical RDP attempt ledger or measured FPS/latency dataset is evidenced. |
-| G5 — Release and operations ready | Exact owner-signed artifact; distribution, support, backup/restore, retention and rollback approved | NOT STARTED / BLOCKED | [VERIFIED: app/build.gradle at main@a6c7282] no owner release signing config is present; historical debug signing is not release signing. Distribution and lifecycle/retention decisions remain open. |
+| G5 — Release and operations ready | Exact owner-signed artifact; distribution, support, backup/restore, retention and rollback approved | NOT STARTED / BLOCKED | [VERIFIED: app/build.gradle at main@5979320] no owner release signing config is present; historical debug signing is not release signing. Distribution and lifecycle/retention decisions remain open. |
 
 ## 2. Verified baseline facts
 
-- **[VERIFIED: GitHub metadata and main@a6c7282]** Canonical repository is master43721/mobidesk-android; main currently points to commit a6c7282b4652b10b561ca0578c006c6d4b71cbc3.
-- **[VERIFIED: app/build.gradle and build.gradle at main@a6c7282]** Minimum/compile/target SDK is 29/37/37; Java/Kotlin target is 11; native ABIs are arm64-v8a and x86_64.
+- **[VERIFIED: GitHub metadata and main@5979320]** Canonical repository is master43721/mobidesk-android; main currently points to commit a6c7282b4652b10b561ca0578c006c6d4b71cbc3.
+- **[VERIFIED: app/build.gradle and build.gradle at main@5979320]** Minimum/compile/target SDK is 29/37/37; Java/Kotlin target is 11; native ABIs are arm64-v8a and x86_64.
 - **[VERIFIED: third_party/FreeRDP gitlink and upstream commit API]** FreeRDP is pinned to the signed release 3.32.0 commit d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1.
-- **[VERIFIED: .github/workflows/android-ci.yml at main@a6c7282]** CI runs JVM tests and a debug APK build; connected Android instrumentation is opt-in and uses an API 36 emulator.
-- **[VERIFIED: AndroidManifest.xml at main@a6c7282]** Cleartext traffic is disabled in the current manifest.
-- **[VERIFIED: README.md at main@a6c7282]** The repository reports that remote desktop session integration is incomplete and that the historical APK is a debug artifact only.
+- **[VERIFIED: .github/workflows/android-ci.yml at main@5979320]** CI runs JVM tests and a debug APK build; connected Android instrumentation is opt-in and uses an API 36 emulator.
+- **[VERIFIED: AndroidManifest.xml at main@5979320]** Cleartext traffic is disabled in the current manifest.
+- **[VERIFIED: README.md at main@5979320]** The repository reports that remote desktop session integration is incomplete and that the historical APK is a debug artifact only.
 
 ## 3. Dated progress log
 
@@ -35,7 +35,7 @@
 | 3 Nov 2026 | Compared current main and prior docs branch | main advanced after the previous PR branch; this suite branch starts from current main | Avoids inheriting branch drift |
 | 3 Nov 2026 | Identified owner evidence questions | Repository visibility, PDF cover status, RD-1 actual hardware, distribution, VM4 and WSS remain open | OPEN_ITEMS.md |
 
-## 4. Append-only progress entry template
+| 3 Nov 2026 | Branch drift and scope check | GitHub compare: docs/prd-v1.2-suite was 18 ahead / 1 behind main; three-dot diff contained only 18 docs paths | PR should be opened from this documentation branch after final checks |\n\n## 4. Append-only progress entry template
 
 Copy this row for each meaningful engineering/test event. Do not record secrets, student identifiers, private endpoints, screen contents or bearer values.
 
