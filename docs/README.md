@@ -15,6 +15,9 @@
 
 ## Read first
 
+[FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) is the product-level feature catalogue. It records the Owner's latest choices and labels the background-session change as a proposal that conflicts with PRD v1.2. The PDF remains normative until a successor PRD is approved.
+
+
 | Document | Purpose |
 |---|---|
 | [PRD.md](PRD.md) | Navigational requirement index; the linked PDF remains the normative source |
