@@ -47,6 +47,8 @@ A Feature Point (FP) is one coherent, independently identifiable product capabil
 R1 delivers the complete student workflow from college authentication to a secure Windows desktop session on the Android phone.
 
 ### FP-01 — Student Authentication and Account Recovery
+
+> Detailed specification package: [FP-01 review draft](FEATURE_SPECIFICATIONS/FP-01/README.md). Draft v0.1; awaiting Owner critique.
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
 
 **Outcome:** A provisioned student securely signs in using their institutional identity.
