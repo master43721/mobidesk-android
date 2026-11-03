@@ -18,7 +18,7 @@
 
 ## 2. Verified baseline facts
 
-- **[VERIFIED: GitHub metadata and main@5979320]** Canonical repository is master43721/mobidesk-android; main currently points to commit a6c7282b4652b10b561ca0578c006c6d4b71cbc3.
+- **[VERIFIED: GitHub metadata and main@5979320]** Canonical repository is master43721/mobidesk-android; main currently points to commit 5979320b05e1e6c1d872d82dcc17e65b0901e7e5.
 - **[VERIFIED: app/build.gradle and build.gradle at main@5979320]** Minimum/compile/target SDK is 29/37/37; Java/Kotlin target is 11; native ABIs are arm64-v8a and x86_64.
 - **[VERIFIED: third_party/FreeRDP gitlink and upstream commit API]** FreeRDP is pinned to the signed release 3.32.0 commit d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1.
 - **[VERIFIED: .github/workflows/android-ci.yml at main@5979320]** CI runs JVM tests and a debug APK build; connected Android instrumentation is opt-in and uses an API 36 emulator.
@@ -32,7 +32,7 @@
 | 3 Nov 2026 | Read-only G0 repository and stack audit | docs/BASELINE_AUDIT.md; native Kotlin/Compose confirmed; no stack/repo mismatch | Technical G0 check passed |
 | 3 Nov 2026 | Reconciled minSdk question | API 29 matches both PRD §8.1 and current Gradle baseline; compile/target 37/37 retained | NFR-COMP-01 baseline selected |
 | 3 Nov 2026 | Revalidated FreeRDP gitlink | Pinned commit identified as signed FreeRDP 3.32.0 release | Supports G3 spike, not RDP completion |
-| 3 Nov 2026 | Compared current main and prior docs branch | main advanced after the previous PR branch; this suite branch starts from current main | Avoids inheriting branch drift |
+| 3 Nov 2026 | Compared current main and prior docs branch | this suite branch existed at ca34e425a9f8c02dfc3f831ca620e590ecb6c789 with merge base a6c7282; it was 18 commits ahead and one behind current main; its three-dot diff contained documentation paths only | Avoids inheriting branch drift |
 | 3 Nov 2026 | Identified owner evidence questions | Repository visibility, PDF cover status, RD-1 actual hardware, distribution, VM4 and WSS remain open | OPEN_ITEMS.md |
 
 | 3 Nov 2026 | Branch drift and scope check | GitHub compare: docs/prd-v1.2-suite was 18 ahead / 1 behind main; three-dot diff contained only 18 docs paths | PR should be opened from this documentation branch after final checks |\n\n## 4. Append-only progress entry template
