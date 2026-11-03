@@ -1,0 +1,107 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_instrumentation:
+        description: "Also boot an API 36 emulator and run connected Android tests"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: JVM tests and debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "2"
+    steps:
+      - name: Check out source and pinned FreeRDP submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes nasm
+
+      - name: Accept Android SDK licenses and install pinned packages
+        shell: bash
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses
+          set -o pipefail
+          sdkmanager --licenses
+          sdkmanager --install \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;29.0.13113456" \
+            "cmake;4.1.2"
+
+      - name: Run JVM unit tests and assemble debug APK
+        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Verify APK integrity and debug signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          unzip -tq "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          sha256sum "$apk"
+          stat --printf='APK size: %s bytes\n' "$apk"
+
+      - name: Upload debug-only APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobidesk-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Install API 36 emulator image for opt-in instrumentation
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
+        run: |
+          sdkmanager --install \
+            "platforms;android-36" \
+            "system-images;android-36;google_apis;x86_64" \
+            "emulator"
+
+      - name: Run connected Android tests on API 36 emulator
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
+          disable-animations: true
+          script: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:connectedDebugAndroidTest
