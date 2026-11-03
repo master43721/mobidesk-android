@@ -28,7 +28,7 @@ The Project Owner must choose one channel before G5. Do not create a production 
 - Google Play protects/manages the app-signing key; the publisher retains the separate upload key used to sign the bundle submitted to Play.
 - The upload key is security-sensitive; store it in owner-controlled encrypted key storage with offline recovery and audited access.
 - New apps and app updates submitted to Google Play must target Android 16 / API 36 or higher from 31 August 2026.
-- **[VERIFIED: app/build.gradle at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3]** MobiDesk currently configures targetSdk 37, which is above the API 36 submission threshold. minSdk 29 is a different setting and does not determine Play target API compliance.
+- **[VERIFIED: app/build.gradle at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5]** MobiDesk currently configures targetSdk 37, which is above the API 36 submission threshold. minSdk 29 is a different setting and does not determine Play target API compliance.
 - Before release, verify current Play Console app declarations, data safety, privacy policy, support contact, permissions, test access and any current SDK/policy requirements.
 
 Sources:
@@ -61,7 +61,7 @@ Google's target API policy documents an exception for permanently private apps r
 
 ### 3.1 Current evidence
 
-- **[VERIFIED: app/build.gradle at main@a6c7282b4652b10b561ca0578c006c6d4b71cbc3]** No explicit owner-controlled release signingConfig is present in the inspected Gradle release block.
+- **[VERIFIED: app/build.gradle at main@5979320b05e1e6c1d872d82dcc17e65b0901e7e5]** No explicit owner-controlled release signingConfig is present in the inspected Gradle release block.
 - **[REPORTED: README.md and docs/ANDROID_BUILD_REPORT.md, historical 27 Oct 2026]** A debug-signed APK was produced. This is not production release signing.
 - **[UNKNOWN]** Release/upload key creation, owner custody, backup, rotation and recovery have not been approved.
 
@@ -79,8 +79,8 @@ Google's target API policy documents an exception for permanently private apps r
 
 ## 4. Release build and target SDK
 
-- **[VERIFIED: app/build.gradle and build.gradle at main@a6c7282...]** Current settings: minSdk 29, compileSdk 37, targetSdk 37, Java/Kotlin target 11, ABIs arm64-v8a and x86_64.
-- **[VERIFIED: .github/workflows/android-ci.yml at main@a6c7282...]** Current CI uses Java 21 to build/test with Gradle and produces a debug artifact; it is not an owner-signed production release pipeline.
+- **[VERIFIED: app/build.gradle and build.gradle at main@5979320...]** Current settings: minSdk 29, compileSdk 37, targetSdk 37, Java/Kotlin target 11, ABIs arm64-v8a and x86_64.
+- **[VERIFIED: .github/workflows/android-ci.yml at main@5979320...]** Current CI uses Java 21 to build/test with Gradle and produces a debug artifact; it is not an owner-signed production release pipeline.
 - Preserve min/compile/target/ABI baseline under NFR-COMP-01 unless an approved PRD change records the reason, compatibility impact and test evidence.
 - Current targetSdk 37 exceeds Google Play's API 36 minimum for new apps and updates as of 31 Aug 2026. If Play is selected, recheck policy at actual submission time.
 - Do not confuse minSdk29 with the Play target API threshold. Raising minSdk would remove supported older Android devices; it is not required by the cited Play policy.
