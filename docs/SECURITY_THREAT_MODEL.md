@@ -144,7 +144,7 @@ The broker is the only authorized component that resolves a student assignment t
 **Controls (preferred order):**
 1. Socketpair or connected descriptor passed to FreeRDP if the pinned v3.32.0 Android/native API safely supports it.
 2. App-private Unix-domain socket with restrictive permissions and same-UID peer verification when supported.
-3. Loopback TCP only if exact pinned-client APIs support a secret-bearing handshake that the legitimate FreeRDP side can prove. Use a high-entropy one-time secret, bind only to 127.0.0.1, open listener immediately before the expected connect, accept exactly one peer, verify it, close the listener immediately, enforce a short deadline and clear the secret.
+3. Loopback TCP only if exact pinned-client APIs support a secret-bearing handshake that the legitimate FreeRDP side can prove. Use a high-entropy one-time secret, bind only to loopback interface, open listener immediately before the expected connect, accept exactly one peer, verify it, close the listener immediately, enforce a short deadline and clear the secret.
 4. A random port alone is not authentication. If the FreeRDP client cannot participate in a protected handshake, stop; do not ship an unauthenticated bridge.
 
 **Concurrency / byte handling:** dedicated bounded reader/writer workers; one ordered byte stream in each direction; finite queues; pause reads at high-water; handle EOF, half-close, cancellation, timeout and process teardown; never allow unbounded buffering.
