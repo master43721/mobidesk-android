@@ -91,7 +91,7 @@ These tasks reflect the Owner's 3 November 2026 feature selections. They are pla
 | MD-R2-01 | FP-20 | Compare phone-render/H.264-to-Pi with Pi-native FreeRDP | Same guest/workload and documented FPS, latency, power, thermal, bandwidth, reconnect and security comparison; Owner decision recorded before R2 implementation | DEFERRED — R2 |
 
 
-## 5. College Administrator and student-account work packages
+## 6. College Administrator and student-account work packages
 
 These tasks implement the Owner-confirmed two-role prototype model. They are additional to the student RDP critical path and must be scheduled as explicit work; they are not completed by adding screens alone. Their planning ranges total approximately 87–142 focused hours, excluding provider/DNS waiting time. The earlier 216–302 hour RDP-focused total does not include this admin scope; the combined planning envelope is therefore approximately 303–444 focused hours before schedule reforecast.
 
