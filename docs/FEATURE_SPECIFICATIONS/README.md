@@ -7,7 +7,7 @@
 
 | Feature | Name | Status |
 |---|---|---|
-| [FP-01](FP-01/README.md) | Student Authentication and Account Recovery | Draft v0.1 — awaiting Project Owner critique |
+| [FP-01](FP-01/README.md) | Student Authentication and Account Recovery | Draft v0.2 — Owner critique revision; awaiting further review |
 
 ## Package lifecycle
 
