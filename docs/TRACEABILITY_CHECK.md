@@ -177,3 +177,25 @@ Gates are conjunctive: all required tests and approvals for a gate must pass. A 
 - **No PRD change is applied by this suite.** PRD v1.2 remains normative until a later approved revision.
 
 **Sign-off readiness:** documentation traceability is complete subject to the FR-SEC numbering gap being accepted as open. G2–G5 are not implementation-passed and must not be marked complete without evidence.
+
+
+## 7. Owner-directed College Administrator scope — proposed v1.3
+
+This scope was selected by the Project Owner on 4 November 2026. It extends the v1.2 PDF, which excludes an administrative management console. It is therefore a proposed successor-PRD change, not a v1.2 normative requirement. Detailed design is in ADMIN_ACCOUNT_MODEL.md.
+
+| Proposed requirement | Design | Tests | Gate | Status |
+|---|---|---|---|---|
+| IAM-01 two-role model | ADMIN_ACCOUNT_MODEL §§1–3; DECISIONS DEC-30/33 | T-ADMIN-01, T-ADMIN-08/09 | G1/G2/G4 | PROPOSED |
+| IAM-02 admin bootstrap and MFA | ADMIN_ACCOUNT_MODEL §3; OPERATIONS §2.5 | T-ADMIN-02 | G1/G2 | PROPOSED |
+| IAM-03 no student self-registration | ADMIN_ACCOUNT_MODEL §4.2; DESIGN admin role routing | T-ADMIN-03 | G1/G4/G5 | OWNER CONFIRMED; implementation pending |
+| IAM-04/05 admin-created roster-first student Auth invite | ADMIN_ACCOUNT_MODEL §4; API_CONTRACT §9.3; OPERATIONS §2.5 | T-ADMIN-04/05/11 | G2 | PROPOSED; trigger/invite integration unverified |
+| IAM-06/07 first activation callback and invite negatives | ADMIN_ACCOUNT_MODEL §4.3 | T-ADMIN-06/07 | G2/G4 | BLOCKED BY SDK/EMAIL SPIKE |
+| IAM-08 role authority and no escalation | ADMIN_ACCOUNT_MODEL §7; SECURITY_THREAT_MODEL §8 | T-ADMIN-08/09 | G2 | PROPOSED |
+| ADM-01 account lifecycle | FEATURE_INVENTORY FP-24; ADMIN_ACCOUNT_MODEL §4.4 | T-ADMIN-11 | G2 | PROPOSED |
+| ADM-02 student/VM assignment management | FEATURE_INVENTORY FP-25; ADMIN_ACCOUNT_MODEL §5 | T-ADMIN-12 | G2 | PROPOSED |
+| ADM-03 host/VM inventory and guarded actions | FEATURE_INVENTORY FP-26; ADMIN_ACCOUNT_MODEL §6.4 | T-ADMIN-13 | G2/G4 | PROPOSED; host allowlist pending |
+| ADM-04 student session monitor/termination | FEATURE_INVENTORY FP-27; ADMIN_ACCOUNT_MODEL §6.5 | T-ADMIN-14 | G2/G4 | PROPOSED |
+| ADM-05 audit/activity view | FEATURE_INVENTORY FP-28; ADMIN_ACCOUNT_MODEL §7 | T-ADMIN-15 | G2/G5 | PROPOSED |
+| Privilege and secret isolation | SECURITY_THREAT_MODEL §8; API_CONTRACT §9 | T-ADMIN-10, T-ADMIN-13/15 | G2/G5 | REQUIRED DESIGN; no code yet |
+
+No proposed IAM/ADM requirement is marked PASS because its design is present. It passes only when the specific backend/API, RLS, physical app and negative-test evidence is recorded in PROGRESS.md.
