@@ -70,6 +70,12 @@ If the initial admin account is lost or disabled, recovery is an owner-controlle
 - The Auth user and roster eligibility are created by the college-controlled workflow before the student opens the email.
 - The student cannot enter an arbitrary email and create an account.
 - There is no public registration route or client-side Supabase signUp call.
+
+**Supabase setting note:** After the trusted invitation path has passed end-to-end tests, disable the project-level **Allow new users to sign up** setting to block self-service account creation. Keep the Email provider enabled so existing students can continue email/password sign-in. Supabase documents that disabling new-user signup leaves invitations as the supported way to create users; invitation itself is an Auth Admin action performed from a trusted server or Dashboard. Verify current project settings and existing-user sign-in plus invitation delivery before changing production configuration. This documentation PR does not change Supabase settings.
+
+References:
+- https://supabase.com/docs/guides/auth/general-configuration
+- https://supabase.com/docs/guides/auth/users
 - The invitation link is scoped to the pre-created user and has the expiry/one-time semantics configured by Supabase.
 - A student without a valid invitation cannot create an account by opening a crafted callback or deep link.
 
