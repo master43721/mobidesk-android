@@ -1,249 +1,240 @@
 # FP-01 Product Requirements Document — Student Authentication and Account Recovery
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026  
 **Parent feature:** FP-01  
-**Product:** MobiDesk  
 **Repository:** master43721/mobidesk-android  
 **Normative parent:** MobiDesk PRD v1.2  
-**Approval:** Not approved. Project Owner critique required.
+**Status:** REVIEW DRAFT — not approved for implementation.
 
-## 1. Product summary
+## 1. Executive summary
 
-FP-01 lets a student sign in to MobiDesk using the institution-provisioned email/password identity, restores a valid Auth session on later launches, provides sign-out, and lets the student request and complete password recovery.
+FP-01 preserves and safely completes the existing MobiDesk student authentication experience: email/password sign-in, Auth-session restoration, sign-out, password-recovery email request and password update through a PKCE callback.
 
-Authentication is delegated to the existing Supabase Auth project through the Supabase Kotlin SDK already included in the Android application. MobiDesk does not become an identity provider and does not create student accounts.
+This is a **targeted hardening/refactoring feature**, not a replacement authentication architecture. Existing screens, Supabase Auth SDK integration and successful flows should be retained unless a test or security defect justifies changing them.
 
-FP-01 proves **who has authenticated**. It does not prove that the user has a student profile, college enrolment or assigned VM. Those are later workspace/authorization checks owned by FP-02 and FP-03.
+FP-01 proves **authentication identity**. It does not prove the user is an institution-approved student or authorized for a VM. FP-02/FP-03 own profile and assignment authorization. The handoff now carries an explicit AuthLevel so a password-recovery session cannot be mistaken for a normal fully authenticated application session.
 
-## 2. Problem and desired outcome
+## 2. Problem statement
 
-A student must be able to enter MobiDesk with the institution-provisioned identity without creating another locally managed account. Returning students should not need to sign in again while their Auth session remains valid and refreshable. A student who forgets a password must have a verified recovery path back into the app.
+The current app already contains the main Auth happy paths. The problem is that the current implementation does not maintain a distinct recovery-only authentication level. Supabase's PKCE recovery callback establishes an ordinary Authenticated SDK session before the current success callback switches the UI into password-recovery mode. The current ViewModel may therefore load the student workspace during recovery. Cancelling recovery only hides the form and leaves that authenticated session active. Recovery state is held only in ViewModel memory, and callback re-delivery after Activity recreation may exchange a consumed code again.
 
-A successful FP-01 flow is:
-1. Open MobiDesk.
-2. Restore an existing valid Supabase session or show the sign-in screen.
-3. Sign in with the institution-provisioned email/password.
-4. Remain authenticated while the SDK session remains valid and refreshable.
-5. Sign out deliberately.
-6. Request password recovery and complete the reset through the verified Android deep-link callback.
+The current sign-out error path also leaves the authenticated UI active when the remote sign-out call fails. Finally, the historical project audit reported that custom SMTP was disabled, while Supabase's built-in email service is restricted to team-member addresses and a very low project-wide sending rate. Password recovery cannot be treated as operational for ordinary students until a production-capable email sender is configured and tested.
 
-## 3. Actors
+## 3. Desired product outcomes
 
-| Actor | Responsibility |
-|---|---|
-| Student | Sign in, restore session, sign out and recover a forgotten password. |
-| Institution / Project Owner | Provision eligible identities and control Auth project settings. |
-| Supabase Auth | Verify credentials, manage Auth sessions, send recovery links and accept password updates. |
-| Android client | Collect credentials, invoke the Auth SDK, observe Auth state and process deep links. |
-| FP-02 workspace | Separately verify that the authenticated user has an approved student profile. |
+A provisioned student can:
+1. Sign in using their institution email and password.
+2. Return to MobiDesk and restore a valid session without seeing a sign-in/dashboard flash.
+3. Sign out of the current Supabase session.
+4. Request password recovery using their institution email.
+5. Open a valid recovery link and reach a recovery-only state.
+6. Set a new password and then transition to a fully authenticated application state.
+7. Cancel or abandon recovery without entering the student workspace.
+8. Resume a valid recovery form after process death, or safely restart recovery if callback processing was interrupted.
+9. Receive an actionable message for SMTP authorization failures and rate limiting.
 
-## 4. Scope
+## 4. Parent PRD traceability
+
+The parent PRD v1.2 requirements are applied as follows:
+
+| Parent requirement | Parent wording supplied from v1.2 | FP-01 disposition |
+|---|---|---|
+| FR-AUTH-01 | Preserve existing sign-in, session restoration, password recovery and sign-out behaviour. | **Direct FP-01 requirement.** FP-01 preserves the current paths and fixes demonstrated recovery/sign-out defects without introducing a new Auth architecture. |
+| FR-AUTH-02 | All profile and assignment queries use the user token and RLS. | **Not an FP-01 requirement.** This is owned by FP-02/FP-03. FP-01 must hand off a verified Auth state and must not perform profile/assignment authorization itself. |
+
+FR-AUTH-02 must not be mapped to password recovery. FP-01 may include an integration test proving that the Auth layer hands off identity without performing a profile/assignment query, but the RLS query requirements remain in FP-02/FP-03.
+
+## 5. Scope
 
 ### Included
-
-- Supabase email/password sign-in.
-- Trim surrounding email whitespace; pass password exactly as entered.
-- Busy state and duplicate-submit prevention.
-- Auth session initialization/restoration.
-- Observation of authenticated, unauthenticated, initializing and refresh-failure states.
-- Deliberate sign-out.
+- Institution email/password sign-in.
+- Initial Auth session restoration.
+- Auth state transitions and refresh failures.
+- Current-session sign-out and a safe local sign-out fallback.
 - Forgot-password request.
-- Recovery URI/deep-link handling using the configured PKCE flow.
-- New-password and confirmation form.
-- Safe user-facing error and success messages.
-- Missing Supabase configuration state.
-- Authentication-focused unit, UI, integration and security tests.
+- PKCE recovery callback handling.
+- A durable recovery-state marker and recovery-only AuthLevel.
+- Successful password update and transition to full authentication.
+- Recovery cancellation/Back behavior that does not leave the student signed in.
+- Callback de-duplication across Activity recreation/process restart.
+- Safe handling of Supabase Auth errors, including email authorization and rate limits.
+- A narrow Auth repository interface so tests can inject a fake.
+- Supabase project email-delivery readiness requirements.
+- Focused unit, UI, integration and device acceptance tests.
 
 ### Excluded
+- Student account creation or signup UI.
+- Institution roster provisioning or administrator account management.
+- Student profile, college and VM assignment queries.
+- RDP/Windows guest credentials, session broker and remote desktop.
+- MFA, passkeys, social sign-in or a second identity provider for the R1 pilot unless institution policy mandates one.
+- Replacing the Supabase SDK or introducing an AuthSessionCoordinator/AuthDeepLinkRouter architecture.
+- A new navigation/screen redesign; retain the existing Compose sign-in and recovery screens unless needed to fix a specific issue.
 
-- Student self-registration/create-account screen or app-side signup API.
-- Institution roster provisioning, invitation administration, account linking, deletion or administrator management.
-- Student profile, college, VM assignment or VM access authorization.
-- Resend-confirmation UI unless approved.
-- Email change, multi-device session management, MFA, passkeys and social login in this draft.
-- Windows guest authentication (FP-05), broker grants, FreeRDP and RDP sessions.
-- Custom password database or local password cache.
+## 6. Authentication levels and FP-02 handoff
 
-**Configuration caveat:** the absence of an app signup screen does not prove that public signup is disabled in the Supabase project. Project-side signup configuration is an open security item and is described in SUPABASE_CONFIGURATION.md.
+The app must distinguish these levels:
 
-## 5. User journeys
+| AuthLevel | Meaning | May enter FP-02 workspace? |
+|---|---|---|
+| SIGNED_OUT | No usable Supabase session | No |
+| RECOVERY_ONLY | Supabase session was established by password recovery and the password update has not completed | **No** |
+| FULLY_AUTHENTICATED | Normal sign-in or successfully completed recovery | Yes, subject to FP-02 profile checks |
 
-### 5.1 First launch — no Auth session
+A Supabase SessionStatus.Authenticated event alone is insufficient to determine FULLY_AUTHENTICATED because the PKCE recovery flow imports a normal SDK session. The app must combine SDK session state with its own durable recovery marker.
 
-1. Check that the Supabase URL and client-safe publishable key are configured.
-2. If either is absent, show a configuration-unavailable state and disable sign-in.
-3. If configured, wait for the SDK's initial session status before routing.
-4. If no valid session exists, show sign-in.
-5. Student enters school email and password.
-6. Trim surrounding whitespace from email only; pass password unchanged.
-7. Submit once and display progress.
-8. On success, observe the Supabase Auth state stream and publish the authenticated state.
-9. FP-02 receives the identity and separately checks the student profile.
+FP-02 may begin profile/assignment checks only after FP-01 publishes FULLY_AUTHENTICATED. RECOVERY_ONLY must never trigger workspace/profile loading.
 
-### 5.2 Returning user
-
-1. Initialize the Supabase Auth client.
-2. Let the pinned SDK determine the restored/refreshable session state.
-3. Do not flash the sign-in screen before initial restoration completes.
-4. Publish Authenticated to FP-02, or show sign-in when unauthenticated/refresh failed.
-
-### 5.3 Sign-out
-
-1. Student selects Sign out.
-2. Disable duplicate actions and invoke Supabase sign-out.
-3. Clear local authenticated UI and protected in-memory state when local sign-out is confirmed.
-4. Return to sign-in.
-5. Do not claim server-side revocation if the operation failed or only local sign-out occurred. The exact SDK scope/default must be checked against the pinned SDK.
-
-### 5.4 Forgotten password
-
-1. Student selects Forgot password.
-2. Student enters school email.
-3. Invoke Supabase password recovery using the configured recovery redirect URI.
-4. Show a generic acknowledgement that does not disclose whether the address maps to an account.
-5. Student opens the recovery email link.
-6. Android validates callback scheme/host/path and sends the intent to the Supabase Kotlin SDK deep-link handler.
-7. Show the new-password form only after the SDK establishes a valid recovery session.
-8. Student enters and confirms the new password.
-9. Validate confirmation and the locally displayed minimum; Supabase remains authoritative for its configured password policy.
-10. Invoke Supabase user password update.
-11. Show success and apply the Owner-approved post-recovery session policy.
-
-### 5.5 Invalid or expired recovery link
-
-- Do not enable password update until a valid recovery session exists.
-- Show a safe invalid/expired-link message.
-- Offer a path to request a new recovery link.
-- Do not trust an arbitrary URL merely because it uses the app's custom scheme.
-
-## 6. Functional requirements
-
-IDs use the FP01 prefix to avoid collision with parent PRD identifiers.
+## 7. Functional requirements
 
 | ID | Requirement | Priority | Acceptance evidence |
 |---|---|---:|---|
-| FP01-FR-001 | MUST authenticate existing students using the configured Supabase email/password provider. | MUST | Staging integration test for valid and invalid credentials. |
-| FP01-FR-002 | MUST NOT expose student self-registration or account creation in the app. | MUST | Navigation/UI test and APK/source scan. |
-| FP01-FR-003 | MUST wait for initial Auth session restoration before selecting the signed-in or signed-out route. | MUST | Cold-start and process-recreation tests. |
-| FP01-FR-004 | MUST derive authenticated state from the Supabase session-state stream, not solely from a successful sign-in call return. | MUST | Repository/ViewModel state tests. |
-| FP01-FR-005 | MUST handle Initializing, Authenticated, NotAuthenticated and RefreshFailure states without contradictory UI. | MUST | State-transition tests. |
-| FP01-FR-006 | MUST clear password input after successful sign-in and MUST NOT persist passwords in SavedState, preferences, database or logs. | MUST | UI, process-recreation and static/log checks. |
-| FP01-FR-007 | MUST trim surrounding email whitespace and MUST pass the password unchanged. | MUST | Input transformation tests. |
-| FP01-FR-008 | MUST prevent duplicate sign-in, recovery-request and password-update submissions while an operation is active. | MUST | UI and ViewModel tests. |
-| FP01-FR-009 | MUST provide sign-out and clear local authenticated UI after local sign-out is confirmed. | MUST | SDK integration and network-failure tests. |
-| FP01-FR-010 | MUST request password recovery using the configured, allow-listed redirect URI. | MUST | Staging mail/deep-link integration test. |
-| FP01-FR-011 | MUST process recovery deep links through the pinned SDK and reject malformed or unexpected callback destinations. | MUST | Deep-link instrumentation tests. |
-| FP01-FR-012 | MUST enable password update only after a valid recovery session is established. | MUST | Valid, expired, altered and replayed-link tests. |
-| FP01-FR-013 | MUST validate new-password confirmation; Supabase remains authoritative for the project password policy. | MUST | Unit and staging policy tests. |
-| FP01-FR-014 | MUST give a generic recovery-request acknowledgement that does not disclose account existence. | MUST — proposal for Owner approval | Compare existing/non-existing test addresses. |
-| FP01-FR-015 | MUST NOT expose raw backend exceptions, tokens, callback codes, URLs or internal service details to users or logs. | MUST | Error mapping and log scan. |
-| FP01-FR-016 | MUST fail closed when required Supabase URL/publishable-key configuration is absent. | MUST | Build-variant/configuration test. |
-| FP01-FR-017 | MUST NOT package a Supabase service-role/secret key. Only a client-safe publishable/anon key may be used in the Android app. | MUST | Repository/build artifact secret scan. |
-| FP01-FR-018 | MUST hand Authenticated identity/session state to FP-02 without asserting student profile or VM authorization. | MUST | Architecture boundary and integration test. |
+| FP01-FR-001 | Preserve Supabase email/password sign-in for institution-provisioned users. | MUST | Existing baseline and sign-in integration tests pass. |
+| FP01-FR-002 | Preserve session restoration and prevent premature signed-out/signed-in route flashes. | MUST | Cold-start and process-recreation tests. |
+| FP01-FR-003 | Publish SIGNED_OUT, RECOVERY_ONLY and FULLY_AUTHENTICATED AuthLevel to app navigation/FP-02. | MUST | State transition and FP-02 handoff tests. |
+| FP01-FR-004 | A recovery PKCE callback MUST set a durable recovery-pending marker before asynchronous code exchange begins. | MUST | Callback-order test and process-death test. |
+| FP01-FR-005 | An SDK Authenticated event received while recovery is pending MUST remain RECOVERY_ONLY and MUST NOT trigger workspace/profile queries. | MUST | Fake repository test verifies no workspace call. |
+| FP01-FR-006 | A successful password update MUST clear the recovery marker and transition to FULLY_AUTHENTICATED. | MUST | Recovery integration/state test. |
+| FP01-FR-007 | Cancelling/backing out of RECOVERY_ONLY MUST sign out the recovery session and return to SIGNED_OUT; it MUST NOT expose the workspace. | MUST | Cancel/back test with Auth-state and workspace assertions. |
+| FP01-FR-008 | If remote current-session sign-out fails, the user MUST have a clear local sign-out fallback. The UI MUST explain that remote revocation could not be confirmed. | MUST | Network-failure test; local SDK session is cleared. |
+| FP01-FR-009 | Re-delivery of the same recovery callback during Activity recreation/process restart MUST NOT exchange a consumed PKCE code again. | MUST | Duplicate callback and recreation tests. |
+| FP01-FR-010 | If the process dies while callback processing is pending, the next launch MUST NOT treat the resulting SDK session as FULLY_AUTHENTICATED. It MUST show an interrupted-recovery path and safely clear/restart the partial session. | MUST | Process-death injection test. |
+| FP01-FR-011 | If the process dies after the recovery session is ready for password update, the app MUST restore the recovery screen while the SDK session remains valid. | MUST | Process-recreation test. |
+| FP01-FR-012 | The app MUST preserve the existing exact recovery redirect and PKCE flow unless a reviewed redirect change is approved. | MUST | Redirect allow-list and physical email-link test. |
+| FP01-FR-013 | The app MUST display an actionable error for email_address_not_authorized and over_email_send_rate_limit. | MUST | Auth error mapping tests and staging tests. |
+| FP01-FR-014 | The app MUST distinguish request/IP rate limiting (over_request_rate_limit) from email-sending rate limiting. | MUST | Error mapping test. |
+| FP01-FR-015 | The app MUST NOT expose raw exceptions, passwords, access/refresh tokens, callback codes, PKCE verifier or full recovery URLs. | MUST | Log and artifact inspection. |
+| FP01-FR-016 | The app MUST use an injectable Auth repository interface so ViewModel tests can supply a fake without constructing the production Supabase client. | MUST | Unit tests instantiate ViewModel with fake repository. |
+| FP01-FR-017 | The app MUST preserve the current sign-in, recovery and workspace experience except where the above defects require correction. | MUST | Baseline regression suite. |
+| FP01-FR-018 | The app MUST NOT expose student signup. Project-level signup configuration MUST be checked against the institution provisioning policy. | MUST | UI test plus Supabase project setting evidence. |
 
-The parent PRD index lists FR-AUTH-01 and FR-AUTH-02. Their exact wording and one-to-one traceability must be checked against the full parent PDF before FP-01 v1.0 is approved. This draft does not silently redefine parent IDs.
+## 8. Sign-in, sign-out and recovery behavior
 
-## 7. User experience requirements
+### 8.1 Sign-in
+- Keep email/password sign-in.
+- Use the existing school/institution email field and password field.
+- Trim surrounding email whitespace only; pass password unchanged.
+- Do not add a new sign-in provider or login identifier in this FP.
+- A successful signIn call is not enough to navigate: use the Auth session-state flow.
+- A FULLY_AUTHENTICATED session is handed to FP-02 for profile authorization.
 
-### Screens and states
+### 8.2 Session restoration
+- Keep the existing SDK-managed session restoration.
+- Wait for the initial session status before deciding the app route.
+- Restore RECOVERY_ONLY from the durable recovery marker, not from SessionStatus.Authenticated alone.
+- If marker state says CALLBACK_PENDING after process death, do not show workspace. Clear the partial recovery session locally and ask the user to request a new recovery link.
+- If marker state says PASSWORD_UPDATE_REQUIRED and the SDK session is still valid, restore the new-password form.
+- If the SDK session is missing/expired while recovery is pending, clear the marker and return to the recovery request/sign-in route.
 
-| State/screen | Required behavior |
+### 8.3 Sign-out
+The pinned supabase-kt 3.6.0 source declares signOut(scope = SignOutScope.LOCAL) as the default. LOCAL means the current Supabase session, not all sessions on all devices. The call posts the current-session logout request and then clears the local session on success.
+
+If the remote request fails:
+- Show “Could not confirm sign-out with the service.”
+- Offer Retry and “Sign out on this device”.
+- The device-only action calls the SDK's local clearSession path, clears local Auth/recovery UI state and returns to SIGNED_OUT.
+- Explain that local clearing does not prove the remote refresh session was revoked.
+- Do not claim the user was signed out of all devices.
+
+### 8.4 Password recovery
+1. Student selects Forgot password and enters institution email.
+2. App requests a recovery email using the exact configured redirect.
+3. App shows a generic acknowledgement.
+4. When the recovery callback arrives, app validates the expected callback route and writes RECOVERY_CALLBACK_PENDING before calling the asynchronous SDK handler.
+5. SDK verifies/exchanges the PKCE code.
+6. On callback success, app persists PASSWORD_UPDATE_REQUIRED before exposing the password form.
+7. Authenticated SDK status remains RECOVERY_ONLY while this marker exists.
+8. On valid new-password confirmation, call the SDK password update.
+9. On success, clear the recovery marker and publish FULLY_AUTHENTICATED.
+10. On cancellation, sign out the recovery session and return to SIGNED_OUT.
+11. On failed/interrupted callback, never expose workspace; request a fresh link.
+
+## 9. UX and error requirements
+
+Keep the current sign-in, reset-request and new-password screens. Add/revise only the states required by the recovery lifecycle:
+
+- Recovery callback being verified.
+- Recovery ready for password update.
+- Recovery interrupted; request a new link.
+- Recovery cancelled; user is signed out.
+- Sign-out could not reach Supabase; Retry or sign out on this device.
+- Email delivery is not configured for this address.
+- Too many recovery emails; wait before retry.
+- Too many Auth requests; wait before retry.
+
+Do not collapse all rate-limit and mail-provider errors into “Something went wrong”.
+
+### Error behavior
+
+| Supabase condition | Student-facing behavior |
 |---|---|
-| Sign in | School email, password, visibility toggle, Sign in, Forgot password, institution-provisioned account explanation. |
-| Restoring | Loading state; no premature sign-in/dashboard flash. |
-| Submitting | Disable controls, show progress and prevent duplicate request. |
-| Sign-in failure | Approved safe message; retain email, do not persist password. |
-| Recovery request | Email field, Send recovery link, generic acknowledgement, Back. |
-| Recovery verification | Show verification progress; no usable new-password form yet. |
-| New password | New password, confirmation, visibility control, Update password. |
-| Recovery failure | Safe expired/invalid-link message and request-new-link path. |
-| Not configured | Explain sign-in is unavailable; no fake login or demo fallback. |
+| invalid_credentials | Generic “Email or password is incorrect.” |
+| email_not_confirmed | Explain that the email must be confirmed; current GoTrue source checks the password before returning this error. Verify behavior against the deployed project before release. |
+| email_address_not_authorized | Explain that recovery email delivery is not enabled for this address; direct student to the approved college support path. |
+| over_email_send_rate_limit | Explain that the email service is temporarily rate-limited and the student should wait before requesting again. |
+| over_request_rate_limit | Explain that too many requests were made and the student should wait before retrying. |
+| flow_state_expired / flow_state_not_found / otp_expired | Explain that the recovery link expired or was already used; offer a new recovery request. |
+| network/timeout | Preserve email, clear busy state and allow a bounded retry. |
+| unknown provider error | Safe fallback and opaque diagnostic event; never show the raw exception. |
 
-### UX principles
+## 10. Non-functional requirements
 
-- Use one consistent term: "school account" or "college account" (Owner to choose).
-- Do not show Create account.
-- Avoid account enumeration in sign-in and recovery messages.
-- Test Android password-manager/autofill behavior; never add a MobiDesk remember-password option.
-- Support keyboard focus order, TalkBack labels and accessible loading/error announcements.
-- Do not tell a student that an email was delivered merely because the client request returned successfully.
+- Preserve minSdk 29, compileSdk/targetSdk 37/37, Java/Kotlin 11, arm64-v8a and x86_64.
+- Do not add a new Auth provider or SDK dependency for this feature.
+- Keep Auth state and UI state free of passwords, tokens, PKCE codes and raw callback URLs.
+- Use a monotonic or elapsed clock only where timing is measured; no arbitrary sign-in latency KPI is introduced.
+- Support TalkBack and Android keyboard/password-manager interactions.
+- Keep error messages actionable and non-sensitive.
+- The recovery-only marker must be durable across process death, but must not store a raw callback code or token.
 
-## 8. Non-functional requirements
+## 11. Dependencies and release blockers
 
-| Area | Requirement |
-|---|---|
-| Reliability | Temporary network failures must not leave contradictory Auth/UI state. |
-| Cold start | Wait for initial SDK session status before routing; no numeric latency target is invented here. |
-| Privacy | No email/password, JWT, refresh token, authorization header or PKCE code in app logs/analytics. |
-| Compatibility | Preserve minSdk 29, compileSdk 37, targetSdk 37, Java/Kotlin 11, ABIs arm64-v8a and x86_64 unless formally changed. |
-| Maintainability | Keep Auth operations separable from student workspace/VM data access. |
-| Accessibility | Inputs, visibility toggles, loading and errors support TalkBack and keyboard navigation. |
-| Localization | English is the current copy baseline; Telugu translations require review. |
+- [BLOCKING] Production-capable email delivery: the historical project audit reported custom SMTP disabled. Supabase's built-in email service only sends to organization team members and is currently limited to two emails/hour project-wide. Configure a custom SMTP provider or Send Email Hook, verify sender/domain and complete real mailbox tests before student password recovery is accepted.
+- [BLOCKING] Verify live Supabase signup, email-confirmation, redirect, OTP expiry and rate-limit settings.
+- [BLOCKING] Verify exact session storage backend and at-rest protection for pinned supabase-kt 3.6.0.
+- [BLOCKING] Recovery marker and AuthLevel fix must pass process-death/cancel/replay tests.
+- [BLOCKING] Design an injectable Auth repository seam without rewriting the app architecture.
+- Staging/test environment: no dedicated staging Supabase project is evidenced. Unit/UI tests must not assume one exists. Integration testing remains blocked until the Owner nominates an isolated local or hosted test environment and synthetic test identities.
 
-## 9. Error handling — proposed for critique
+## 12. Acceptance criteria
 
-| Condition | Candidate behavior |
-|---|---|
-| Missing local configuration | Sign-in unavailable; contact support. |
-| Invalid email/password | Generic credential failure; do not reveal account existence. |
-| Email not confirmed | Do not reveal account status unless Owner accepts the enumeration risk; show approved generic next action. |
-| Network/timeout | Safe retry message. |
-| Expired/invalid recovery link | Explain the link expired/cannot be verified and offer a new request. |
-| Password policy rejection | Actionable policy message, never raw backend details. |
-| Password mismatch | "The passwords don't match." |
-| Sign-out failure | Do not claim remote revocation; preserve/reconcile local state according to proven SDK semantics. |
-| Unknown provider error | Generic message plus opaque diagnostic event. |
+FP-01 is DONE when:
+1. The four named existing baseline tests pass.
+2. Valid sign-in and session restoration pass on the target Android device.
+3. Invalid credentials and unconfirmed-email behavior match approved copy and deployed Auth behavior.
+4. SDK Authenticated state is not allowed to enter FP-02 while RECOVERY_ONLY is persisted.
+5. Recovery callback sets durable pending state before asynchronous exchange.
+6. Recovery callback cannot be exchanged twice due to Activity recreation/re-delivery.
+7. Process death during callback processing does not produce a normal authenticated workspace.
+8. Process death after recovery becomes ready restores the password-update form.
+9. Cancel/back from recovery signs out the recovery session, clears the marker and never opens the workspace.
+10. Successful password update clears the marker and enables FULLY_AUTHENTICATED.
+11. Sign-out uses current-session LOCAL behavior; network failure has a safe device-local fallback and honest message.
+12. SMTP can deliver confirmation/recovery messages to synthetic non-team student addresses in the approved test environment.
+13. The app renders specific messages for email-not-authorized and rate-limit errors.
+14. Logs/storage/APK contain no forbidden credential or callback material.
+15. AuthRepository fake seam supports unit/UI testing without a live Supabase project.
+16. FR-AUTH-02 profile/assignment RLS work is left to FP-02/FP-03 and is not claimed complete by FP-01.
 
-The current implementation has a specific "email not confirmed" branch. The proposed generic behavior is a security refinement for Owner decision, not a statement that the app already behaves this way.
+## 13. Defaults adopted for this review draft
 
-## 10. Acceptance criteria — FP-01 complete
+To avoid leaving routine choices as open questions:
+- Sign-in identifier: school/institution email only (matches current UI).
+- MFA/passkeys/social sign-in: excluded from R1 pilot unless institutional security policy makes one mandatory.
+- Password managers/autofill: supported through standard Android behavior; MobiDesk never stores passwords.
+- Recovery redirect: retain current PKCE custom URI for the pilot, subject to callback tests; evaluate verified HTTPS App Links before wider production distribution.
+- After successful password update: retain the recovery-established Auth session and elevate to FULLY_AUTHENTICATED only after the password update succeeds.
+- Account-provisioning boundary: no app signup; profile/assignment eligibility remains in FP-02/FP-03.
+- Session lifetime: use owner-approved Supabase project policy; do not introduce a client-side session lifetime.
+- Confirmation resend UI: excluded unless actual support needs justify a separate addition.
 
-FP-01 is DONE only when all of the following are evidenced:
+## 14. Owner review required
 
-1. A provisioned test student can sign in using Supabase email/password.
-2. Invalid credentials use Owner-approved safe wording.
-3. A valid Auth session restores after app process restart.
-4. Expired/invalid sessions route to sign-in without briefly displaying authenticated UI.
-5. Auth transitions remain coherent through network loss and refresh failure.
-6. Sign-out clears local authenticated state; selected server-side revocation semantics are verified.
-7. Existing and non-existing test addresses receive a generic recovery-request acknowledgement.
-8. A real staging recovery email reaches the test device through the approved redirect.
-9. A valid PKCE recovery callback permits a password update.
-10. Expired, malformed, wrong-host and replayed callbacks fail safely.
-11. Passwords, tokens and PKCE codes do not appear in logs, analytics, SavedState or persistent app storage.
-12. The APK contains only the client-safe Supabase key; no service-role/secret key.
-13. No app self-registration path exists.
-14. FP-01 publishes Auth state to FP-02 but does not query or authorize VM assignment.
-
-## 11. Dependencies and blockers
-
-- Correct Supabase project URL and client-safe publishable key.
-- Email/password provider enabled.
-- Account provisioning and email-confirmation policy approved.
-- Exact mobile recovery URI allow-listed.
-- Email template and sender delivery verified.
-- Supabase Kotlin SDK version remains pinned at 3.6.0 unless deliberately re-reviewed.
-- Session persistence and sign-out semantics of the pinned SDK verified.
-- Account-enumeration behavior reviewed.
-- Parent FR-AUTH-01/02 wording confirmed before FP-01 approval.
-
-## 12. Not promised
-
-- Email delivery solely because the client request succeeds.
-- Session survival after force-stop, app data clear or OS process termination.
-- VM/Cloud PC access solely because Supabase authentication succeeds.
-- MFA, passkeys or biometric reauthentication.
-- Numeric sign-in latency not backed by measurement.
-
-## 13. Owner review checklist
-
-- Sign-in identifier: school email only, or username/roll number too?
-- Is email recovery the desired and sufficient recovery channel?
-- After recovery, keep the valid Auth session or force a fresh sign-in?
-- Should unknown/unconfirmed account errors all be generic?
-- What session lifetime and cross-device session policy is desired?
-- Should public Supabase signup be disabled project-wide?
-- Are MFA/passkeys excluded or required by institutional policy?
-- What support contact and wording should be displayed to students?
-- Confirm profile/VM authorization remains FP-02/FP-03, not FP-01.
+Please focus on:
+- Whether the current-session LOCAL sign-out with device-local fallback is acceptable.
+- Whether to disable public signup at the Supabase project level (recommended if all accounts are institution-provisioned).
+- Whether the project must enforce MFA before R1 pilot.
+- Whether the proposed AuthLevel/recovery-marker behavior is correct.
+- Whether a custom SMTP provider or Send Email Hook is preferred and who owns its setup.
+- Any institutional policy that changes email confirmation, password/session lifetime or support contact.
