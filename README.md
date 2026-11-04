@@ -1,6 +1,6 @@
 # MobiDesk Android
 
-MobiDesk is a native Kotlin/Jetpack Compose student client for accessing one assigned Windows Cloud PC. The app currently implements the sign-in/workspace foundation; **native RDP session integration is not complete and no final APK exists**.
+MobiDesk is a native Kotlin/Jetpack Compose Android application for one college. The product model has a College Administrator workspace for provisioning students and managing approved server/VM/student connections, and a Student workspace for accessing only the student's assigned Windows Cloud PC. The current app implementation still provides the student sign-in/workspace foundation; the administrator workspace and provisioning/control-plane capabilities are proposed and not yet implemented; **native RDP session integration is not complete and no final APK exists**.
 
 > **Current product target:** [`docs/MobiDesk_PRD_v1.2.pdf`](docs/MobiDesk_PRD_v1.2.pdf). It is an owner-review draft; approval is pending. Do not treat it as formally approved or claim a release gate has passed. See [`docs/PRD_TRACEABILITY.md`](docs/PRD_TRACEABILITY.md), [`docs/FREERDP_ANDROID_API_AUDIT.md`](docs/FREERDP_ANDROID_API_AUDIT.md), [`TEST_PLAN.md`](TEST_PLAN.md), [`OPEN_ITEMS.md`](OPEN_ITEMS.md), [`PROGRESS.md`](PROGRESS.md), and [`TODO.md`](TODO.md).
 
@@ -8,11 +8,11 @@ MobiDesk is a native Kotlin/Jetpack Compose student client for accessing one ass
 
 - Native Kotlin/Jetpack Compose app shell and student workspace states.
 - Supabase email/password sign-in, persisted Auth session, sign-out, password-recovery request, and PKCE recovery callback flow.
-- RLS-scoped profile and assigned-VM reads using narrow selected columns; no self-registration and no client-selected role.
+- RLS-scoped profile and assigned-VM reads using narrow selected columns; no student self-registration. The College Administrator account is bootstrapped out-of-band; server-side role resolution is required before routing to the admin workspace.
 - Official FreeRDP Android submodule pinned to v3.32.0 at `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1`, plus the Gradle compatibility overlay and native libraries for `arm64-v8a` and `x86_64`.
 - App-manifest containment for unused exported FreeRDP UI entry points; the merged manifest was rebuilt and verified to contain zero exported FreeRDP components.
 
-The app does **not** yet launch a remote desktop, request a conforming broker grant, show trusted live VM/RDP readiness, present separate Windows credentials, validate per-VM RDP certificate pins, or bridge FreeRDP to a secured WSS session. The pinned-source audit found C transport-I/O hooks but no raw socket/stream API in the checked-in Android Java wrapper. Packaged FreeRDP libraries alone are not RDP integration.
+The app does **not** yet include the College Administrator workspace, roster-first student invitation workflow, admin APIs, or approved server/VM control plane. It also does **not** yet launch a remote desktop, request a conforming broker grant, show trusted live VM/RDP readiness, present separate Windows credentials, validate per-VM RDP certificate pins, or bridge FreeRDP to a secured WSS session. The pinned-source audit found C transport-I/O hooks but no raw socket/stream API in the checked-in Android Java wrapper. Packaged FreeRDP libraries alone are not RDP integration.
 
 ## Build and test status
 
@@ -22,7 +22,7 @@ GitHub Actions workflow: [`.github/workflows/android-ci.yml`](.github/workflows/
 
 ## Build locally
 
-The pinned project uses the Gradle wrapper and SDK/NDK/CMake versions in `build.gradle`, with NASM required for the x86_64 OpenH264 native build. Android SDK licenses were accepted by the owner for this project. Keep real project settings in ignored `local.properties`; use only the Supabase publishable key in an Android client. Never use a service-role key, Windows password, tunnel token, or signing key in the app or repository.
+The pinned project uses the Gradle wrapper and SDK/NDK/CMake versions in `build.gradle`, with NASM required for the x86_64 OpenH264 native build. Android SDK licenses were accepted by the owner for this project. Keep real project settings in ignored `local.properties`; use only the Supabase publishable key in an Android client. Supabase Auth Admin invitations and all privileged operations must run on a trusted server; never use a service-role/secret key, Windows password, invitation token, host/SSH credential, tunnel token, or signing key in the app or repository. Students cannot self-register; a College Administrator creates their Auth account and sends an invitation to activate it.
 
 ```bash
 git clone --recurse-submodules https://github.com/master43721/mobidesk-android.git
@@ -42,4 +42,4 @@ A separate local broker prototype exists outside this repository. It is not depl
 
 ## Source of truth
 
-The private repository `master43721/mobidesk-android` is the current development source. The older Google AI Studio workspace is a separate static copy, not a live GitHub mirror, and omitted the FreeRDP submodule. The current user direction authorizes local repository work and GitHub Actions; do not overwrite the canonical repository with that stale AI Studio copy.
+The private repository `master43721/mobidesk-android` is the current development source. The older Google AI Studio workspace is a separate static copy, not a live GitHub mirror, and omitted the FreeRDP submodule. The current user direction authorizes local repository work and GitHub Actions; do not overwrite the canonical repository with that stale AI Studio copy. See docs/ADMIN_ACCOUNT_MODEL.md for the two-role account model and admin control boundaries.
