@@ -42,4 +42,4 @@ A separate local broker prototype exists outside this repository. It is not depl
 
 ## Source of truth
 
-The private repository `master43721/mobidesk-android` is the current development source. The older Google AI Studio workspace is a separate static copy, not a live GitHub mirror, and omitted the FreeRDP submodule. The current user direction authorizes local repository work and GitHub Actions; do not overwrite the canonical repository with that stale AI Studio copy. See docs/ADMIN_ACCOUNT_MODEL.md for the two-role account model and admin control boundaries.
+The canonical repository `master43721/mobidesk-android` is the current development source. The older Google AI Studio workspace is a separate static copy, not a live GitHub mirror, and omitted the FreeRDP submodule. The current user direction authorizes local repository work and GitHub Actions; do not overwrite the canonical repository with that stale AI Studio copy. See docs/ADMIN_ACCOUNT_MODEL.md for the two-role account model and admin control boundaries.
