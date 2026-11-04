@@ -15,7 +15,8 @@
 
 ## Feature-level implementation packages
 
-[FP-01 — Student Authentication and Account Recovery](FEATURE_SPECIFICATIONS/FP-01/README.md) contains the feature PRD, technical design, implementation/test plans, security and Supabase configuration notes, traceability, progress, and Antigravity implementation/review prompts. FP-01 is a targeted hardening feature; students cannot self-register.
+- [FP-01 — Student Authentication and Account Recovery](FEATURE_SPECIFICATIONS/FP-01/README.md): focused Auth hardening package, test plan, security/Supabase notes and Antigravity handoff. No student self-registration.
+- [FP-02 — Student Dashboard and Workspace](FEATURE_SPECIFICATIONS/FP-02/README.md): student workspace PRD, technical design, implementation plan, 30-case test plan, security/privacy, traceability and Antigravity implementation/review prompts. FP-03 assignment and FP-04 status contracts remain upstream dependencies.
 
 ## Read first
 
