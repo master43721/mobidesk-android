@@ -1,143 +1,116 @@
 # FP-01 Security and Privacy Requirements
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
-**Scope:** Authentication and account recovery only.
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026  
+**Scope:** Student authentication and account recovery.
 
 ## 1. Security objectives
 
-1. Only the approved Supabase Auth provider verifies student credentials.
-2. Client code contains no service-role key or privileged backend secret.
-3. Passwords are transient and are never stored or logged by MobiDesk.
-4. Authenticated UI is shown only after the pinned SDK confirms the session.
-5. Recovery callbacks are validated through the configured URI and Supabase PKCE/OTP handling.
-6. Account-existence information is not unnecessarily disclosed.
-7. Session persistence, token storage and sign-out semantics are documented from exact SDK behavior.
-8. Authentication success does not bypass student-profile and VM authorization checks in later FPs.
+1. Supabase Auth remains the credential/session authority.
+2. Android includes no service-role key or privileged backend secret.
+3. Passwords are transient and never stored/logged by MobiDesk.
+4. A session created through password recovery is RECOVERY_ONLY until the new password is successfully set.
+5. Recovery cancellation, process death and callback re-delivery cannot create an unintended normal authenticated workspace.
+6. Sign-out failures have an explicit safe device-local exit.
+7. Recovery mail is operational for synthetic non-team students before it is accepted for a pilot.
+8. Auth success never bypasses FP-02/FP-03 student profile and VM authorization.
 
-## 2. Assets and trust boundaries
+## 2. Verified defects and risk
 
-### Assets
+| ID | Finding | Impact | Required mitigation |
+|---|---|---|---|
+| SEC-01 | SDK Authenticated state is imported before recovery success callback runs. | ViewModel may load workspace while recovery is pending. | Durable recovery marker and RECOVERY_ONLY AuthLevel gate. |
+| SEC-02 | Recovery Back/cancel only clears UI flag. | Recovery session remains authenticated and can enter dashboard. | Cancel signs out the recovery session; local clear fallback. |
+| SEC-03 | Recovery state only lives in ViewModel memory. | Process death restores SDK session as ordinary Authenticated. | Persist recovery stage outside ViewModel; fail closed on interrupted callback. |
+| SEC-04 | Activity callback handling has no durable de-duplication. | Recreation may re-submit consumed PKCE code. | Store pending/consumed one-way callback fingerprint and stage; never store raw code. |
+| SEC-05 | Sign-out network failure leaves authenticated state active. | User has no exit path and current local session stays usable. | Offer explicit device-local clearSession action; explain remote revoke not confirmed. |
 
-- Student email/password during user entry and Auth request.
-- Supabase access and refresh tokens/session data.
-- PKCE verifier/state and recovery callback values.
-- Supabase project URL and publishable/anon key.
-- Authenticated user identity and session status.
-- Recovery email delivery and redirect configuration.
-- App/UI state indicating authenticated status.
+## 3. Recovery state and authorization
 
-### Trust boundaries
+A recovery link authenticates possession of email access but does not prove that the user has completed the intended password reset. Treat the resulting SDK session as RECOVERY_ONLY.
 
-- Android UI and app process: trusted to protect ordinary app data but not treated as a security authority.
-- Supabase Auth: authoritative credential/session verifier.
-- Supabase Auth configuration: owner-controlled provider, signup, confirmation, redirect, password and rate settings.
-- Android deep-link resolver: external OS routing; incoming URI must be treated as untrusted until SDK validation succeeds.
-- FP-02: separately validates student profile/eligibility after FP-01 Auth success.
+Required controls:
+- Persist CALLBACK_PENDING before starting asynchronous PKCE exchange.
+- Do not call FP-02 profile/workspace repository while CALLBACK_PENDING or PASSWORD_UPDATE_REQUIRED.
+- Persist PASSWORD_UPDATE_REQUIRED before showing the password form.
+- Only successful updateUser clears the recovery marker and changes AuthLevel to FULLY_AUTHENTICATED.
+- Cancel/back signs out and clears local session state.
+- Process death during callback pending does not replay the code; it shows interrupted recovery and requests a fresh link.
+- Process death after password-update-ready restores the recovery form if the SDK session is still valid.
+- A failed password update stays RECOVERY_ONLY.
 
-## 3. Threats and controls
+Do not save the raw code, access/refresh token, PKCE verifier or full recovery URL in the app recovery marker.
 
-| Threat | Risk | Required control |
-|---|---|---|
-| Service-role key embedded in APK | Critical privilege compromise | Use only publishable/anon client key; secret scan source, BuildConfig and APK. |
-| Password saved in UI state or disk | Account takeover | Password is transient Compose state, not rememberSaveable/DataStore/preferences/database; clear at terminal state. |
-| Password accidentally logged | Account takeover | No password interpolation in logs, exception messages, analytics or crash context. |
-| Stale Auth state shown after refresh failure | Unauthorized-looking UI / later access confusion | One authoritative session-state flow; clear protected UI on RefreshFailure/NotAuthenticated. |
-| Token persistence misunderstood | Theft from device storage | Inspect exact supabase-kt 3.6.0 storage implementation; document storage location, encryption and backup behavior. |
-| Custom-scheme callback hijack | Recovery code/session interception | PKCE, exact scheme/host/path validation, SDK state verification, redirect allow-list; assess verified HTTPS App Links. |
-| Recovery link replay/expiry | Unauthorized reset | Rely on SDK/provider single-use/expiry validation; prove with integration tests. |
-| User enumeration | Targeted account discovery | Generic sign-in/recovery messages; equivalent recovery acknowledgement for existing/non-existing accounts. |
-| Public signup bypasses roster provisioning | Unauthorized Auth accounts | Recheck project signup setting and roster trigger. Prefer disabling public signup if invitations/provisioning are the approved path; require explicit Owner/Lab IT approval. |
-| Weak or leaked password | Account compromise | Configure server-side password policy and leaked-password protection where subscription/configuration supports it; client-side minimum is not authoritative. |
-| Mail delivery failure | Student cannot recover | Verify custom SMTP/domain/template and actual delivery in staging; don't report email delivered based on client response alone. |
-| Race between account switch and requests | Wrong account state shown | Cancel/ignore stale operations by attempt identity; serialize Auth state transitions. |
+## 4. Sign-out security
 
-## 4. Credential handling requirements
+Pinned supabase-kt 3.6.0 defaults to SignOutScope.LOCAL: revoke the current Auth session and clear it locally after successful server response. It does not sign the user out from all devices.
 
-### Email
+If the server request fails:
+- Do not keep the app trapped in the authenticated dashboard.
+- Offer retry and explicit device-local clearSession.
+- If device-local clear is chosen, clear all local Auth/recovery UI state.
+- Show that remote revocation could not be confirmed.
+- Future MobiDesk broker operations must independently check active session_id/authorization; a locally cleared client session is not proof that a copied access token is immediately invalidated.
 
-- Treat email as personal information.
-- Trim outer whitespace before submission.
-- Do not log it or attach it to telemetry.
-- Avoid client-side domain allowlists unless the Owner explicitly approves the institution's full domain/alias policy. Server-side provisioning remains authoritative.
+## 5. Session storage
 
-### Password
+The pinned supabase-kt 3.6.0 default config auto-loads and auto-saves Auth session state. AuthImpl defaults to SettingsSessionManager, which serializes UserSession to JSON and writes it through the multiplatform Settings abstraction.
 
-- Pass password unchanged; do not trim or normalize it.
-- Never save password in persistent UI state, SavedStateHandle, DataStore, SharedPreferences, database, file, clipboard or analytics.
-- Do not put password in navigation arguments, Intent, Bundle, URI or ViewModel observable state.
-- Clear app-owned transient values after success, cancellation and terminal failure as safely possible.
-- Do not claim forensic zeroization of immutable JVM Strings or framework copies. Minimize copies and document framework behavior.
-- Never add a remember-password feature.
+The code inspected does not prove the exact Android Settings backing implementation or encryption-at-rest behavior for the dependency graph resolved by this app. This is a bounded SDK/dependency inspection task. Do not claim the session is encrypted at rest until proven. The app's manifest has allowBackup=false; verify the merged manifest as part of release testing.
 
-### Access/refresh session and PKCE material
+## 6. Email enumeration and error handling
 
-- Keep handling inside the Supabase SDK except where the SDK requires a callback.
-- Never log or display raw tokens, full callback URLs, callback codes or PKCE values.
-- Do not manually parse JWT claims to establish an authenticated user when the SDK session stream is available.
-- Inspect exact SDK persistence and encryption behavior before release.
-- Ensure app backup policy does not unintentionally export Auth secrets. Manifest currently sets allowBackup=false; verify merged manifest and Android-version behavior.
+Do not blindly replace every Auth error with the same generic message.
 
-## 5. Sign-in and account enumeration
+- invalid_credentials should remain generic for unknown email/wrong password.
+- email_not_confirmed is a distinct Auth code. Current upstream GoTrue code checks whether the supplied password is valid before returning this error. Therefore a specific confirmation message can be useful without revealing the state to someone who does not know the password. Verify against the deployed project version before release.
+- Recovery request should use the same generic acknowledgement for known and unknown email. Supabase documents that resetPasswordForEmail does not reveal whether an account exists.
+- email_address_not_authorized and rate-limit codes are operational errors and need actionable messages.
 
-Current AuthErrorMessages maps invalid credentials separately and maps email-not-confirmed to a specific message. The current recovery success message is generic. These are verified current implementation behaviors, not the final security policy.
+Do not expose raw provider exceptions, session IDs, authorization headers, callback codes or query values.
 
-**Proposed policy for Owner approval:**
-- Unknown email, incorrect password and unconfirmed email should not produce externally distinguishable account-existence messages.
-- Recovery request should always display the same generic acknowledgement.
-- Do not expose whether an account is on the roster or provisioned.
-- Use generic timing/error behavior where practical; provider-side rate limiting remains required.
-- Do not disable email confirmation merely to simplify sign-in.
+## 7. Email delivery security and operational blocker
 
-## 6. Supabase project controls
+The historical SUPABASE_DISCOVERY.md snapshot dated 27 October 2026 reported custom SMTP disabled.
 
-These are owner-controlled project settings, not Android-code switches:
+Supabase's documented built-in hosted email service:
+- only sends to email addresses belonging to members of the Supabase organization;
+- is limited to two emails per hour project-wide in the documented Confirm email configuration;
+- is best-effort and not intended for production student email delivery.
 
-- Email/password provider enablement.
-- Public signup enablement/disablement.
-- Email confirmation policy.
-- Roster/invitation provisioning restrictions.
-- Password minimum/strength and leaked-password protection.
-- Auth rate limits / abuse protection / CAPTCHA if selected.
-- OTP/recovery-link expiry.
-- Allowed redirect URI list.
-- Email templates and sender/SMTP configuration.
-- Auth audit logs/retention.
-- Session lifetime and refresh-token reuse policy.
+Therefore, until custom SMTP or a Send Email Hook is configured and tested, password recovery and email-confirmation delivery to ordinary student recipients must be treated as non-functional for pilot acceptance. Do not tell students a recovery message was delivered merely because the API call succeeded.
 
-No project settings are changed by this document. Verify live state before acceptance.
+See SUPABASE_CONFIGURATION.md for the required configuration sequence. No SMTP secret belongs in GitHub, this document or chat.
 
-## 7. Privacy-safe diagnostics
+## 8. Required controls
 
-Permitted:
-- Opaque attempt ID.
-- Event class.
-- Duration.
-- Safe result class.
-- App and SDK version.
-- Coarse network class where justified.
+| Asset | Control |
+|---|---|
+| Email/password | Password transient; email omitted from telemetry. |
+| Access/refresh session | Supabase SDK owns it; verify storage backend and backup policy. |
+| Recovery callback | Exact scheme/host/path, SDK PKCE verification, one-time processing, no raw code persistence. |
+| Recovery marker | Stage, time and one-way fingerprint only; no raw token/code/URL. |
+| AuthLevel | RECOVERY_ONLY cannot invoke workspace/profile fetch. |
+| Sign-out | Explicit LOCAL scope; clearSession fallback; honest remote-revocation copy. |
+| Build config | Publishable/anon key only; no service-role/secret key. |
+| Diagnostics | Opaque attempt ID, event class and result only; no PII/secrets. |
+| Mail sender | Custom SMTP/Send Email Hook; provider secrets stored only in Supabase secret configuration. |
 
-Forbidden:
-- Email, password, refresh/access token, session ID, recovery code, PKCE verifier/state, callback query, full callback URL, raw exception, authorization header, IP address or device identifier unless separately justified and approved.
+## 9. Residual risks and blockers
 
-## 8. Release security checklist
+- BLOCKING: exact Android Settings backend and encryption at rest not proven.
+- BLOCKING: custom SMTP/Send Email Hook not configured/verified for student recipients.
+- BLOCKING: process-death/callback replay/recovery-cancel fixes not implemented or tested.
+- OPEN: public signup setting and institution provisioning policy must be confirmed.
+- OPEN: custom scheme collision risk must be assessed on the actual device.
+- OPEN: MFA requirement must be checked with institutional policy.
 
-- [ ] No service-role/secret key in source, Gradle, local properties tracked by Git, BuildConfig, APK or logs.
-- [ ] Password not persisted or logged.
-- [ ] SDK Auth storage behavior and backup treatment verified.
-- [ ] PKCE and deep-link state validation tested.
-- [ ] Exact redirect allow-list reviewed.
-- [ ] No self-signup UI and project signup policy approved.
-- [ ] Generic non-enumerating error policy tested.
-- [ ] Provider password and rate-limiting policy approved.
-- [ ] Recovery email sender/domain/template verified.
-- [ ] Auth sign-out and session lifetime semantics documented.
-- [ ] Authenticated identity does not bypass FP-02 profile/VM authorization.
+## 10. References
 
-## 9. Residual risks / blockers
-
-- **BLOCKING:** exact session storage behavior for supabase-kt 3.6.0 has not been verified.
-- **BLOCKING:** signOut default scope and effect on other sessions has not been verified.
-- **BLOCKING:** current live Supabase signup, confirmation, password, rate and SMTP configuration has not been rechecked.
-- **UNKNOWN:** whether the custom URI scheme is sufficient or verified HTTPS App Links are required.
-- **OPEN:** exact non-enumerating error wording and policy need Owner decision.
+- supabase-kt 3.6.0 signOut and LOCAL default: https://github.com/supabase/supabase-kt/blob/3.6.0/Auth/src/commonMain/kotlin/io/github/jan/supabase/auth/Auth.kt
+- supabase-kt 3.6.0 AuthImpl: https://github.com/supabase/supabase-kt/blob/3.6.0/Auth/src/commonMain/kotlin/io/github/jan/supabase/auth/AuthImpl.kt
+- supabase-kt 3.6.0 Android deep link handler: https://github.com/supabase/supabase-kt/blob/3.6.0/Auth/src/androidMain/kotlin/io/github/jan/supabase/auth/Android.kt
+- Supabase Auth error codes: https://supabase.com/docs/guides/auth/debugging/error-codes
+- Supabase built-in email service and SMTP: https://supabase.com/docs/guides/auth/auth-smtp
+- Supabase email flow testing: https://supabase.com/docs/guides/auth/testing-auth-flows
+- Supabase rate limits: https://supabase.com/docs/guides/auth/rate-limits
