@@ -1,6 +1,6 @@
 # MobiDesk — Engineering Documentation
 
-**Documentation set:** 1.0 · **Snapshot:** 3 November 2026  
+**Documentation set:** 1.0 · **Snapshot:** 4 November 2026  
 **Canonical repository:** [master43721/mobidesk-android](https://github.com/master43721/mobidesk-android)  
 **Normative product baseline:** [MobiDesk PRD v1.2 PDF](MobiDesk_PRD_v1.2.pdf)
 
@@ -15,13 +15,14 @@
 
 ## Read first
 
-[FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) is the product-level feature catalogue. It records the Owner's latest choices and labels the background-session change as a proposal that conflicts with PRD v1.2. The PDF remains normative until a successor PRD is approved.
+[FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) is the product-level feature catalogue. It now includes the Owner-confirmed College Administrator and Student account model. The account model and administrator FPs are owner-directed proposed amendments because PRD v1.2 explicitly excluded an admin console; the v1.2 PDF remains normative until a successor PRD is approved. See [ADMIN_ACCOUNT_MODEL.md](ADMIN_ACCOUNT_MODEL.md).
 
 
 | Document | Purpose |
 |---|---|
 | [PRD.md](PRD.md) | Navigational requirement index; the linked PDF remains the normative source |
-| [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) | 22 product Feature Points, R1/R2 boundary and Owner scope decisions |
+| [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) | 28 product Feature Points, R1/R2 boundary and Owner scope decisions |
+| [ADMIN_ACCOUNT_MODEL.md](ADMIN_ACCOUNT_MODEL.md) | Two-role account model, admin bootstrap, roster-first student invitation, RBAC, server/VM controls and student session management |
 | [BASELINE_AUDIT.md](BASELINE_AUDIT.md) | G0 repository/stack/build/submodule/security baseline and requirement implementation snapshot |
 | [OPEN_ITEMS.md](OPEN_ITEMS.md) | Decisions, owners, proposed due dates and closure evidence |
 | [TASKS.md](TASKS.md) | G0–G5 work breakdown, estimates, dependencies and schedule reforecast |
@@ -66,6 +67,14 @@ The following pre-existing documents remain supporting evidence; they do not ove
 - [PRD_TRACEABILITY.md](PRD_TRACEABILITY.md), if present on the selected branch; verify its contents and age before relying on it.
 
 Historical evidence must be interpreted using its own snapshot date. In particular, historical Supabase row counts and VM assignment statements must not be treated as current assignment data.
+
+## Account and administrator scope update — 4 Nov 2026
+
+- **OWNER CONFIRMED:** no student self-signup; College Administrator provisions student Auth identities and sends activation invitations.
+- **OWNER CONFIRMED:** one initial College Administrator account is bootstrapped outside the Android client; the same app routes to Administrator or Student workspace only after server-side role validation.
+- Administrator can manage student accounts/assignments, approved server/VM operations and active student sessions through trusted backend APIs. Arbitrary shell/SSH and direct hypervisor access remain excluded.
+- Supabase Auth Admin invitation operations require a trusted server secret. The Android client must never contain that key.
+- The v1.2 PDF is unchanged; proposed requirements are in PRD_V1_3_CHANGES.md.
 
 ## G0 findings and open constraints
 
