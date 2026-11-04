@@ -44,11 +44,11 @@ The administrator role is an application role, not a Supabase service-role crede
 ## 3. College Administrator bootstrap
 
 1. The Project Owner creates the initial College Administrator Auth user through the Supabase Dashboard or a trusted server-side bootstrap operation.
-2. The trusted bootstrap path assigns the server-controlled role claim/record for College Administrator. The initial admin is not inserted into the student roster or student profile table.
+2. The trusted bootstrap path inserts the College Administrator into the proposed private.app_user_roles authority table with role college_admin and active status. The initial admin is not inserted into the student roster or student profile table.
 3. The admin account uses a unique institutional email and a strong individual password. Do not use a shared default password or commit credentials to the repository.
 4. Require MFA for the College Administrator before enabling privileged production operations. For the prototype, the MFA setup and recovery path is a release prerequisite for remote/real server actions.
 5. The admin signs in through the same MobiDesk Android application. After the authenticated identity is resolved and the backend validates the role, the app opens the College Administrator workspace instead of the Student workspace.
-6. A role cannot be selected from the login screen, inferred from email domain, or changed by editing UI state or user metadata.
+6. A role cannot be selected from the login screen, inferred from email domain, or changed by editing UI state or user metadata. The backend resolves private.app_user_roles on each privileged request.
 
 If the initial admin account is lost or disabled, recovery is an owner-controlled bootstrap operation. A student account cannot recover or elevate itself into the College Administrator role.
 
@@ -57,7 +57,7 @@ If the initial admin account is lost or disabled, recovery is an owner-controlle
 ### 4.1 Administrator-driven workflow
 
 1. The College Administrator opens Student Management and enters the student's institution-approved name, institutional email, roll/registration number and any required roster fields.
-2. The backend validates required fields and checks duplicate roster, email and account records.
+2. The backend validates required fields and checks duplicate roster, email and account records, then assigns the server-controlled student role in private.app_user_roles.
 3. The backend creates or confirms the pending row in the private student roster before inviting the Auth user.
 4. A trusted server-side provisioning service invokes the Supabase Auth Admin invitation operation. The secret/service-role credential exists only in the server environment, never in the Android app.
 5. The existing roster-gated Auth trigger may create/link the public student profile when the invited Auth user is created. The exact trigger behavior must be tested with the invitation path before production use; do not bypass or weaken its roster check.
@@ -103,7 +103,7 @@ A failed email delivery does not silently mark a student ACTIVE. Resend operatio
 - Students can read only their own profile and assignment under RLS.
 - The broker derives exactly one active VM assignment from trusted server-side records.
 - Student requests cannot include a destination VM ID, hostname, IP address or port.
-- The student cannot see the server inventory, other students, unassigned VMs or administrator controls.
+- The student cannot see the server inventory, other students, unassigned VMs or administrator controls. The student role is assigned by trusted provisioning, not student-supplied metadata.
 - Zero, multiple, inactive or unapproved assignments fail closed.
 - VM4 remains excluded until independently verified and explicitly approved.
 - When an administrator changes or removes an assignment, the backend revokes affected grants and terminates any now-unauthorized active relay within the documented revocation window.
