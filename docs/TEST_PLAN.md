@@ -290,3 +290,49 @@ Raw test evidence must not contain student identifiers, email, usernames, passwo
 - [UNKNOWN] No broker production deployment, session_id revocation test, protected LocalBridge hijack test or certificate-pin acceptance dataset is evidenced in the current main source snapshot.
 
 A gate can only be updated from UNKNOWN/NOT STARTED when the evidence above exists and has been reviewed.
+
+
+## 6. College Administrator and student-account verification
+
+**Status:** Owner-confirmed proposed scope for successor PRD v1.3; not a claim that these capabilities are implemented. The v1.2 PDF remains unchanged. All T-ADMIN cases below must be added to the automated/contract/device test backlog and linked to MD-ADM tasks.
+
+| Requirement ID (proposed) | Test ID | Level | Acceptance summary | Gate |
+|---|---|---|---|---|
+| IAM-01 two-role model | T-ADMIN-01 | UNIT, CONTRACT | Exactly college_admin and student roles are recognized; unknown role fails closed | G1, G2 |
+| IAM-02 admin bootstrap | T-ADMIN-02 | INTEGRATION, STATIC | Initial admin is provisioned out-of-band; no bootstrap or admin creation route exists in student UI | G1, G2 |
+| IAM-03 no student signup | T-ADMIN-03 | DEVICE, STATIC | No Create account/Sign up UI; Android client does not invoke Supabase signUp; public signup configuration is verified only after invite path passes | G1, G4, G5 |
+| IAM-04 admin-created identity | T-ADMIN-04 | INTEGRATION | Student Auth creation is accepted only from an authorized backend admin operation; student calls are denied | G2 |
+| IAM-05 roster-first invite | T-ADMIN-05 | INTEGRATION | Roster row exists before invite; existing trigger links exactly one student profile; duplicate/retry failures are idempotent | G2 |
+| IAM-06 first activation | T-ADMIN-06 | DEVICE, INTEGRATION | Actual Supabase invitation email opens supported invite callback, activates pre-created user and enables first password setup | G2, G4 |
+| IAM-07 invite negatives | T-ADMIN-07 | DEVICE, INTEGRATION | Forged, expired, replayed, no-code, wrong-type and non-outstanding invite callbacks do not create/replace a session or enter recovery | G2, G4 |
+| IAM-08 role source | T-ADMIN-08 | CONTRACT, INTEGRATION | user_metadata, email suffix, local role preference and client-supplied role cannot grant college_admin | G2 |
+| IAM-09 workspace isolation | T-ADMIN-09 | DEVICE, CONTRACT | College Administrator opens admin workspace; student opens student workspace; direct route/API tampering is denied | G2, G4 |
+| IAM-10 service secret isolation | T-ADMIN-10 | STATIC, RELEASE | No Supabase service-role/secret key is present in APK, BuildConfig, resources, source or CI artifact | G2, G5 |
+| ADM-01 student lifecycle | T-ADMIN-11 | INTEGRATION | Admin can invite, resend, suspend, reactivate and disable; student cannot manage account lifecycle | G2 |
+| ADM-02 assignment manager | T-ADMIN-12 | CONTRACT, INTEGRATION | Admin can assign/change/unassign only eligible allowlisted VMs; duplicates/VM4/unapproved endpoints are rejected | G2 |
+| ADM-03 host/VM operations | T-ADMIN-13 | INTEGRATION, SECURITY | Only authorized admin can request allowlisted lifecycle actions; no arbitrary shell or host/VM endpoint accepted | G2, G4 |
+| ADM-04 session support | T-ADMIN-14 | INTEGRATION, DEVICE | Admin can list safe session metadata and terminate; relay closes and slot releases within policy window | G2, G4 |
+| ADM-05 audit | T-ADMIN-15 | INTEGRATION, STATIC | Provisioning, status, assignment, VM action and session termination produce redacted immutable audit events | G2, G5 |
+
+### 6.1 Required role and privilege negative tests
+
+- Student attempts to call every administrative endpoint directly.
+- Student changes user_metadata to college_admin or sends a role field in the request.
+- Student calls an admin navigation route by deep link or crafted Intent.
+- Suspended/disabled admin attempts a privileged operation with a still-unexpired JWT.
+- Admin attempts an unapproved VM action or arbitrary host/port target.
+- Invitation request is repeated, replayed or attempted for a duplicate/confirmed Auth identity.
+- Admin provisioning attempts to create another college_admin through the student flow.
+- Service secret scan includes release APK, debug APK, generated BuildConfig, resources and CI artifacts.
+
+**Pass rule:** role UI is not an authorization control. Every privileged operation must be denied by the trusted backend when actor role, active session, account status or target policy is invalid.
+
+### 6.2 Invitation and activation test environment
+
+- Use a synthetic roster student and approved test email.
+- Test the actual configured invitation email template, Redirect URL and delivery provider.
+- Verify the exact Supabase Kotlin 3.6.0 invite callback payload; do not assume the existing password-recovery PKCE callback handles invitations.
+- Local Supabase/Mailpit HTTP access, if used, must be debug-only; release cleartext remains disabled.
+- Record the emulator/device, SDK, SDK 3.6.0 tag, app commit, invitation type, callback outcome and redacted evidence.
+- Include Activity recreation and process-death tests during callback handling.
+- Confirm invitation links expire and can be resent without creating duplicate Auth users or roster rows.
