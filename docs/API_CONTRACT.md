@@ -315,7 +315,7 @@ Allowed fields: opaque request/session correlation ID, coarse time, PRD error co
 Every admin request MUST:
 - carry the current Supabase user access JWT over HTTPS;
 - validate signature, issuer, audience, expiry, subject and active session_id;
-- resolve College Administrator authority from a server-controlled app_metadata claim or private role table; never trust user_metadata, email domain, request body role or client navigation;
+- resolve College Administrator authority from the private.app_user_roles table on every privileged request; this proposed table is server-managed, RLS-protected and not directly writable/readable by clients. Never trust user_metadata, app_metadata as the authoritative privilege decision, email domain, request body role or client navigation;
 - reject suspended/disabled accounts and stale/revoked sessions;
 - enforce the one-college prototype scope and action-specific policy;
 - require recent MFA/step-up assurance for account disabling, VM lifecycle actions and session termination;
