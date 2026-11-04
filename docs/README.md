@@ -13,6 +13,10 @@
 5. All unknowns and PRD conflicts stay visible in [OPEN_ITEMS.md](OPEN_ITEMS.md).
 6. This documentation set does not modify application source, Gradle files, submodules, CI, Supabase, servers or VMs.
 
+## Feature-level implementation packages
+
+[FP-01 — Student Authentication and Account Recovery](FEATURE_SPECIFICATIONS/FP-01/README.md) contains the feature PRD, technical design, implementation/test plans, security and Supabase configuration notes, traceability, progress, and Antigravity implementation/review prompts. FP-01 is a targeted hardening feature; students cannot self-register.
+
 ## Read first
 
 [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) is the product-level feature catalogue. It now includes the Owner-confirmed College Administrator and Student account model. The account model and administrator FPs are owner-directed proposed amendments because PRD v1.2 explicitly excluded an admin console; the v1.2 PDF remains normative until a successor PRD is approved. See [ADMIN_ACCOUNT_MODEL.md](ADMIN_ACCOUNT_MODEL.md).
@@ -89,3 +93,12 @@ Historical evidence must be interpreted using its own snapshot date. In particul
 ## Change and review workflow
 
 Work on branch `docs/prd-v1.2-suite`. Each documentation file is committed separately. The branch began from an earlier mainline base and was one commit behind main at the 3 Nov 2026 audit; the three-dot compare contained documentation paths only. Review the final diff against main; no application-code or configuration change is permitted. Open a pull request for review; do not merge automatically.
+
+
+## FP-01 implementation handoff — 4 Nov 2026
+
+- [FP-01 package index](FEATURE_SPECIFICATIONS/FP-01/README.md)
+- [Antigravity implementation handoff](FEATURE_SPECIFICATIONS/FP-01/ANTIGRAVITY_HANDOFF.md)
+- [Antigravity independent review prompt](FEATURE_SPECIFICATIONS/FP-01/ANTIGRAVITY_REVIEW_PROMPT.md)
+
+The FP-01 package was ported to a fresh documentation branch based on current main; the old draft branch was 39 commits behind. No application source or live Supabase configuration changed in this documentation update.
