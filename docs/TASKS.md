@@ -93,7 +93,7 @@ These tasks reflect the Owner's 3 November 2026 feature selections. They are pla
 
 ## 5. College Administrator and student-account work packages
 
-These tasks implement the Owner-confirmed two-role prototype model. They are additional to the student RDP critical path and must be scheduled as explicit work; they are not completed by adding screens alone.
+These tasks implement the Owner-confirmed two-role prototype model. They are additional to the student RDP critical path and must be scheduled as explicit work; they are not completed by adding screens alone. Their planning ranges total approximately 87–142 focused hours, excluding provider/DNS waiting time. The earlier 216–302 hour RDP-focused total does not include this admin scope; the combined planning envelope is therefore approximately 303–444 focused hours before schedule reforecast.
 
 | Task | Scope | Estimate | Depends on | Owner | Acceptance / evidence |
 |---|---|---:|---|---|---|
