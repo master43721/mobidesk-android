@@ -27,3 +27,17 @@ G1 contract/threat freeze -> G2 secure broker -> G3 FreeRDP transport/render/NLA
 - RD-1 phone is not confirmed before physical performance acceptance.
 
 Do not work around a stop condition by using a direct client-to-VM socket, accepting all certificates, trusting USB strings, adding a placeholder endpoint, or storing Windows credentials.
+
+
+## College Administrator implementation track — owner-directed R1 scope
+
+This is an additional R1 critical path, not an excuse to bypass the existing G0–G5 RDP gates.
+
+1. **A0 — Authority and bootstrap:** freeze college_admin/student role source, bootstrap the single admin out-of-band, enroll MFA, and prove that role checks are server-side.
+2. **A1 — Roster and invitation:** preserve the roster-gated Auth trigger; implement roster-first student invitation through a trusted server; prove the actual Supabase Kotlin 3.6.0 INVITE callback and email delivery.
+3. **A2 — RLS and admin contract:** review schema/policies; freeze admin endpoints for account lifecycle, assignments, VM operations, sessions and audit. A proposed route name is not an implemented API.
+4. **A3 — Administrator workspace:** add role-aware navigation, student directory/invitation, assignment view, server/VM health/actions and connection support screens.
+5. **A4 — Privilege and operations acceptance:** run T-ADMIN-01..15; verify student isolation, admin action allowlist, session revocation, audit completeness and no secret in the APK.
+6. **A5 — Controlled pilot:** only after invitation delivery, account role/RLS, host agent, action rollback, audit and RDP student acceptance gates pass.
+
+**Stop conditions:** no admin screen may execute a privileged operation without a working trusted backend check; no admin Auth secret may be added to Android; no student signup setting is disabled until the replacement invite flow has passed; no host lifecycle action ships without a fixed allowlist, confirmation, timeout and rollback path.

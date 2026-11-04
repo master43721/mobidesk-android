@@ -207,3 +207,73 @@ The exact use of MUST/SHOULD, background duration, notification behavior and loc
 ### Status
 
 **OWNER-DIRECTED PROPOSAL — NOT YET NORMATIVE.** PRD v1.2 remains unchanged and continues to specify foreground-only behavior until Project Owner formally approves a successor PRD revision. DEC-27 and DEC-28 track the direction and the unresolved lock-screen question.
+
+
+## 8. Proposed product change — College Administrator and Student account model
+
+**Owner direction:** 4 November 2026. The Owner has clarified that students must not sign themselves up. The college provisions all accounts; students receive an invitation/activation notice and use the account already created for them. For the prototype, create one College Administrator account that manages student provisioning, approved server/VM operations and student connections.
+
+### 8.1 Before — v1.2 boundary
+
+- v1.2 describes the student-facing client and excludes an administrative management console and student VM power/assignment controls.
+- The current app has no College Administrator workspace.
+- Historical Supabase discovery records a roster-gated Auth trigger, but it does not define a complete admin-driven account-provisioning workflow.
+
+### 8.2 Proposed after — two roles
+
+| Role | Provisioning | Authority |
+|---|---|---|
+| College Administrator | One initial account is bootstrapped out-of-band by the Project Owner using a trusted server/Dashboard path | Manage roster-backed student Auth accounts, invitations and lifecycle; manage eligible student-to-VM assignments; inspect host/VM health; request allowlisted VM lifecycle actions; view and terminate active student sessions; review audit events |
+| Student | Created by the College Administrator through roster-first trusted backend invitation | Sign in, manage own password, view own profile and use only the currently assigned Cloud PC |
+
+For the prototype, keep one College Administrator account. The normal student-provisioning workflow cannot create or promote another administrator. Multi-college tenancy and delegated admin hierarchy remain out of scope.
+
+### 8.3 No self-registration
+
+- Remove/omit all student Create account and Sign up affordances.
+- The Android client MUST NOT call Supabase signUp.
+- After the trusted invitation flow is proven, disable the project-level Allow new users to sign up setting. Keep the Email provider enabled so existing students can sign in with email/password. Test existing login and admin invitations before changing the live setting.
+- College Administrator creates the roster/Auth identity before the student receives an invitation.
+- The invitation allows the student to activate the already-created account and set a first password. This is not student self-registration.
+- A student without an eligible roster entry and valid invitation MUST NOT be able to create an identity or profile.
+
+### 8.4 Student provisioning sequence
+
+1. College Administrator enters roster-approved student details.
+2. Trusted backend validates duplicates and creates/updates the private roster record.
+3. Trusted backend calls Supabase Auth Admin invitation operation; the Auth Admin secret stays on the server.
+4. Existing roster-gated trigger is tested to create/link the student profile for the invited Auth user.
+5. Student receives activation invitation; student verifies the invitation, sets a password and later uses normal email/password sign-in.
+6. Administrator sees pending/active/suspended/disabled status and may resend invitation or revoke access.
+
+The exact Supabase Kotlin 3.6.0 invite deep-link callback must be verified separately from password recovery. The current MainActivity/handleDeeplinks path is not assumed to support invitation payloads without a spike. Custom SMTP and actual email delivery are prerequisites, not implied by a successful API response.
+
+### 8.5 Administrator workspace and control-plane scope
+
+Add FPs 23–28 in FEATURE_INVENTORY.md:
+- FP-23 College Administrator authentication and role-based workspace.
+- FP-24 Student account provisioning and invitation lifecycle.
+- FP-25 Student directory and VM assignment management.
+- FP-26 Server and VM fleet management.
+- FP-27 Student connection monitoring and session control.
+- FP-28 Administrator audit and operational activity.
+
+The same native Android app routes to the Administrator or Student workspace only after server-side role resolution. The Administrator can request approved operations; the app does not gain direct hypervisor privileges.
+
+### 8.6 Security and data requirements
+
+The proposed schema adds private.app_user_roles (auth_user_id primary/unique reference, role, active status, created/updated audit fields). The table is private, RLS-enabled and not exposed to anonymous/authenticated direct client access. A trusted bootstrap inserts the College Administrator row; the roster-first invitation service assigns student. Confirm foreign-key, deletion/offboarding and role-revocation behavior during the schema review.
+
+- Use private.app_user_roles as the authoritative college_admin/student role source, with active status. Only trusted bootstrap/provisioning services write it; RLS is enabled and no direct client read/write is granted. Resolve role on each privileged API request. Never trust user_metadata, app_metadata as the privilege decision, email suffix, user-supplied role or client navigation state.
+- Authenticate and authorize every admin API call; verify active Auth session and account status.
+- Keep Supabase Auth Admin secret/service-role key and host credentials outside Android.
+- RLS must isolate student rows and protect admin writes. Review migrations and policies before any role-dependent write path is implemented.
+- Admin host/VM actions are limited to an allowlisted operation set and executed by a trusted server/host agent. No shell, SSH, raw libvirt console or arbitrary host command from Android.
+- Admin can see connection metadata and terminate a session, but cannot view guest passwords, tokens, grants, RDP bytes or screen contents.
+- Log every privileged operation with actor, action, target reference, timestamp, result and opaque request ID; redact secrets and infrastructure endpoints.
+- Require MFA/step-up authentication for the College Administrator before privileged production operations.
+
+### 8.7 Acceptance and release impact
+
+The new IAM/admin scope is not considered complete until T-ADMIN-01..T-ADMIN-15 are implemented and pass. G2 now includes admin role/roster/invitation/assignment/control-plane contracts; G4 includes physical-device role-isolation checks; G5 includes admin secret scanning, MFA and audit verification. This expansion changes the schedule and total effort; TASKS.md must reforecast after the invitation and host-control spikes.
+

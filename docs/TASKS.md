@@ -89,3 +89,25 @@ These tasks reflect the Owner's 3 November 2026 feature selections. They are pla
 | MD-G3-07 | FP-14 | Prove background session ownership and Android execution model | Session remains usable while app task is backgrounded; correct service declaration/permission/start path/notification proven on target SDK/device; cleanup works after OS/process/network interruption | BLOCKED BY OI-18 |
 | MD-G4-04 | FP-14, FP-17 | Run background session acceptance and resource measurements | Reproducible task-switch/return/notification/disconnect tests plus battery, memory, network and thermal report; no assumed performance pass | NOT STARTED |
 | MD-R2-01 | FP-20 | Compare phone-render/H.264-to-Pi with Pi-native FreeRDP | Same guest/workload and documented FPS, latency, power, thermal, bandwidth, reconnect and security comparison; Owner decision recorded before R2 implementation | DEFERRED — R2 |
+
+
+## 6. College Administrator and student-account work packages
+
+These tasks implement the Owner-confirmed two-role prototype model. They are additional to the student RDP critical path and must be scheduled as explicit work; they are not completed by adding screens alone. Their planning ranges total approximately 87–142 focused hours, excluding provider/DNS waiting time. The earlier 216–302 hour RDP-focused total does not include this admin scope; the combined planning envelope is therefore approximately 303–444 focused hours before schedule reforecast.
+
+| Task | Scope | Estimate | Depends on | Owner | Acceptance / evidence |
+|---|---|---:|---|---|---|
+| MD-ADM-01 | Define college_admin/student role source, role bootstrap, active-session checks and role-aware authorization | 6–10 h | G1; DEC-30..34 | Project Owner | Role contract, server-side enforcement, student/admin negative tests |
+| MD-ADM-02 | Bootstrap the single initial College Administrator account out-of-band and enroll MFA | 2–4 h plus owner setup | MD-ADM-01 | Project Owner | Admin can sign in; no bootstrap secret or service key in app/Git |
+| MD-ADM-03 | Implement roster-first student provisioning and trusted Auth invitation endpoint | 8–14 h | MD-ADM-01; reviewed roster trigger | Project Owner | Roster record precedes Auth invite; trigger links one profile; idempotent retries; no public signup |
+| MD-ADM-04 | Implement student invitation activation and first-password journey | 8–12 h | MD-ADM-03; SMTP; SDK callback spike | Project Owner | Invitation email works on Android; INVITE callback verified; student signs in only after activation |
+| MD-ADM-05 | Student account lifecycle: pending/invited/active/suspended/disabled, resend, revoke and reactivation | 6–10 h | MD-ADM-03/04; admin APIs | Project Owner | Lifecycle transitions and session revocation tests pass |
+| MD-ADM-06 | Build role-aware College Administrator home and navigation | 8–12 h | MD-ADM-01 | Project Owner | Admin account opens admin workspace; student never sees it; direct route/API access denied |
+| MD-ADM-07 | Build student directory and assignment management UI/API | 10–16 h | MD-ADM-03/05; approved VM inventory | Project Owner | Exactly-one assignment, VM4 exclusion, unassign/change and active-session revocation tests |
+| MD-ADM-08 | Implement server/VM inventory, health and guarded lifecycle control-plane APIs | 12–20 h | MD-ADM-01; host-agent allowlist; Lab IT | Project Owner + Lab IT consulted | Admin-only start/shutdown/restart/maintenance; action confirmation, timeout, rollback and audit |
+| MD-ADM-09 | Build active student connection monitor and terminate-session operation | 8–12 h | G2 broker/session table; MD-ADM-01 | Project Owner | Admin list and termination work; relay closes and slot releases; student cannot terminate another's session |
+| MD-ADM-10 | Implement administrator audit events and activity view | 6–10 h | MD-ADM-03..09 | Project Owner | All privileged actions have actor/action/target/time/result/correlation; no secrets or endpoints logged |
+| MD-ADM-11 | Author and run admin/RBAC/account lifecycle tests | 10–16 h | MD-ADM-01..10 | Project Owner | Test source, fixtures, RLS/API tampering, invite replay/expiry and process-death harness included; separate from test execution/fix time |
+| MD-ADM-12 | Configure and verify SMTP invitation delivery | 3–6 h engineering + provider/DNS lead time | Owner sender/domain choice | Project Owner | Provider verification, sender, templates, invite/resend delivery; DNS propagation and approval tracked separately |
+
+**Critical ordering:** MD-ADM-01 before any admin screen/action; MD-ADM-03 before student activation; MD-ADM-04 before disabling any existing signup/provisioning route; MD-ADM-08 only after host action allowlist and rollback are approved. No service-role/secret key is added to the Android app.

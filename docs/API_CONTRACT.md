@@ -304,3 +304,51 @@ Allowed fields: opaque request/session correlation ID, coarse time, PRD error co
 - [ ] Log/trace/metrics scan proves no tokens, credentials, student identifiers, private endpoints, screen data or RDP content are recorded.
 - [ ] Certificate mismatch, missing pin, rotation overlap/expiry and rollback all fail or succeed according to the approved policy, never accept-all.
 - [ ] Disconnect and broker restart leave no upstream socket, relay slot or raw grant usable.
+
+
+## 9. College Administrator control plane — proposed G1 contract
+
+**Status:** Proposed capability groups only; routes and JSON schemas are NOT FROZEN and are not claimed to be deployed. The current OpenAPI file continues to describe the student-facing status/grant/relay contract until the admin API design is reviewed.
+
+### 9.1 Authorization requirements
+
+Every admin request MUST:
+- carry the current Supabase user access JWT over HTTPS;
+- validate signature, issuer, audience, expiry, subject and active session_id;
+- resolve College Administrator authority from the private.app_user_roles table on every privileged request; this proposed table is server-managed, RLS-protected and not directly writable/readable by clients. Never trust user_metadata, app_metadata as the authoritative privilege decision, email domain, request body role or client navigation;
+- reject suspended/disabled accounts and stale/revoked sessions;
+- enforce the one-college prototype scope and action-specific policy;
+- require recent MFA/step-up assurance for account disabling, VM lifecycle actions and session termination;
+- create a safe audit event for both allowed and denied privileged operations.
+
+Student endpoints remain student-scoped and MUST NOT gain admin behavior through optional request fields.
+
+### 9.2 Proposed operation groups
+
+| Capability | Proposed route shape | Purpose / boundary |
+|---|---|---|
+| Admin overview | GET /v1/admin/overview | Safe host/VM counts, pending invitations, active sessions and health summary |
+| Student directory | GET /v1/admin/students | List only this college's student records and account/assignment states |
+| Provision student | POST /v1/admin/students | Create roster-first record and initiate server-side Auth invitation; request contains no password |
+| Resend invitation | POST /v1/admin/students/{studentId}/resend-invite | Reissue eligible expired/failed invitation; idempotent/rate-limited |
+| Student state | PATCH /v1/admin/students/{studentId} | Suspend/reactivate/disable under lifecycle policy; revoke affected sessions |
+| VM inventory | GET /v1/admin/vms | Return only allowlisted VM identifiers/display names and safe lifecycle/readiness data |
+| Assignment | PUT /v1/admin/assignments/{studentId} / DELETE same | Assign one eligible VM or remove assignment; conflict checks and audit |
+| VM lifecycle | POST /v1/admin/vms/{vmId}/actions | Allowlisted start, graceful-shutdown, restart or maintenance action; no arbitrary command/endpoint |
+| Active sessions | GET /v1/admin/sessions | Return safe operational metadata only |
+| Terminate session | POST /v1/admin/sessions/{sessionId}/terminate | Invalidate grants, close relay and release slot |
+| Audit activity | GET /v1/admin/audit-events | Read-only, redacted, role-protected activity |
+
+These are route proposals to support design and estimation. Before implementation, freeze request/response schemas, status/error mappings, idempotency, pagination, limits, MFA policy, audit fields and rollback semantics in a reviewed API/OpenAPI change.
+
+### 9.3 Provisioning transaction
+
+The backend must create/confirm the private roster row before calling the Supabase Auth Admin invite operation. The Admin API secret is server-only. The operation must be idempotent across retry/timeout, must not create duplicate profiles, and must surface invitation delivery state honestly. The existing roster-gated Auth trigger must be integration-tested with an invited Auth user before the provisioning flow is enabled.
+
+### 9.4 Server/VM action boundary
+
+The control plane maps a request to a fixed host/VM inventory entry and a predefined lifecycle action. It never accepts arbitrary shell text, raw hostnames, user-provided IP addresses, ports or libvirt arguments. The trusted host agent executes the operation under least privilege, returns a bounded result, and records action correlation. The Android app has no SSH credential and no direct hypervisor route.
+
+### 9.5 Connection support and revocation
+
+The admin session view exposes only student label, assigned VM display label, session start/duration, safe state and opaque correlation ID. A termination request invalidates the grant/session and closes the WSS relay; the UI may show TERMINATING until the broker confirms closure. Do not display guest passwords, tokens, grants, RDP payloads, private endpoints or desktop content.

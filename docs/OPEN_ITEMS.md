@@ -1,7 +1,7 @@
 # MobiDesk — Open Items and Owner Decisions
 
 **Specification baseline:** MobiDesk PRD v1.2, 3 November 2026  
-**Snapshot:** 3 November 2026  
+**Snapshot:** 4 November 2026  
 **Rule:** No unknown is silently converted into a decision. Due dates below are proposed closure dates for the one-person Project Owner workflow; they are not completed commitments.
 
 | ID | Item / current evidence | Owner | Proposed due | Closure evidence | Status |
@@ -23,6 +23,17 @@
 | OI-15 | Pinned FreeRDP custom raw-stream, local socket, credential/certificate callbacks, surface rebind and MS-RDPEDISP behavior require a version-specific spike. [VERIFIED: PRD §§6.6–6.8] | Project Owner | 18–31 Dec 2026 forecast | Spike report against the exact gitlink: APIs inspected, test harness, byte-stream result, peer-auth/hijack result, display/resize results and supported/unsupported behavior. | NOT PROVEN — G3 blocker |
 | OI-16 | Broker rate-limit, bounded queues, relay capacity and status-probe behavior need deployment values and test evidence. PRD requires 5 grants/min/user and bounded pilot concurrency/resources. | Project Owner | 25 Nov 2026 forecast | Configuration review plus contract/load/abuse test results, including configured pilot cap and queue/frame thresholds. | OPEN — G2 blocker |
 
+
+| OI-21 | Initial College Administrator bootstrap process and MFA enrollment are not implemented or evidenced. [OWNER CONFIRMED: 4 Nov 2026] | Project Owner | 7 Nov 2026 proposed | Create the single prototype college_admin account through a trusted out-of-band process; verify server-controlled role, MFA and recovery; no credential committed to Git. | OPEN — privileged identity blocker |
+| OI-22 | Student invitation callback is not verified against Supabase Kotlin 3.6.0. The current MainActivity routes auth callbacks to handleDeeplinks; do not assume recovery PKCE handling supports the invitation payload. | Project Owner | 8 Nov 2026 proposed | Test the actual invite email template, Redirect URL, token/code payload, OtpType.Email.INVITE verification, first password setup, expiry, replay and process-death recovery on a physical/emulated Android app. | OPEN — account activation blocker |
+| OI-23 | Admin provisioning must preserve the existing roster-gated Auth trigger. Its exact behavior for an Auth user created by inviteUserByEmail has not been integration-tested. | Project Owner | 8 Nov 2026 proposed | Create roster first, issue trusted server-side invitation, verify trigger links exactly one student profile; test duplicate, retry and invite failure without bypassing roster checks. | OPEN — provisioning integration blocker |
+| OI-24 | Trusted admin control-plane APIs and server-side role enforcement are not defined or deployed. | Project Owner | 10 Nov 2026 proposed | Freeze admin API schemas for student provisioning, account status, assignments, host/VM operations, active sessions and audit events; verify JWT/session/role checks and fail-closed behavior. | OPEN — blocks admin UI actions |
+| OI-25 | Existing RLS policies were designed for student-scoped reads; admin read/write policies and role claims need a reviewed schema plan. | Project Owner | 10 Nov 2026 proposed | Review app_metadata/private role authority, RLS policy changes, grants, role freshness, privilege escalation and cross-student negative tests. Never trust user_metadata. | OPEN — security/data blocker |
+| OI-26 | Admin-controlled server actions and host agent allowlist are not defined. | Project Owner + Lab IT | 12 Nov 2026 proposed | Approve host/VM inventory fields, coarse health metrics, permitted start/shutdown/restart/maintenance actions, confirmations, timeouts, rollback and audit coverage. No shell/SSH/raw libvirt access from Android. | OPEN — operations blocker |
+| OI-27 | SMTP/custom sender and invitation delivery remain unverified in the historical 27 Oct discovery snapshot. | Project Owner | 12 Nov 2026 proposed plus external DNS/provider lead time | Select sender/provider, verify domain ownership and SPF/DKIM/DMARC as required, configure templates, test invite and resend delivery, and document DNS propagation/provider approval separately from engineering hours. | OPEN — student activation blocker |
+
+| OI-28 | Historical Supabase discovery (27 Oct 2026) reports that email signup was enabled. The Owner now requires no student self-registration. The current live Auth setting has not been rechecked; public signup must be disabled only after the trusted admin invitation flow is proven. | Project Owner | After OI-22/OI-23, proposed 9 Nov 2026 | Verify live signup/confirmation settings; prove admin invite + roster trigger + Android activation; then turn off only the project-level Allow new users to sign up control while keeping the Email provider enabled; verify existing email/password login, admin invitation and negative public-signup tests. Do not change settings in this documentation PR. | OPEN — Auth configuration change gated by invitation test |
+
 ## Decision register references
 
 - API and WebSocket contract: API_CONTRACT.md and openapi.yaml.
@@ -33,7 +44,7 @@
 
 ## Handling rule
 
-At this audit snapshot, docs/prd-v1.2-suite was 18 commits ahead and one commit behind main; its three-dot compare contained only documentation paths. Recheck the branch head before opening the PR. An open item may be closed only with its stated evidence and owner decision. Keep VM4 excluded until verified. Never put student identifiers, passwords, private IPs, hostnames, secret keys, grant values or access tokens into this file.
+This branch is a documentation-only change from current main. An open item may be closed only with its stated evidence and owner decision. The admin/role additions are Owner-directed proposed amendments because PRD v1.2 explicitly excluded an admin console; the checked-in PDF remains unchanged until a successor PRD is approved. Keep VM4 excluded until verified. Never put student identifiers, passwords, private IPs, hostnames, secret keys, grant values or access tokens into this file.
 
 | OI-17 | GitHub Actions run 41595687606 failed before Gradle: hosted runner could not locate `platforms;android-37` during SDK package installation. Test/build/verification steps were skipped. [VERIFIED: run 41595687606, job 125782381543, 3 Nov 2026] | Project Owner | 5 Nov 2026 | In a separate CI-only change, choose a supported API 37 installation source or runner image, preserve the pinned SDK baseline, then rerun and record a green JVM/debug build. This docs PR must not edit workflow or Gradle. | OPEN — CI build blocker |
 

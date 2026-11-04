@@ -1,6 +1,6 @@
 # MobiDesk — Operations, Distribution and Release Runbook
 
-**Version:** 1.0 · **Date:** 3 November 2026  
+**Version:** 1.1 · **Date:** 4 November 2026  
 **Normative source:** MobiDesk PRD v1.2, §§8–10, 13–16.  
 **Status:** Proposed pilot runbook. Current backup, retention, guest-account and production broker state are explicitly UNKNOWN unless tagged otherwise.
 
@@ -12,7 +12,8 @@
 | Windows guest account policy, lockout, VM health, certificates, host firewall and backup/restore | Project Owner accountable; Lab IT consulted |
 | Android artifact build and verification | Project Owner |
 | Broker deployment, allowlist and grant/relay operations | Project Owner |
-| R1 user support and identity provisioning | Project Owner; Lab IT consulted |
+| R1 user support and identity provisioning | College Administrator; Project Owner accountable; Lab IT consulted |
+| College Administrator bootstrap and MFA recovery | Project Owner through trusted bootstrap; never from student UI |
 | R2 dock pairing and device key lifecycle | Project Owner; Lab IT consulted |
 
 No role, hostname, private IP, service secret, student credential or VM endpoint belongs in this document.
@@ -56,6 +57,42 @@ Google's target API policy documents an exception for permanently private apps r
 ### 2.4 Decision record
 
 **Current choice: UNKNOWN / OWNER DECISION.** Record the selected option, visibility, upload/signing key owner, access cohort and release date in DECISIONS.md and close OI-08. This runbook does not choose the channel on the owner's behalf.
+
+
+## 2.5 College Administrator bootstrap and student account provisioning
+
+### Initial College Administrator
+
+- The prototype starts with one College Administrator account.
+- The Project Owner provisions it through the Supabase Dashboard or a trusted server-side bootstrap path.
+- Assign the college_admin role only through server-controlled app_metadata or a private role table. Do not store it in user_metadata or allow a client request to select it.
+- Enroll MFA and test the recovery procedure before enabling server/VM operations.
+- Do not commit the admin email/password, recovery codes, Auth Admin secret/service-role key or host credentials to Git or the Android app.
+- Student provisioning screens MUST NOT create or promote administrator accounts.
+
+### Student account creation
+
+1. The College Administrator enters student identity details that match the institution's approved roster.
+2. The trusted backend validates duplicates and inserts/confirms the private roster row first.
+3. The trusted backend calls the Supabase Auth Admin invitation operation. It does not send or generate a password for the administrator to share.
+4. Verify that the existing roster-gated Auth trigger creates/links exactly one student profile for the invited Auth user.
+5. The student receives an invitation email and activates the pre-created identity, then sets a first password.
+6. The admin workspace reports the actual invitation state and activation state separately. Resend/disable/suspend operations are backend-authorized and audited.
+
+Student invitation/activation is not student signup. The Android client has no Create account flow and does not call the public Supabase signUp method. Do not disable the current Supabase signup/provisioning setting until the new roster-first admin invitation path is integration-tested; then disable public self-registration while preserving the trusted invitation path.
+
+### Email delivery dependency
+
+Custom SMTP and actual invite-email delivery were marked unverified in the historical Supabase discovery snapshot. The owner must select the sender/provider, verify domain ownership and required DNS records (SPF/DKIM/DMARC as applicable), configure the Invite user template and test delivery, expiry and resend. Engineering configuration time and external provider/DNS propagation or approval time must be tracked separately. A successful invite API response is not proof that the student received the email.
+
+### Privileged API and server operations
+
+- Supabase Auth Admin operations execute only in a trusted backend using a server-held secret.
+- Android sends the current user's JWT to narrow admin endpoints; the backend validates session, current college_admin role, account status and action-specific permission.
+- The Android app never holds a Supabase service-role/secret key, SSH credential, host password or libvirt credential.
+- Host/VM lifecycle actions run through a least-privilege host agent and a strict allowlist. Permitted actions are explicit (start, graceful shutdown, restart, maintenance) and require confirmation/step-up authentication as configured.
+- No arbitrary shell, SSH terminal, raw libvirt console or arbitrary private network destination is exposed.
+- Admin operations must have timeout, error reconciliation, rollback guidance and append-only audit records.
 
 ## 3. Signing and key custody
 
