@@ -232,6 +232,7 @@ For the prototype, keep one College Administrator account. The normal student-pr
 
 - Remove/omit all student Create account and Sign up affordances.
 - The Android client MUST NOT call Supabase signUp.
+- After the trusted invitation flow is proven, disable the project-level Allow new users to sign up setting. Keep the Email provider enabled so existing students can sign in with email/password. Test existing login and admin invitations before changing the live setting.
 - College Administrator creates the roster/Auth identity before the student receives an invitation.
 - The invitation allows the student to activate the already-created account and set a first password. This is not student self-registration.
 - A student without an eligible roster entry and valid invitation MUST NOT be able to create an identity or profile.
