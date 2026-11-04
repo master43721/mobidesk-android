@@ -363,8 +363,8 @@ Do not mitigate by exposing public RDP, disabling certificate verification, supp
 
 **Controls**
 - Resolve exactly two prototype roles: college_admin and student.
-- Store authority only in server-controlled app_metadata or a private role table whose writes are restricted to trusted bootstrap/admin processes.
-- Never trust user_metadata, client-supplied role, email suffix, UI route or cached local preference.
+- Store authoritative role and active status in the proposed private.app_user_roles table; only trusted bootstrap/provisioning services may write it, with RLS enabled and no direct client grants. Resolve it server-side for every privileged request.
+- Never trust user_metadata, app_metadata as the authoritative privilege decision, client-supplied role, email suffix, UI route or cached local preference.
 - Verify JWT/session and current active role at every administrative API call; reject disabled/suspended accounts.
 - Do not allow the student-provisioning endpoint to create/promote admins.
 - Use MFA/step-up assurance for privileged operations.
