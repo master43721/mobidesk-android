@@ -28,7 +28,7 @@ Estimates are focused engineering hours for one engineer with AI assistance. The
 |---|---|---:|---|---|
 | FP01-001 | Correct FR-AUTH traceability and approve FP-01 boundary | 0.5 h | 4 Nov | Parent mapping: FR-AUTH-01 belongs FP-01; FR-AUTH-02 belongs FP-02/03. |
 | FP01-002 | Verify supabase-kt 3.6.0 signOut LOCAL, clearSession, PKCE order and session manager source | 1.5 h | 4 Nov | SDK source references recorded; storage backend/encryption finding separated. |
-| FP01-003 | Add AuthRepository interface and lightweight ViewModel factory/test seam | 1.5–2 h | 5 Nov | Existing production path uses same Supabase implementation; fake repository can instantiate ViewModel. |
+| FP01-003 | Add AuthRepository + WorkspaceRepository interfaces and lightweight ViewModel factory/test seam | 1.5–2 h | 5 Nov | Production adapters remain unchanged; FakeAuthRepository and WorkspaceRepository spy can instantiate ViewModel and prove zero workspace calls during RECOVERY_ONLY. |
 | FP01-004 | Add AuthLevel + durable recovery marker and gate workspace loading | 2–3 h | 5–6 Nov | Authenticated SDK event during recovery remains RECOVERY_ONLY; no workspace call. |
 | FP01-005 | Fix recovery cancel/back and sign-out network-failure exit | 1.5–2 h | 6 Nov | Cancel clears recovery session; remote sign-out failure offers explicit device-local clear. |
 | FP01-006 | Make recovery callback idempotent across Activity recreation/process restart | 2–3 h | 6–7 Nov | Pending/consumed callback cannot be exchanged twice; interrupted recovery fails closed. |
@@ -45,7 +45,7 @@ Estimates are focused engineering hours for one engineer with AI assistance. The
 
 ### Phase A — Verify and establish seams
 1. Re-run the existing baseline test suite.
-2. Add the AuthRepository interface and production/fake construction seam.
+2. Add AuthRepository and WorkspaceRepository interfaces with production/fake adapters through a small factory.
 3. Confirm the exact Auth sign-out and session-storage behavior from the resolved 3.6.0 dependency.
 4. Add AuthLevel and the durable recovery marker model.
 
@@ -94,7 +94,7 @@ No new package hierarchy or UI redesign is planned.
 
 No dedicated Supabase staging project is evidenced in the repository/docs. Do not write tests that silently assume one exists.
 
-- Unit/ViewModel/UI tests must use FakeAuthRepository and no live Supabase credentials.
+- Unit/ViewModel/UI tests inject FakeAuthRepository and a spy WorkspaceRepository; no live Supabase credentials are required.
 - For provider integration, the Owner must nominate either an isolated local Supabase stack or a separate hosted test project and synthetic accounts.
 - Real email recovery tests require custom SMTP/Send Email Hook and a non-team test mailbox.
 - Do not run destructive Auth tests against real student accounts or production data.
