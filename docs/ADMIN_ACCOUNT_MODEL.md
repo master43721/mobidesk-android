@@ -169,7 +169,7 @@ The admin view MUST NOT reveal Windows passwords, Supabase tokens, one-use grant
 
 - The Android app contains only the public Supabase client configuration and the current user's session token.
 - A trusted control-plane API validates the Supabase JWT, active session, server-controlled role and action-specific policy on every administrative operation.
-- The role source is server-controlled app_metadata or a private role table maintained only by trusted server processes. Never authorize using user_metadata, email suffix, a local role preference, navigation route or client-supplied role.
+- The authoritative role source is the proposed private.app_user_roles table with role and active status. It is written only by trusted bootstrap/provisioning services, protected by RLS and not directly readable or writable by client roles. The backend resolves it on every privileged request. Never authorize using user_metadata, email suffix, a local role preference, navigation route or client-supplied role.
 - Supabase RLS remains enabled. Student policies are ownership-scoped; administrator access uses a separately reviewed policy or trusted backend path.
 - Supabase Auth Admin operations (invite/create/update/disable) execute only on a trusted server using a secret key. The key MUST NOT be present in the Android APK, BuildConfig, source, CI artifact or mobile request body.
 - Hypervisor/host actions execute only on the trusted server/host agent. The Android client never receives a host credential or shell endpoint.
