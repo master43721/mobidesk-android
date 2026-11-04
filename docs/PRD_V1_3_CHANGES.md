@@ -261,7 +261,9 @@ The same native Android app routes to the Administrator or Student workspace onl
 
 ### 8.6 Security and data requirements
 
-- Use a server-controlled college_admin/student role source (server-controlled app_metadata or a private role table). Never trust user_metadata, email suffix, user-supplied role or client navigation state.
+The proposed schema adds private.app_user_roles (auth_user_id primary/unique reference, role, active status, created/updated audit fields). The table is private, RLS-enabled and not exposed to anonymous/authenticated direct client access. A trusted bootstrap inserts the College Administrator row; the roster-first invitation service assigns student. Confirm foreign-key, deletion/offboarding and role-revocation behavior during the schema review.
+
+- Use private.app_user_roles as the authoritative college_admin/student role source, with active status. Only trusted bootstrap/provisioning services write it; RLS is enabled and no direct client read/write is granted. Resolve role on each privileged API request. Never trust user_metadata, app_metadata as the privilege decision, email suffix, user-supplied role or client navigation state.
 - Authenticate and authorize every admin API call; verify active Auth session and account status.
 - Keep Supabase Auth Admin secret/service-role key and host credentials outside Android.
 - RLS must isolate student rows and protect admin writes. Review migrations and policies before any role-dependent write path is implemented.
