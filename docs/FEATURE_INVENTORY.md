@@ -48,7 +48,7 @@ R1 delivers the complete student workflow from college authentication to a secur
 
 ### FP-01 — Student Authentication and Account Recovery
 
-> Detailed specification package: [FP-01 review draft](FEATURE_SPECIFICATIONS/FP-01/README.md). Draft v0.1; awaiting Owner critique.
+> Detailed specification package: [FP-01 v0.2 review package](FEATURE_SPECIFICATIONS/FP-01/README.md). Draft v0.1; awaiting Owner critique.
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
 
 **Outcome:** A provisioned student securely signs in using their institutional identity.
