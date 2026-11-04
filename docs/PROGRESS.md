@@ -1,8 +1,8 @@
 # MobiDesk — Progress and Gate Status
 
-**Snapshot date:** 3 November 2026  
+**Snapshot date:** 4 November 2026  
 **Normative baseline:** PRD v1.2 (Project Owner instruction declares it final; PDF cover text still has a pending-approval label).  
-**Planning branch:** docs/prd-v1.2-suite  
+**Planning branch:** docs/college-admin-student-account-model  
 **No source-code change is included in this documentation suite.**
 
 ## 1. Current gate status
@@ -64,3 +64,14 @@ Copy this row for each meaningful engineering/test event. Do not record secrets,
 - **OWNER-DIRECTED PROPOSED CHANGE:** R1 active sessions should continue when the user backgrounds the app/switches applications. This conflicts with PRD v1.2 foreground-only/5-second teardown language. It is recorded as a proposed successor-PRD amendment, not a normative v1.2 change.
 - **OPEN:** Screen-lock/display-off behavior remains a separate decision. Background continuation does not imply persistence after force-stop or OS process termination.
 - Updated DECISIONS.md, OPEN_ITEMS.md, TASKS.md and PRD_V1_3_CHANGES.md to maintain traceability. No Android source, Gradle, CI, submodule, broker deployment, Supabase data or VM state was changed.
+
+
+## 7. Owner-directed account model update — 4 Nov 2026
+
+- **OWNER CONFIRMED:** No student self-registration. The College Administrator provisions each student account and sends the activation invitation; student activation/password creation is not signup.
+- **OWNER CONFIRMED:** The prototype has two application roles: one College Administrator account and student accounts. The initial College Administrator is bootstrapped out-of-band by the Project Owner.
+- **OWNER CONFIRMED:** The College Administrator workspace manages roster-backed student provisioning, approved student-to-VM assignments, approved host/VM lifecycle operations and active student connections.
+- **SECURITY BOUNDARY:** All privileged actions execute through trusted server-side APIs. No Supabase service-role/secret key, direct libvirt connection, SSH credential or arbitrary shell command is exposed to Android.
+- Added docs/ADMIN_ACCOUNT_MODEL.md and FP-23..FP-28 in docs/FEATURE_INVENTORY.md. The admin scope conflicts with v1.2's explicit admin-console exclusion; proposed successor-PRD wording is maintained in PRD_V1_3_CHANGES.md. The v1.2 PDF is unchanged.
+- The current branch contains documentation changes only. No Android source, Supabase settings, database schema, server or VM was changed. Invitation delivery, invite callback support, admin role/RLS, and admin control-plane APIs remain NOT IMPLEMENTED / BLOCKED pending the listed tasks and tests.
+
