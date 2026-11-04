@@ -32,6 +32,8 @@
 | OI-26 | Admin-controlled server actions and host agent allowlist are not defined. | Project Owner + Lab IT | 12 Nov 2026 proposed | Approve host/VM inventory fields, coarse health metrics, permitted start/shutdown/restart/maintenance actions, confirmations, timeouts, rollback and audit coverage. No shell/SSH/raw libvirt access from Android. | OPEN — operations blocker |
 | OI-27 | SMTP/custom sender and invitation delivery remain unverified in the historical 27 Oct discovery snapshot. | Project Owner | 12 Nov 2026 proposed plus external DNS/provider lead time | Select sender/provider, verify domain ownership and SPF/DKIM/DMARC as required, configure templates, test invite and resend delivery, and document DNS propagation/provider approval separately from engineering hours. | OPEN — student activation blocker |
 
+| OI-28 | Historical Supabase discovery (27 Oct 2026) reports that email signup was enabled. The Owner now requires no student self-registration. The current live Auth setting has not been rechecked; public signup must be disabled only after the trusted admin invitation flow is proven. | Project Owner | After OI-22/OI-23, proposed 9 Nov 2026 | Verify live signup/confirmation settings; prove admin invite + roster trigger + Android activation; then disable public self-signup without breaking trusted invitations and rerun negative signup tests. | OPEN — Auth configuration change gated by invitation test |
+
 ## Decision register references
 
 - API and WebSocket contract: API_CONTRACT.md and openapi.yaml.
