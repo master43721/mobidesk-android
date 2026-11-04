@@ -127,7 +127,7 @@ A process death in the narrow window after SDK session import but before the app
 
 ## 6. Repository seam — no new coordinator architecture
 
-The current ViewModel constructs SupabaseAuthRepository directly. Introduce a small interface around the calls it needs:
+The current ViewModel constructs SupabaseAuthRepository directly. Introduce small interfaces around the calls the ViewModel needs:
 
 | AuthRepository method | Purpose |
 |---|---|
@@ -139,9 +139,9 @@ The current ViewModel constructs SupabaseAuthRepository directly. Introduce a sm
 | requestPasswordReset(email) | Start recovery email request. |
 | updatePassword(password) | Complete recovery. |
 
-SupabaseAuthRepository implements this interface. A small ViewModel factory/constructor seam supplies either the real repository or a fake in unit tests. No DI framework is required for FP-01.
+SupabaseAuthRepository implements AuthRepository. Put the existing StudentWorkspaceRepository behind a tiny WorkspaceRepository interface as a **test seam only**; its data rules/feature ownership remain FP-02/FP-03. A small ViewModel factory supplies real adapters in production and fakes/spies in tests. No DI framework is required.
 
-Keep StudentWorkspaceRepository separate. The current ViewModel may retain workspace orchestration for now, but it must invoke it only when AuthLevel is FULLY_AUTHENTICATED. Moving all workspace ownership into a new architecture is not part of FP-01 unless later tests show this small boundary is insufficient.
+This lets a ViewModel test inject a WorkspaceRepository spy and prove it receives zero calls while AuthLevel is RECOVERY_ONLY. Do not move profile/assignment requirements into FP-01 or redesign the workspace repository.
 
 ## 7. Pinned Supabase Kotlin SDK 3.6.0 facts
 
