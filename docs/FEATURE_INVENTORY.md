@@ -88,6 +88,8 @@ R1 delivers two role-based workflows in the same Android app: the College Admini
 - No infrastructure hostname, IP, VM UUID, port or other student's data is exposed.
 - No hard-coded “Online” indicator or fake assignment is displayed.
 
+**Detailed feature package:** [FP-02 specification, design, implementation plan, test plan and Antigravity handoff](FEATURE_SPECIFICATIONS/FP-02/README.md). The package preserves FP-03 assignment resolution and FP-04 status ownership.
+
 ### FP-03 — Student-to-VM Assignment Resolution and Authorization
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
 
