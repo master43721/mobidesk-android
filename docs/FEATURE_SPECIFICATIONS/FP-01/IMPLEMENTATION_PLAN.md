@@ -1,142 +1,119 @@
-# FP-01 Implementation Plan — Student Authentication and Account Recovery
+# FP-01 Implementation Plan — Focused Authentication Hardening
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026  
 **Repository:** master43721/mobidesk-android  
-**Implementation status:** Planning only. No app source changes are part of this documentation draft.
+**Status:** Planning draft; no application code changed by this documentation revision.
 
 ## 1. Delivery approach
 
-Implement FP-01 as a bounded authentication capability. Preserve the existing working sign-in/recovery path where tests prove it correct; refactor only where the current Auth/workspace coupling prevents a clean feature boundary or a measurable acceptance criterion.
+FP-01 is approximately 250 lines of existing Auth logic plus UI and project settings. Do not rewrite it into a new authentication architecture.
 
-Do not start by rewriting all authentication classes. First verify exact Supabase Kotlin 3.6.0 behavior and capture the current test/build baseline. All implementation changes happen in small, reviewable commits within the canonical repository.
+Preserve the current Supabase Auth client, Compose screens and repository methods. Implement only the seams and fixes required by the defects:
+- AuthRepository interface/injection seam.
+- AuthLevel and durable recovery marker.
+- Recovery cancel/process-death/callback replay fixes.
+- Sign-out failure fallback.
+- Typed Auth error mapping for mail authorization and rate limits.
+- Custom SMTP/Send Email Hook readiness.
+- Focused tests.
 
-## 2. Work packages
+Do not add a coordinator, a new router package, three new screens or a DI framework in FP-01.
 
-| Phase | Work package | Main output | Exit gate |
-|---|---|---|---|
-| FP01-G0 | Requirements and current-state freeze | Owner-approved FP-01 PRD, exact parent PRD traceability, live Supabase config facts | Scope and security decisions closed |
-| FP01-G1 | SDK and platform verification | SDK storage/sign-out/deep-link findings; redirect threat decision | No critical SDK behavior assumed |
-| FP01-G2 | Auth boundary and state model | Auth repository/coordinator/UI state separated from workspace reads | FP-01 can hand Authenticated state to FP-02 without loading VM/profile |
-| FP01-G3 | Sign-in and session lifecycle | Sign-in, restore, refresh-failure and sign-out flows with tests | Cold start, process recreation, invalid credentials and sign-out pass |
-| FP01-G4 | Recovery end-to-end | Generic reset request, verified deep link, password update and failure UX | Real staging email/callback/password update tests pass |
-| FP01-G5 | Security and accessibility | Credential/logging checks, account-enumeration behavior, deep-link negative tests, accessibility review | No critical security/privacy test fails |
-| FP01-G6 | Feature acceptance | Final traceability, CI/build/test report and owner sign-off | All MUST acceptance criteria have evidence |
+## 2. Work packages and estimated effort
 
-## 3. Task breakdown
+Estimates are focused engineering hours for one engineer with AI assistance. They exclude waiting for SMTP provider/domain setup or Owner approvals. Parent PRD v1.2 dates are the planning window; these are ranges, not delivery promises.
 
-### G0 — Scope and baseline
+| Task | Work | Estimate | Target window | Dependency / exit evidence |
+|---|---|---:|---|---|
+| FP01-001 | Correct FR-AUTH traceability and approve FP-01 boundary | 0.5 h | 4 Nov | Parent mapping: FR-AUTH-01 belongs FP-01; FR-AUTH-02 belongs FP-02/03. |
+| FP01-002 | Verify supabase-kt 3.6.0 signOut LOCAL, clearSession, PKCE order and session manager source | 1.5 h | 4 Nov | SDK source references recorded; storage backend/encryption finding separated. |
+| FP01-003 | Add AuthRepository interface and lightweight ViewModel factory/test seam | 1.5–2 h | 5 Nov | Existing production path uses same Supabase implementation; fake repository can instantiate ViewModel. |
+| FP01-004 | Add AuthLevel + durable recovery marker and gate workspace loading | 2–3 h | 5–6 Nov | Authenticated SDK event during recovery remains RECOVERY_ONLY; no workspace call. |
+| FP01-005 | Fix recovery cancel/back and sign-out network-failure exit | 1.5–2 h | 6 Nov | Cancel clears recovery session; remote sign-out failure offers explicit device-local clear. |
+| FP01-006 | Make recovery callback idempotent across Activity recreation/process restart | 2–3 h | 6–7 Nov | Pending/consumed callback cannot be exchanged twice; interrupted recovery fails closed. |
+| FP01-007 | Map typed Auth errors and add email-send/request rate-limit UX | 1–1.5 h | 7 Nov | email_address_not_authorized, over_email_send_rate_limit and over_request_rate_limit have specific tested messages. |
+| FP01-008 | Resolve provider/signup/confirmation/redirect/expiry/password/rate settings | 0.5–1 h | 7 Nov | Read-only settings evidence and Owner decision recorded. |
+| FP01-009 | Configure custom SMTP or Send Email Hook and verify sender/domain | 2–4 h once provider/domain credentials are ready | 8–10 Nov | A non-team synthetic student address receives confirmation and recovery emails. Blocked until provider/domain selection and secure credentials are supplied. |
+| FP01-010 | Run the must-run pilot suite and fix failures | 3–4 h | 10–12 Nov | Baseline 4 tests plus core Auth/recovery tests all pass; local/build evidence recorded. |
+| FP01-011 | Accessibility, callback collision and storage review | 1.5–2.5 h | 12 Nov | TalkBack checklist, competing-app URI test and session storage recommendation. |
+| FP01-012 | Traceability, release evidence and Owner acceptance | 1 h | 13 Nov | Every MUST has test evidence; Owner accepts remaining policy decisions. |
 
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-001 | Confirm exact FP-01 boundary and parent FR-AUTH-01/02 traceability against PRD v1.2 | BLOCKED — Owner review |
-| FP01-002 | Capture canonical source commit, Gradle/SDK/dependency versions and current app tests | Initial source audit recorded in TECHNICAL_DESIGN.md; rerun before implementation |
-| FP01-003 | Recheck live Supabase Auth configuration without modifying it | UNKNOWN — requires owner-authorized project inspection |
-| FP01-004 | Decide public signup, email confirmation, MFA requirement and user-facing error policy | OPEN — DECISIONS.md / OPEN_QUESTIONS.md |
+**Estimated engineering effort:** approximately 16–22 focused hours excluding external email-provider/DNS wait time. SMTP setup itself is estimated only after the Owner has selected a provider and supplied the sender/domain configuration securely.
 
-### G1 — SDK and callback spikes
+## 3. Implementation sequence
 
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-005 | Inspect supabase-kt 3.6.0 session persistence implementation and Android storage backend | NOT STARTED |
-| FP01-006 | Verify signOut() default scope and local/server revocation behavior | NOT STARTED |
-| FP01-007 | Verify PKCE callback verification, state handling and replay behavior | NOT STARTED |
-| FP01-008 | Review custom URI redirect hijack risk and decide custom scheme vs verified HTTPS App Links | OPEN |
-| FP01-009 | Test recovery email delivery and confirm exact redirect/template behavior in staging | BLOCKED by project/email configuration verification |
+### Phase A — Verify and establish seams
+1. Re-run the existing baseline test suite.
+2. Add the AuthRepository interface and production/fake construction seam.
+3. Confirm the exact Auth sign-out and session-storage behavior from the resolved 3.6.0 dependency.
+4. Add AuthLevel and the durable recovery marker model.
 
-### G2 — Auth boundary
+### Phase B — Fix recovery and sign-out defects
+1. Persist CALLBACK_PENDING before starting asynchronous PKCE handling.
+2. Prevent workspace loading while recovery marker exists.
+3. Persist PASSWORD_UPDATE_REQUIRED after callback success.
+4. Restore the recovery form after process death when the stage is ready.
+5. On interrupted callback, do not replay the consumed code; clear partial state and request a new link.
+6. Cancel/back signs out the recovery session and returns to SIGNED_OUT.
+7. If server sign-out fails, allow explicit SDK clearSession() and explain remote revocation was not confirmed.
+8. Clear recovery marker and publish FULLY_AUTHENTICATED only after successful password update.
 
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-010 | Define app-owned Auth state model and operation results | DESIGN PROPOSED |
-| FP01-011 | Separate AuthRepository/Coordinator responsibility from StudentWorkspaceRepository | NOT STARTED |
-| FP01-012 | Make FP-02 consume authenticated identity via a clear handoff/interface | NOT STARTED |
-| FP01-013 | Ensure no password/token/callback value enters UI state, SavedState or logs | NOT STARTED |
+### Phase C — Provider configuration and error UX
+1. Recheck live Supabase Auth settings.
+2. Decide whether provider-level public signup must be disabled.
+3. Configure custom SMTP or Send Email Hook.
+4. Verify sender domain and recovery template/redirect.
+5. Map Auth error codes for recipient authorization and both email/request rate limits.
+6. Run the GoTrue valid-password/unconfirmed-email behavior test.
 
-### G3 — Sign-in and session lifecycle
+### Phase D — Focused acceptance
+1. Baseline regression (4 existing tests).
+2. Core tests listed in TEST_PLAN.md.
+3. Mail delivery and real callback test in an approved test environment.
+4. Physical Android callback/recreation/TalkBack tests.
+5. Storage/backup/log scan.
+6. Owner accepts remaining decisions and all MUST evidence.
 
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-014 | Preserve/complete email-password sign-in with trimmed email and unchanged password | Existing path verified in source; tests incomplete |
-| FP01-015 | Implement deterministic initial session restoration routing | Existing flow present; cold-start process tests missing |
-| FP01-016 | Test refresh success/failure and Authenticated/NotAuthenticated transitions | NOT STARTED |
-| FP01-017 | Implement/verify sign-out local state clearing and chosen server revocation semantics | Existing signOut call present; semantics unverified |
-| FP01-018 | Normalize safe error mapping with approved enumeration policy | Existing mapper present; email-not-confirmed behavior requires decision |
-| FP01-019 | Ensure password fields are transient and cleared at terminal state | Existing sign-in password uses remember, not rememberSaveable; recovery path needs teardown tests |
+## 4. Proposed source-file change map
 
-### G4 — Account recovery
-
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-020 | Verify recovery-request input validation and generic acknowledgement | Existing code present; backend equivalence test missing |
-| FP01-021 | Verify exact redirect URI allow-list and email template | Historical allow-list update reported; live recheck required |
-| FP01-022 | Harden callback route validation and SDK deep-link invocation | Existing scheme/host/path handling present; negative tests missing |
-| FP01-023 | Verify recovery session before enabling password update | Existing state gate present; full integration test missing |
-| FP01-024 | Reconcile client minimum-password check with current Supabase policy | Existing client checks 8 characters; live provider policy unknown |
-| FP01-025 | Test update success, provider rejection and session outcome after reset | NOT STARTED |
-
-### G5 — Security and accessibility
-
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-026 | Ensure generic non-enumerating sign-in/recovery behavior if approved | NOT STARTED |
-| FP01-027 | Verify no service-role key or backend secret in source/APK | Existing code uses publishable key; automated scan still required |
-| FP01-028 | Verify session/token storage at rest and backup exclusions | SDK storage audit required; manifest backup disabled is verified |
-| FP01-029 | Test malformed, wrong-scheme, wrong-host, wrong-path, expired and replayed callbacks | NOT STARTED |
-| FP01-030 | Accessibility pass for keyboard, TalkBack and error announcements | NOT STARTED |
-| FP01-031 | Verify no secret/PII/callback query in Logcat, crash data or analytics | NOT STARTED |
-
-### G6 — Acceptance
-
-| Task | Work | Evidence/status |
-|---|---|---|
-| FP01-032 | Run unit tests and Compose UI tests | NOT STARTED |
-| FP01-033 | Run staging Supabase sign-in/session/recovery integration tests | BLOCKED by staging test account/email |
-| FP01-034 | Run physical-device cold start and recovery callback tests | NOT STARTED |
-| FP01-035 | Update FP-01 PROGRESS.md with test run/build/source evidence | NOT STARTED |
-| FP01-036 | Owner review and acceptance | NOT STARTED |
-
-## 4. Proposed implementation file map
-
-Current paths are shown as existing files. Proposed additions are suggestions only.
-
-| Path | Proposed treatment |
+| Current file | Target change |
 |---|---|
-| app/src/main/java/com/mobidesk/android/MobiDeskApplication.kt | Preserve single configured Supabase client; no Auth feature logic in Application. |
-| app/src/main/java/com/mobidesk/android/MainActivity.kt | Keep deep-link entry point; make callback validation explicit/testable. |
-| app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt | Refactor or split Auth/session state from workspace repository orchestration. |
-| app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt | Separate SupabaseAuthRepository from StudentWorkspaceRepository if needed. |
-| app/src/main/java/com/mobidesk/android/ui/MobiDeskApp.kt | Keep Compose UI state rendering; isolate Auth forms and recovery navigation. |
-| app/src/test/java/com/mobidesk/android/AuthErrorMessagesTest.kt | Expand error mapping and non-enumeration tests. |
-| app/src/androidTest/java/com/mobidesk/android/MobiDeskSmokeTest.kt | Expand UI tests; avoid real Supabase dependency in UI smoke tests. |
-| Proposed app/src/main/java/com/mobidesk/android/auth/ | Optional Auth domain/state/coordinator package; confirm with repository style before creating. |
-| Proposed app/src/test/.../auth/ | Auth state machine, validation and error tests. |
-| Proposed app/src/androidTest/.../auth/ | Callback and UI integration tests. |
+| app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt | Introduce AuthRepository interface; SupabaseAuthRepository implements it; explicit current-session signOut and clearLocalSession methods. Keep StudentWorkspaceRepository separate. |
+| app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt | Inject AuthRepository through a lightweight factory/seam; add AuthLevel/recovery marker gating; never load workspace while RECOVERY_ONLY; fix cancel/sign-out failure paths. |
+| app/src/main/java/com/mobidesk/android/MainActivity.kt | Exact callback path validation; persist callback marker before async SDK call; de-duplicate initial/re-delivered callback. |
+| app/src/main/java/com/mobidesk/android/MobiDeskApplication.kt | Keep one Supabase client; expose repository factory if needed; no new Auth coordinator. |
+| app/src/main/java/com/mobidesk/android/ui/MobiDeskApp.kt | Keep existing screens; add interrupted-recovery and sign-out-failure actions/copy. |
+| app/src/test/java/com/mobidesk/android/AuthErrorMessagesTest.kt | Typed error-code tests and rate-limit/provider messages. |
+| app/src/androidTest/java/com/mobidesk/android/MobiDeskSmokeTest.kt | Keep current smoke tests; add navigation and recovery gating tests. |
+| Proposed app/src/main/java/com/mobidesk/android/data/RecoveryStateStore.kt | Small durable marker store; non-secret stage/fingerprint only. Exact persistence mechanism selected after current dependency/style review. |
 
-Do not create all proposed classes/files automatically. The final package structure should be agreed during FP01-G2.
+No new package hierarchy or UI redesign is planned.
 
-## 5. Dependencies and sequencing
+## 5. Test-environment dependency
 
-- G0 blocks implementation because requirements, live provider configuration and account-provisioning policy are unresolved.
-- G1 blocks callback/recovery hardening because exact SDK behavior must be verified.
-- G2 is required before claiming a clean FP-01/FP-02 feature boundary.
-- G3 and G4 can share implementation infrastructure but should remain separate acceptance groups.
-- G5 security tests are mandatory before FP01-G6.
-- No Supabase database schema migration is expected for FP-01.
-- Any Supabase Dashboard change requires explicit Owner approval and a recorded before/after configuration result.
-- Keep dependency versions pinned unless a tested defect requires a separate upgrade.
+No dedicated Supabase staging project is evidenced in the repository/docs. Do not write tests that silently assume one exists.
+
+- Unit/ViewModel/UI tests must use FakeAuthRepository and no live Supabase credentials.
+- For provider integration, the Owner must nominate either an isolated local Supabase stack or a separate hosted test project and synthetic accounts.
+- Real email recovery tests require custom SMTP/Send Email Hook and a non-team test mailbox.
+- Do not run destructive Auth tests against real student accounts or production data.
+
+Creating a hosted Supabase project/branch may incur charges and requires separate Owner approval. This implementation plan does not create one.
 
 ## 6. Definition of done
 
-FP-01 is not complete until:
-- Every MUST requirement in PRD.md is mapped to one or more passing test IDs.
-- Valid sign-in and session restoration work on the target Android reference device.
-- Sign-out semantics are known and the observed behavior matches the approved policy.
-- Password recovery works end-to-end with a real staging email and verified redirect.
-- Negative callback, expired link, replay and account-enumeration tests pass.
-- No secrets/credentials are persisted or logged.
-- The FP-01-to-FP-02 boundary is explicit.
-- CI, build, unit/UI/integration test evidence is linked in PROGRESS.md.
-- Owner approves the final PRD/design.
+- FR-AUTH-01 behavior is preserved and the four baseline tests pass.
+- Recovery-only sessions never load the workspace.
+- Recovery cancel/back signs out the recovery session.
+- Process death and callback replay are handled fail-closed.
+- Sign-out network failure has an explicit local exit.
+- Rate-limit/provider delivery errors are actionable.
+- Custom SMTP/Send Email Hook sends to a synthetic non-team account.
+- FP-02 receives FULLY_AUTHENTICATED only after normal sign-in or completed password update.
+- The four baseline tests plus the mandatory core test set pass.
+- Storage/backup behavior is documented; any encryption requirement has an implementation decision.
+- Every remaining project-policy decision is recorded; no hidden UNKNOWN is labelled PASS.
+- Owner signs off before the FP-01 PR is merged.
 
-No hour estimate or delivery date is assigned in this v0.1 plan. Estimate after review and after the SDK/recovery spikes reveal the true scope.
+No source implementation is authorized by this plan until the Owner approves the v0.2 specification.
