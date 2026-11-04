@@ -351,3 +351,103 @@ Do not mitigate by exposing public RDP, disabling certificate verification, supp
 - Lab IT is consulted for Windows guest accounts/lockout, VM isolation, endpoint and certificate provisioning, retention and backup.
 - Every SEC-Txx case is recorded in `TEST_PLAN.md` and `PROGRESS.md` with branch/commit, device or server class, exact method, result and evidence hash/link.
 - No production PII, private endpoint, credential or signing material belongs in the test evidence committed to Git.
+
+
+## 8. College Administrator and privileged control plane
+
+**Status:** Owner-confirmed role scope; trusted service implementation and tests remain NOT IMPLEMENTED.
+
+### SEC-ADMIN-01 — Role escalation or forged administrator identity
+
+**Attack:** A student changes local state, user_metadata, email domain, deep link or request body to obtain College Administrator access.
+
+**Controls**
+- Resolve exactly two prototype roles: college_admin and student.
+- Store authority only in server-controlled app_metadata or a private role table whose writes are restricted to trusted bootstrap/admin processes.
+- Never trust user_metadata, client-supplied role, email suffix, UI route or cached local preference.
+- Verify JWT/session and current active role at every administrative API call; reject disabled/suspended accounts.
+- Do not allow the student-provisioning endpoint to create/promote admins.
+- Use MFA/step-up assurance for privileged operations.
+
+**Required tests:** T-ADMIN-01/02/08/09; student modifies metadata/role, stale JWT after suspension, forged route and unauthorized claim all fail closed.
+
+### SEC-ADMIN-02 — Service-role key or Auth Admin API exposed to Android
+
+**Attack:** A malicious client extracts a Supabase secret/service-role key or invokes Auth Admin directly to create users/change roles.
+
+**Controls**
+- Supabase Auth Admin invitation/create/update/disable operations run only in a trusted backend using a secret key.
+- Never include that key in BuildConfig, source, local.properties committed to Git, APK resources, client request bodies, CI artifacts or crash diagnostics.
+- Android sends its user JWT to a narrow admin API; the backend authorizes college_admin before any Auth Admin operation.
+- Rate-limit invitations, prevent duplicate roster/email creation and audit each request.
+
+**Required tests:** T-ADMIN-03/04/10; APK/static/CI secret scan; student direct invocation denied.
+
+### SEC-ADMIN-03 — Student roster, Auth user and profile become inconsistent
+
+**Attack:** Invite succeeds while roster creation fails, callback is replayed, retry creates duplicates, or an unrostered user is allowed into the workspace.
+
+**Controls**
+- Create/confirm the private roster row before Auth Admin invitation.
+- Preserve the existing roster-gated trigger; do not bypass its email eligibility check.
+- Use an idempotency key or durable provisioning operation record; retry only safe pending steps.
+- Track ROSTER_PENDING, INVITED, ACTIVE, SUSPENDED and DISABLED distinctly from email-delivery transport result.
+- A student remains denied until invitation verification and activation completes.
+- Resend expired invitations without creating a second Auth identity.
+- Audit actor and provisioning result.
+
+**Required tests:** T-ADMIN-05/06/07/11; duplicate email/roll number, trigger retry, mail failure, expired invitation and duplicate callback.
+
+### SEC-ADMIN-04 — Invitation/deep-link callback confusion
+
+**Attack:** A malicious app or web page sends a callback with guessed code/token/type and causes recovery state, session replacement or account activation.
+
+**Controls**
+- Accept only the configured scheme, host and exact route for each callback purpose.
+- Keep invitation activation separate from password recovery; verify the actual Supabase invite payload and OtpType.Email.INVITE flow against Kotlin 3.6.0.
+- Require a locally initiated/expected invitation context when the platform flow provides one; rely on the cryptographic single-use invite token for server verification, not URI labels alone.
+- Missing, wrong-type, expired, replayed or unrequested callbacks must not clear or replace an unrelated authenticated session.
+- Neutralize consumed intents and guard Activity re-delivery/process restoration.
+- Do not log codes, token_hash values, invitation URLs or PKCE verifiers.
+
+**Required tests:** forged invite while student/admin is signed in, missing token/code, wrong type, stale pending activation, duplicate delivery, Activity recreation and process death.
+
+### SEC-ADMIN-05 — Admin misuses host/VM controls or attacker submits arbitrary command
+
+**Attack:** An authenticated admin or compromised client submits arbitrary shell text, private IP, hostname, libvirt command, port or unsupported action.
+
+**Controls**
+- Expose only named operations against server-maintained host/VM inventory.
+- Server resolves the target; Android cannot submit raw endpoint or command.
+- Validate VM membership, lifecycle transition, maintenance state and student assignment effects.
+- Use a least-privilege host agent with a strict action allowlist and bounded execution/timeout.
+- Require confirmation and MFA/step-up for disruptive actions.
+- No arbitrary shell/SSH, host credential or raw libvirt console in Android.
+- Every operation is audited; failed/timeout operations retain an explicit UNKNOWN outcome until reconciled.
+
+**Required tests:** T-ADMIN-13; unknown VM, arbitrary command, unapproved action, student role, action race and host agent timeout all fail safely.
+
+### SEC-ADMIN-06 — Admin account compromise or session continues after suspension
+
+**Attack:** A stolen admin session is used for student creation, assignment changes or VM actions after admin access should be revoked.
+
+**Controls**
+- Require MFA/step-up for sensitive admin actions.
+- Check active Supabase session_id and current admin role server-side.
+- Suspend/disable admin through owner-controlled process; revoke active sessions and stop admin API calls within defined policy.
+- Rate-limit and audit privileged actions; notify the owner of sensitive changes where supported.
+- Keep the single prototype administrator's recovery path out-of-band and tested.
+
+**Required tests:** T-ADMIN-02/08; revoke admin session during active API workflow and attempt reuse with unexpired JWT.
+
+### SEC-ADMIN-07 — Cross-student disclosure or overbroad admin audit data
+
+**Attack:** Students read the directory/audit stream or admin endpoints return passwords, guest credentials, invite links, JWTs, grants, private VM endpoints or desktop content.
+
+**Controls**
+- Students retain strict own-profile/own-assignment RLS; admin read access is explicit and isolated.
+- Admin views return only operationally necessary student/account/session data.
+- Audit events are append-only/server-generated and redact secrets and private network topology.
+- No screen pixels, RDP bytes, guest credentials, invitation links or bearer values are returned to admin UI.
+
+**Required tests:** T-ADMIN-09/14/15, RLS negative tests, response-schema allowlist and log/export scans.
