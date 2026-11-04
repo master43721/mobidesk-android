@@ -120,3 +120,21 @@ The Owner must confirm the account-provisioning model before this setting is cha
 - Auth rate limits: https://supabase.com/docs/guides/auth/rate-limits
 - Password policy: https://supabase.com/docs/guides/auth/password-security
 - Redirect URLs: https://supabase.com/docs/guides/auth/redirect-urls
+
+
+## 9. Automated integration testing without a hosted staging project
+
+A dedicated hosted staging project is not evidenced and must not be assumed.
+
+Supabase documents local Auth email testing through the Supabase CLI and Mailpit:
+1. Initialize/run a local Supabase stack with the project CLI.
+2. Use the local project URL and publishable key in a test-only Android build.
+3. Set the local Auth confirmation behavior explicitly in the local config.
+4. Request password recovery.
+5. Open the generated message in Mailpit and inspect the link in the controlled test environment.
+6. Verify PKCE callback, password update and sign-in using synthetic users.
+7. Tear down/reset the local environment after tests.
+
+The local Auth service routes messages to Mailpit and does not send real email. This supports repeatable Auth-flow tests without creating a paid hosted staging project. It does **not** prove production SMTP deliverability. The final release gate still requires a real non-team mailbox test against the chosen custom SMTP/Send Email Hook.
+
+Official local Mailpit testing guide: https://supabase.com/docs/guides/auth/testing-auth-flows
