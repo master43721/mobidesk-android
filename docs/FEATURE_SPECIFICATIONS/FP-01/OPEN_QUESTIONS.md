@@ -1,48 +1,60 @@
-# FP-01 Open Questions — Owner Review
+# FP-01 Open Questions and Owner Decisions
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
-**Purpose:** Get product decisions before converting FP-01 from draft into an implementation-ready specification.
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026
 
-## 1. Decisions required
+The v0.1 draft repeated routine defaults across several documents. This revision closes the choices that can be given a safe pilot default and keeps only owner-controlled policy and deployment decisions open.
 
-| ID | Question | Current evidence | Recommended starting point | Your decision |
-|---|---|---|---|---|
-| FP01-OQ-01 | Should students sign in with school email only, or also roll number/username? | Current UI asks for school email. | Keep school email only for pilot unless school identity policy requires another identifier. | OPEN |
-| FP01-OQ-02 | Should public signup be disabled in the Supabase project? | App has no signup screen. Historical project audit reported provider signup enabled. | Disable public signup if all users must be roster/institution provisioned; verify admin provisioning path first. | BLOCKING |
-| FP01-OQ-03 | Should email confirmation remain required? | Historical project audit reported it was required. | Keep required for institution-controlled email accounts unless Owner/Lab IT has a documented alternative. | OPEN |
-| FP01-OQ-04 | Should unconfirmed, unknown-email and wrong-password errors be indistinguishable? | Current code has a separate email-not-confirmed message. | Use generic external wording to reduce account enumeration. | OPEN |
-| FP01-OQ-05 | After a password reset, should the app keep the recovery-established session or sign the student out and require a fresh sign-in? | Current implementation keeps the recovery session and returns to authenticated UI. | Keep session if Supabase confirms password update and session validity; require fresh sign-in only if policy demands it. | OPEN |
-| FP01-OQ-06 | Is custom SMTP/email sender configured and verified for pilot? | Historical audit reported custom SMTP disabled and delivery unverified. | Require a successful end-to-end test email before claiming recovery is production-ready. | BLOCKING |
-| FP01-OQ-07 | Should FP-01 include MFA, passkeys or social sign-in? | Not present in current app/feature inventory. | Exclude from pilot unless institution policy requires MFA. | OPEN |
-| FP01-OQ-08 | Should the app use the existing custom URI scheme or migrate recovery to verified HTTPS Android App Links? | Existing code uses custom scheme and PKCE. | Keep current URI for staging while completing a hijack/verification review; make production decision before release. | OPEN |
-| FP01-OQ-09 | What sign-out scope is required: local device only, current session, or all devices? | Current code calls signOut() with no explicit scope; pinned SDK default is not verified. | Current device/current session by default; explicit "sign out all devices" should be a separate capability if needed. | OPEN |
-| FP01-OQ-10 | What Auth session lifetime and maximum inactivity policy should the college enforce? | Supabase config values not inspected in this draft. | Use an Owner/Lab IT policy; do not invent numbers. | OPEN |
-| FP01-OQ-11 | What password minimum and complexity policy should be used? | Current UI checks length >=8; live Supabase policy is unknown. | Supabase server policy must be authoritative; align copy and validation after measuring live settings. | OPEN |
-| FP01-OQ-12 | Should password managers/autofill be supported? | Current fields use email/password keyboard types; Autofill semantics not tested. | Support Android password managers without adding MobiDesk password persistence. | OPEN |
-| FP01-OQ-13 | What exact phrase should the app use: "school account", "college account" or institution-specific wording? | Current UI uses "school email" and "school account". | Use "college account" if that is the institution's normal student language. | OPEN |
-| FP01-OQ-14 | What support contact should be shown for account not provisioned or recovery failures? | No support address/helpdesk value established in FP-01 source. | Use owner-approved college IT contact, not a guessed email address. | OPEN |
-| FP01-OQ-15 | Should account-not-provisioned be part of FP-01 or FP-02? | Current app displays it after a student profile lookup. | FP-02; FP-01 ends at authenticated identity. | RECOMMENDED |
-| FP01-OQ-16 | Should FP-01 provide explicit "resend email confirmation" action? | Not implemented in current app. | Exclude unless student support data shows it is needed. | OPEN |
+## 1. Owner decisions
 
-## 2. Technical questions that require evidence, not preference
+| ID | Question | Recommended default | Why it remains open |
+|---|---|---|---|
+| FP01-OQ-01 | Should public Supabase signup be disabled at the project level? | Yes, if all students are provisioned by institution roster/admin. | This is a live Auth project setting. Verify current value and ensure the approved admin provisioning path still works before changing it. |
+| FP01-OQ-02 | Does college policy require MFA for the R1 pilot? | No additional MFA factor in FP-01 unless institution policy mandates it. | This is an institutional security policy, not a code preference. |
+| FP01-OQ-03 | Which custom SMTP provider or Send Email Hook should deliver student email? | Choose an owner-controlled production-capable provider with a verified sender domain. | Provider account, sender domain, DNS records and SMTP credentials must be supplied/configured by the Owner. Secrets must never be sent in chat or committed. |
+| FP01-OQ-04 | After a successful password update, should the recovery-established session be retained? | Yes; transition to FULLY_AUTHENTICATED only after updateUser succeeds. | Current implementation retains the session; Owner should approve this user experience. |
+| FP01-OQ-05 | Is a device-local sign-out fallback acceptable when Supabase cannot confirm current-session revocation? | Yes, with explicit wording that remote revocation was not confirmed. | The fallback protects the device UI but cannot assert that the server revoked the refresh session. |
+| FP01-OQ-06 | Is the existing PKCE custom URI acceptable for the pilot? | Retain current URI for pilot, with callback validation and competing-app review; assess HTTPS App Links before broad release. | Custom schemes can be claimed by another installed app; Owner accepts residual pilot risk or chooses verified App Links. |
 
-| ID | Question | Required evidence |
+## 2. Checks that are not product questions
+
+These should be verified as project/configuration tasks rather than left as vague design unknowns:
+
+| ID | Check | Current evidence | Required action |
+|---|---|---|---|
+| FP01-CFG-01 | Email provider enabled | Historical discovery says enabled. | Recheck in the live Supabase project. |
+| FP01-CFG-02 | Email confirmation setting | Historical discovery says required. | Read current value and preserve unless Owner changes policy. |
+| FP01-CFG-03 | Recovery redirect allow-list | Historical discovery reported exact URI added. | Recheck exact URI and remove broad/wildcard entries if any. |
+| FP01-CFG-04 | OTP/recovery expiry | Not verified. | Read current value and record it; no new number invented here. |
+| FP01-CFG-05 | Password min/strength/HIBP policy | Not verified. | Read current server policy; keep server authoritative. |
+| FP01-CFG-06 | Auth request/email rate limits | Not verified. | Read values; ensure user-facing mapping handles returned codes. |
+| FP01-CFG-07 | Session lifetime/refresh | Not verified. | Read current policy; do not change in FP-01 without approval. |
+| FP01-CFG-08 | Auth session storage at rest in supabase-kt 3.6.0 | SDK stores serialized UserSession through SettingsSessionManager; encryption and Android backend not established by the SDK source inspected. | One short SDK/storage inspection and device test; decide whether a custom encrypted SessionManager is required. |
+| FP01-CFG-09 | Recovery email end-to-end delivery | Historical audit reports custom SMTP disabled. | Must configure custom SMTP/Send Email Hook and receive a test email at a non-team address before recovery acceptance. |
+| FP01-CFG-10 | Deployed GoTrue behavior for email_not_confirmed | Current upstream source checks password validity before the confirmation check; deployed server version not verified. | One integration test with valid password/unconfirmed email and invalid password/unconfirmed email. |
+
+## 3. Technical questions with a short evidence task
+
+| ID | Question | Minimum evidence needed |
 |---|---|---|
-| FP01-TQ-01 | How does Supabase Kotlin SDK 3.6.0 persist and protect Auth session material on Android? | Inspect pinned artifact/source and storage backend; document location, encryption and backup behavior. |
-| FP01-TQ-02 | What is the default effect of client.auth.signOut() in SDK 3.6.0? | Source/API inspection plus test of local session removal and server-side session invalidation. |
-| FP01-TQ-03 | Does handleDeeplinks enforce PKCE state/verifier and replay rejection exactly as assumed? | Test valid, malformed, expired, wrong-state and replayed callbacks. |
-| FP01-TQ-04 | Is the exact recovery redirect allowed in the live Supabase project and does the email template preserve it? | Read-only dashboard verification and real staging email. |
-| FP01-TQ-05 | Does the current UI reveal account existence through error text or timing? | Comparative tests using synthetic known, unknown, unconfirmed and wrong-password accounts. |
-| FP01-TQ-06 | Can Auth state be separated cleanly from workspace loading without breaking the current student route? | ViewModel/repository interface tests and Compose navigation tests. |
+| FP01-TQ-01 | Does the default Android Settings storage used by the SDK encrypt serialized session data at rest? | Inspect exact multiplatform-settings Android implementation resolved by Gradle; inspect app data behavior on a test device; record backup behavior. |
+| FP01-TQ-02 | What happens if callback exchange is interrupted between SDK session import and app recovery-ready persistence? | Process-kill injection at the transition; verify recovery marker blocks FP-02 and safe restart path works. |
+| FP01-TQ-03 | Does a competing app claiming the custom URI change Android callback routing on supported devices? | Install a test app with the same scheme/host on a physical test device; record chooser/default behavior and prove PKCE verification still rejects invalid callbacks. |
 
-## 3. Please critique these aspects of the draft
+## 4. Closed by v0.2 defaults
 
-1. **Feature boundary:** Should account provisioning and confirmation/resend actions belong here or remain outside FP-01?
-2. **User journey:** Is email/password plus email recovery enough for your institution?
-3. **Security:** Do you agree with generic account errors and disabling public signup?
-4. **Session policy:** What should happen on sign-out and after password recovery?
-5. **Architecture:** Do you agree that FP-01 should stop at Authenticated and FP-02 should load/verify the student profile?
-6. **Acceptance:** Are the test cases sufficient for calling FP-01 complete?
+These are no longer open questions unless the Owner objects:
+- Email only, matching the current login UI.
+- No signup screen in MobiDesk.
+- No MFA/passkeys/social login in FP-01 pilot unless institutional policy requires them.
+- Keep the existing email recovery channel.
+- Keep the current successful-recovery session after update, then mark FULLY_AUTHENTICATED.
+- Use SDK signOut LOCAL for current-session sign-out, not all devices.
+- Support standard Android password manager/autofill without storing passwords in app data.
+- Keep profile/assignment lookup outside FP-01; it is FP-02/FP-03.
+- No new resend-confirmation UI in this FP.
+- Keep existing session lifetime configuration; verify it, do not invent a new policy.
 
-Please answer by OQ ID or write free-form corrections. This v0.1 is designed to be edited based on your critique.
+## 5. Review focus
+
+Please respond only to OQ-01 through OQ-06 and any CFG/TQ item where the recommended treatment is wrong. Everything else has a proposed default to reduce review noise.
