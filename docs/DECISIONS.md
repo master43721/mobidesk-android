@@ -1,6 +1,6 @@
 # MobiDesk — Decision Register
 
-**Date:** 3 November 2026  
+**Date:** 3–4 November 2026  
 **Baseline:** PRD v1.2  
 **Rule:** PRD requirements are normative. This register records approved facts, selected engineering interpretations and unresolved owner choices. A recommendation is not treated as an approval.
 
@@ -36,7 +36,17 @@
 | DEC-26 | Dock rendering architecture | Compare phone-render/H.264-to-Pi and Pi-native FreeRDP; select only after a measured spike | Owner choice: keep both options open; see FP-20 | OWNER CONFIRMED — SELECTION OPEN |
 | DEC-27 | R1 background session direction | Allow an active RDP session to continue when the user backgrounds MobiDesk/switches apps; do not assume force-stop or OS process-death survival | Owner choice on 3 Nov 2026; conflicts with PRD v1.2 foreground-only/5-second teardown rule | OWNER-DIRECTED PROPOSED PRD CHANGE — NOT NORMATIVE UNTIL V1.3 APPROVAL |
 | DEC-28 | Screen-lock behavior | Decide separately whether screen lock/display-off preserves the session, pauses it or terminates it | Owner's background selection did not expressly settle lock-screen behavior; privacy/battery/platform implications need an explicit decision | OPEN |
-| DEC-29 | Additional product scope | No additional feature scope beyond R1 FPs and R2 Dock FPs; clipboard, file transfer and admin console remain excluded | Owner choice on 3 Nov 2026 | OWNER CONFIRMED |
+| DEC-29 | Additional product scope | No additional scope beyond R1 Mobile Cloud PC and R2 Dock; admin console excluded | Owner choice on 3 Nov 2026 | SUPERSEDED 4 Nov 2026 by DEC-30..DEC-37 |
+
+
+| DEC-30 | Application roles | Prototype has two roles: one College Administrator role and student role; single-college tenant | Owner instruction on 4 Nov 2026; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED |
+| DEC-31 | Student account creation | No student self-signup. College Administrator creates roster/Auth account through trusted backend and sends invitation; student only activates pre-created account and sets password | Owner instruction on 4 Nov 2026; Supabase admin invitation docs and current roster trigger | OWNER CONFIRMED |
+| DEC-32 | Initial College Administrator bootstrap | One initial college_admin account is provisioned out-of-band by Project Owner; student provisioning UI cannot create/promote admins | Owner instruction on 4 Nov 2026; least-privilege bootstrap design | OWNER CONFIRMED |
+| DEC-33 | Role-aware app | The same Kotlin/Compose app resolves role server-side and routes to Administrator or Student workspace | Owner instruction on 4 Nov 2026; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED |
+| DEC-34 | Privileged administration boundary | Student creation/invites, role checks, assignment writes and host/VM/session actions are performed by trusted server APIs; no service-role key or direct libvirt/SSH access in Android | Supabase Admin API requires trusted server secret; docs/ADMIN_ACCOUNT_MODEL.md | REQUIRED |
+| DEC-35 | Student first activation | Admin invitation link activates a pre-created Auth identity; exact Supabase Kotlin 3.6.0 invite callback path must be proven separately from password recovery | Pinned SDK OtpType.Email.INVITE and admin invite APIs; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED — TECHNICAL SPIKE REQUIRED |
+| DEC-36 | Admin operational capabilities | College Administrator can manage roster-backed student accounts, one-VM assignments, approved host/VM lifecycle actions and active student sessions; all privileged actions are audited | Owner instruction on 4 Nov 2026; FP-23..FP-28 | OWNER CONFIRMED |
+| DEC-37 | Admin action boundary | No arbitrary shell/SSH, raw libvirt console, unrestricted network configuration or host credentials from Android | Security boundary in docs/ADMIN_ACCOUNT_MODEL.md | REQUIRED |
 
 ## 2. Owner approval register
 
@@ -48,6 +58,10 @@
 | Distribution and signing key custody | Project Owner | 6 Nov 2026 | Selected channel and approved key custody/recovery plan |
 | FR-SEC-01..03 repair | Project Owner | 6 Nov 2026 | Approval of proposed v1.3 wording |
 | Guest Windows account and lockout model | Project Owner + Lab IT | 6 Nov 2026 | Approved account, reset, lockout, failed-logon monitoring and offboarding procedure |
+| College Administrator bootstrap and MFA | Project Owner | 7 Nov 2026 | Initial admin provisioned outside app; server-authoritative role and MFA verification recorded |
+| Student invitation and activation path | Project Owner | 8 Nov 2026 | Admin-created roster user receives invite; exact SDK callback, first password and invalid/expired-link tests pass |
+| Administrator API and role/RLS design | Project Owner | 10 Nov 2026 | Approved API contract, role checks, RLS policies and audit event specification |
+| Admin server/VM action allowlist | Project Owner + Lab IT | 12 Nov 2026 | Approved host/VM actions, confirmations, rollback and audit requirements |
 | VM persistence/backup/retention/semester end | Project Owner + Lab IT | 13 Nov 2026 | Approved policy and successful restore test |
 
 ## 3. Change control
