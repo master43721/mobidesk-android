@@ -41,3 +41,15 @@ Initial engineering suite derived from MobiDesk PRD v1.2.
 - Recorded no additional scope; clipboard, file transfer and admin console remain excluded.
 - Recorded background-session continuity as an owner-directed proposed amendment to v1.2, not a normative change. Screen-lock behavior remains open.
 - Linked the feature inventory from this index and updated DECISIONS, OPEN_ITEMS, TASKS and PROGRESS.
+
+
+## 1.1 — 4 November 2026
+
+Owner-confirmed College Administrator and Student account model added as a proposed successor-PRD scope change.
+
+- Added ADMIN_ACCOUNT_MODEL.md defining one out-of-band College Administrator bootstrap, no student self-registration, trusted roster-first Auth invitations, account lifecycle, role separation, approved host/VM operations and session support.
+- Expanded FEATURE_INVENTORY.md to 28 Feature Packages: 18 student R1, 6 College Administrator R1 and 4 Dock R2.
+- Added DEC-30..DEC-37, OI-21..OI-27 and MD-ADM-01..MD-ADM-12 for role security, provisioning, invitation activation, assignments, server operations, sessions, audit and SMTP.
+- Updated DESIGN, TEST_PLAN, API_CONTRACT, SECURITY_THREAT_MODEL, OPERATIONS and PRD_V1_3_CHANGES to cover the proposed administrator workflows.
+- Supabase Auth Admin invitation remains server-only. The invitation/activation callback must be verified against the pinned Supabase Kotlin 3.6.0 SDK; it is not assumed to be the existing password-recovery callback.
+- This PR changes documentation only. No app source, Supabase auth setting/schema/data, broker, server, VM or host configuration is changed. The v1.2 PDF remains unchanged.
