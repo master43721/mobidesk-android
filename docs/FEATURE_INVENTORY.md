@@ -39,7 +39,7 @@ A Feature Point (FP) is one coherent, independently identifiable product capabil
 | R1 background session | An active RDP session should continue when the user backgrounds the app / switches to another app | **OWNER-DIRECTED PROPOSED CHANGE**. V1.2 currently requires foreground-only behavior and a five-second teardown. A successor PRD amendment and Android platform spike are required. |
 | Device screen lock | Not explicitly resolved by the background choice | **ENGINEERING DECISION OPEN**. Do not assume screen-off/lock-screen persistence is approved. |
 | R2 Dock architecture | Keep both phone-side encode/stream and Pi-native FreeRDP options open; compare both before selection | **OWNER CONFIRMED / ENGINEERING DECISION OPEN**. No implementation path is selected yet. |
-| Extra features | No extra features added | **OWNER CONFIRMED**. Clipboard synchronization, file transfer and administrative console remain outside current scope. |
+| Account model | One College Administrator account provisions students; students cannot self-register and can use only their assigned Cloud PC | **OWNER CONFIRMED — 4 Nov 2026**. Admin workspace and control-plane features are added as FP-23..FP-28; trusted server-side authorization is mandatory. |
 | R1/R2 split | Deliver secure Mobile Cloud PC first; Dock capabilities follow in R2 | **V1.2 BASELINE**. |
 
 ## 3. R1 — Mobile Cloud PC
@@ -59,7 +59,7 @@ R1 delivers the complete student workflow from college authentication to a secur
 - Password visibility toggle.
 - Forgot-password and password-recovery flow using the configured Supabase recovery path.
 - Prevent duplicate sign-in submissions and show safe authentication errors.
-- No self-registration or student-created accounts.
+- No student self-registration or student-created accounts. A College Administrator provisions the Auth user and sends an invitation; the student only activates the pre-created account and sets a password.
 
 **Acceptance boundary**
 - Only an authenticated, institution-provisioned student can enter protected workspace screens.
@@ -522,21 +522,137 @@ R2 extends the authorized desktop experience to a paired Raspberry Pi/HDMI dock.
 - RDP Display Control (MS-RDPEDISP), Android display handling and Pi display recovery are tested.
 - Seamless hot-plug is not promised unless proven; reconnect to the same assigned VM is the explicit fallback.
 
-## 5. Explicitly excluded from current scope
+## 5. R1 — College Administrator Workspace
 
-The Owner selected **no extra features** beyond the listed R1 and R2 capabilities. The following remain excluded unless separately approved through change control:
+The same MobiDesk Android application presents a College Administrator workspace after server-side role resolution. The prototype has one College Administrator account, bootstrapped outside the app. It provisions student accounts and manages approved server/VM operations and student connections. It does not expose unrestricted host administration.
+
+### FP-23 — College Administrator Authentication and Role-Based Workspace
+**Priority:** P0 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** The institution's provisioned College Administrator can sign in to the same app and access the administrator workspace.
+
+**Included capabilities**
+- One initial College Administrator account, provisioned out-of-band by the Project Owner through a trusted path.
+- Separate server-controlled college_admin and student roles.
+- Role-aware workspace routing after backend role validation.
+- Administrator session controls and MFA for privileged operations.
+- No role selector, client-side role switching or email-domain role inference.
+- No administrator self-signup or student-to-admin promotion.
+
+**Acceptance boundary**
+- Only the server-validated college_admin role opens admin screens.
+- A student, anonymous user or tampered client cannot access administrative APIs or data.
+- Role assignment is not read from user_metadata or local preferences.
+
+### FP-24 — Student Account Provisioning and Invitation Lifecycle
+**Priority:** P0 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** College staff create student accounts and inform students how to activate them; students never create accounts themselves.
+
+**Included capabilities**
+- Administrator enters roster-approved name, institutional email and roll/registration number.
+- Backend creates the roster record before invoking the Supabase Auth Admin invitation operation.
+- Invitation email is sent to the provisioned student address.
+- Student activates the pre-created account and sets their first password.
+- Admin can see pending/active/suspended/disabled state, resend an expired invitation and suspend/reactivate/disable access.
+- Duplicate and failed invitation handling is idempotent and auditable.
+
+**Security boundary**
+- Supabase Auth Admin secret/service-role key stays on the trusted server.
+- No password is generated for the admin to pass around in plain text.
+- The invite callback is implemented and tested separately from password recovery against the pinned Supabase Kotlin SDK.
+- The student app contains no signUp/self-registration UI or call.
+
+**Acceptance boundary**
+- Auth users can be created only through the admin-authorized server path.
+- A student without a provisioned roster record and valid invitation cannot activate or access MobiDesk.
+- Invitation expiry/replay and duplicate provisioning fail safely.
+
+### FP-25 — Student Directory and VM Assignment Management
+**Priority:** P0 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** The College Administrator manages eligible student records and assigns each student an approved Cloud PC.
+
+**Included capabilities**
+- Search/filter provisioned students and view account/assignment state.
+- Assign one approved VM to a student.
+- Change or remove an assignment with confirmation.
+- Prevent duplicate, inactive or unsupported assignments.
+- Preserve VM4 exclusion until independently verified and approved.
+- Revoke affected active sessions when an assignment is changed or removed.
+
+**Acceptance boundary**
+- Assignment changes are server-authorized, auditable and reflected in student access.
+- Students cannot view or modify the directory or assignments of other students.
+
+### FP-26 — Server and VM Fleet Management
+**Priority:** P0 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** The College Administrator can monitor the configured server/VM environment and execute approved lifecycle actions.
+
+**Included capabilities**
+- Host/service availability and coarse CPU, memory and storage health.
+- Approved VM inventory, lifecycle and RDP-readiness summaries.
+- Guarded start, graceful shutdown and restart actions for eligible VMs.
+- Maintenance/unavailable state and action result reporting.
+- Confirmation for disruptive operations and operational audit events.
+
+**Security boundary**
+- All host and VM operations execute through trusted server-side control-plane/host-agent APIs.
+- No direct Android-to-libvirt connection, SSH credential, arbitrary shell, raw host endpoint or unrestricted command execution.
+- Only allowlisted hosts, VMs and lifecycle actions are accepted.
+
+**Acceptance boundary**
+- Only the College Administrator can request permitted operations.
+- Unapproved VM/action combinations fail closed and every operation records actor, target, result and timestamp.
+
+### FP-27 — Student Connection Monitoring and Session Control
+**Priority:** P0 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** The College Administrator can support and control active student connections.
+
+**Included capabilities**
+- View active sessions with student, assigned VM display label, start time, duration and safe status.
+- View connection-stage and failure summaries.
+- Terminate a selected session for support, maintenance or revoked access.
+- Suspend a student and trigger session/grant revocation.
+- Verify relay closure and session-slot release.
+
+**Acceptance boundary**
+- The administrator sees operational metadata only, never desktop contents, Windows passwords, JWTs, grants or private VM endpoints.
+- A terminated or unauthorized session stops relaying within the documented revocation window.
+
+### FP-28 — Administrator Audit and Operational Activity
+**Priority:** P1 · **Release:** R1 · **Status:** OWNER CONFIRMED — 4 Nov 2026
+
+**Outcome:** Privileged activity can be reviewed and traced without exposing secrets.
+
+**Included capabilities**
+- Recent account invitation/status changes.
+- Student assignment changes.
+- VM lifecycle actions.
+- Session termination and access revocation events.
+- Search/filter by date, action category and safe actor/target labels.
+
+**Acceptance boundary**
+- Audit records are generated server-side and cannot be edited by the Android client.
+- Passwords, invitation links, grants, JWTs, private endpoints and RDP payloads are never stored in audit events.
+
+## 6. Explicitly excluded from current scope
+
+The Owner has expanded the product to include a College Administrator workspace and trusted server/VM/student-connection management. No unrestricted shell/SSH administration is included. The following remain excluded unless separately approved through change control:
 
 - Clipboard synchronization.
 - File transfer or shared folders.
 - Audio, microphone, camera or arbitrary USB redirection.
-- Student VM picker or student-controlled reassignment.
+- Student VM picker or student-controlled reassignment. Student self-registration and student account creation are also excluded.
 - Student VM power-on/off or hypervisor administration.
-- Administrative management console.
+- Unrestricted host shell/SSH, raw libvirt console or arbitrary host command execution from Android.
 - Multi-VM selection or simultaneous desktop sessions for a student.
 - Public direct RDP access or arbitrary TCP forwarding.
 - Persistent guest-password storage or automatic Supabase-to-Windows password reuse.
 
-## 6. Cross-feature dependencies
+## 7. Cross-feature dependencies
 
 | Dependency | FPs affected | Rule |
 |---|---|---|
@@ -547,8 +663,9 @@ The Owner selected **no extra features** beyond the listed R1 and R2 capabilitie
 | Rendering/input | FP-11, FP-12, FP-13 | Render and input lifecycle are native; UI cannot own native context. |
 | Lifecycle/background | FP-14, FP-17, FP-18 | Background behavior requires Android platform, telemetry, battery and release-policy verification. |
 | Dock | FP-19, FP-20, FP-21, FP-22 | Pair/authentication precedes any display/input streaming; both render architectures are compared. |
+| Administrator identity and control plane | FP-23..FP-28, FP-01, FP-03, FP-06, FP-17 | Role and every privileged operation are checked server-side; student and admin workspaces are isolated. |
 
-## 7. First implementation-planning sequence
+## 8. First implementation-planning sequence
 
 This is a dependency order, not a promise that the FPs are small or can be completed in one agent task.
 
@@ -557,11 +674,12 @@ This is a dependency order, not a promise that the FPs are small or can be compl
 3. **Transport and protocol spikes:** FP-07, FP-08, FP-09, FP-10.
 4. **Remote desktop experience:** FP-11, FP-12, FP-13.
 5. **Session quality and release:** FP-14, FP-15, FP-16, FP-17, FP-18.
-6. **Dock R2:** FP-19 first; FP-20 architecture comparison; FP-21 and FP-22 after the selected architecture and contracts are approved.
+6. **College administration:** FP-23, FP-24, FP-25, FP-26, FP-27, FP-28. Build the role/authorization foundation before exposing admin actions; invitation delivery and host-control APIs are prerequisites.
+7. **Dock R2:** FP-19 first; FP-20 architecture comparison; FP-21 and FP-22 after the selected architecture and contracts are approved.
 
 Do not split the large transport, FreeRDP, rendering, security or background-session capabilities into unrelated tiny FPs. Split them into engineering subtasks beneath their parent FP.
 
-## 8. Sources and change control
+## 9. Sources and change control
 
 - Normative product source: `docs/MobiDesk_PRD_v1.2.pdf`, especially §§4–13.
 - UX and student journey source: `docs/DESIGN.md`.
