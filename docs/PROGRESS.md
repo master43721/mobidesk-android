@@ -69,9 +69,9 @@ Copy this row for each meaningful engineering/test event. Do not record secrets,
 ## 7. Owner-directed account model update — 4 Nov 2026
 
 - **OWNER CONFIRMED:** No student self-registration. The College Administrator provisions each student account and sends the activation invitation; student activation/password creation is not signup.
-- **OWNER CONFIRMED:** The prototype has two application roles: one College Administrator account and student accounts. The initial College Administrator is bootstrapped out-of-band by the Project Owner.
+- **OWNER CONFIRMED:** The prototype has two application roles: one College Administrator account and student accounts. The initial College Administrator is bootstrapped out-of-band by the Project Owner; authoritative role and active status are proposed in private.app_user_roles and checked server-side.
 - **OWNER CONFIRMED:** The College Administrator workspace manages roster-backed student provisioning, approved student-to-VM assignments, approved host/VM lifecycle operations and active student connections.
 - **SECURITY BOUNDARY:** All privileged actions execute through trusted server-side APIs. No Supabase service-role/secret key, direct libvirt connection, SSH credential or arbitrary shell command is exposed to Android.
 - Added docs/ADMIN_ACCOUNT_MODEL.md and FP-23..FP-28 in docs/FEATURE_INVENTORY.md. The admin scope conflicts with v1.2's explicit admin-console exclusion; proposed successor-PRD wording is maintained in PRD_V1_3_CHANGES.md. The v1.2 PDF is unchanged.
-- The current branch contains documentation changes only. No Android source, Supabase settings, database schema, server or VM was changed. Invitation delivery, invite callback support, admin role/RLS, and admin control-plane APIs remain NOT IMPLEMENTED / BLOCKED pending the listed tasks and tests.
+- The current branch contains documentation changes only. No Android source, Supabase settings, database schema, server or VM was changed. private.app_user_roles is a proposed schema addition only. Invitation delivery, invite callback support, admin role/RLS, and admin control-plane APIs remain NOT IMPLEMENTED / BLOCKED pending the listed tasks and tests.
 
