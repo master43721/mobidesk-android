@@ -61,7 +61,18 @@ The English user copy in the engineering suite must match the normative PDF. Tel
 
 The PDF §8.1 nominates RD-1 as Pixel 6 / Android 16 / API 36 / arm64. Its physical availability and actual test results remain UNKNOWN until the Project Owner verifies the physical device. The repository minimum SDK is API 29; compile/target and ABI preservation is governed by NFR-COMP-01. See [BASELINE_AUDIT.md](BASELINE_AUDIT.md) and [OPEN_ITEMS.md](OPEN_ITEMS.md).
 
-## 6. Change control
+## 6. Owner-directed successor-PRD scope proposal
+
+On 4 November 2026 the Project Owner confirmed the prototype account model:
+- one initial College Administrator account is provisioned out-of-band;
+- students cannot self-register; the administrator creates the roster/Auth identity and sends an invitation;
+- the same Android app routes to administrator or student workspace after server-side role validation;
+- the administrator manages student account lifecycle, approved VM assignments, approved host/VM operations and active student connections;
+- student accounts access only their own profile and assigned Cloud PC.
+
+This extends v1.2, which excludes an administrative management console and student VM lifecycle/assignment controls. The requirements are documented as an owner-directed proposed v1.3 change in [PRD_V1_3_CHANGES.md](PRD_V1_3_CHANGES.md), detailed in [ADMIN_ACCOUNT_MODEL.md](ADMIN_ACCOUNT_MODEL.md), decomposed into FP-23..FP-28 in [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md), and tracked by proposed T-ADMIN tests in [TEST_PLAN.md](TEST_PLAN.md). These additions are not silently made normative by this index. The checked-in v1.2 PDF remains unchanged until a successor PRD is approved.
+
+## 7. Change control
 
 - Do not edit this index to redefine a requirement. Update it only when a new approved PRD revision is adopted.
 - Any proposed v1.3 wording stays in [PRD_V1_3_CHANGES.md](PRD_V1_3_CHANGES.md) until explicitly approved.
