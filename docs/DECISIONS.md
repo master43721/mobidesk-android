@@ -39,7 +39,7 @@
 | DEC-29 | Additional product scope | No additional scope beyond R1 Mobile Cloud PC and R2 Dock; admin console excluded | Owner choice on 3 Nov 2026 | SUPERSEDED 4 Nov 2026 by DEC-30..DEC-37 |
 
 
-| DEC-30 | Application roles | Prototype has two roles: one College Administrator role and student role; single-college tenant | Owner instruction on 4 Nov 2026; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED |
+| DEC-30 | Application roles | Prototype has two roles: college_admin and student; authoritative role and active status live in private.app_user_roles, checked server-side; single-college tenant | Owner instruction on 4 Nov 2026; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED — SCHEMA PROPOSED |
 | DEC-31 | Student account creation | No student self-signup. College Administrator creates roster/Auth account through trusted backend and sends invitation; student only activates pre-created account and sets password | Owner instruction on 4 Nov 2026; Supabase admin invitation docs and current roster trigger | OWNER CONFIRMED |
 | DEC-32 | Initial College Administrator bootstrap | One initial college_admin account is provisioned out-of-band by Project Owner; student provisioning UI cannot create/promote admins | Owner instruction on 4 Nov 2026; least-privilege bootstrap design | OWNER CONFIRMED |
 | DEC-33 | Role-aware app | The same Kotlin/Compose app resolves role server-side and routes to Administrator or Student workspace | Owner instruction on 4 Nov 2026; docs/ADMIN_ACCOUNT_MODEL.md | OWNER CONFIRMED |
