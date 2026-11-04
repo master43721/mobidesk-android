@@ -1,7 +1,7 @@
 # MobiDesk — Feature Inventory and Release Scope
 
 **Document version:** 1.0  
-**Snapshot:** 3 November 2026  
+**Snapshot:** 4 November 2026  
 **Canonical repository:** [master43721/mobidesk-android](https://github.com/master43721/mobidesk-android)  
 **Normative source:** `docs/MobiDesk_PRD_v1.2.pdf` unless a row is explicitly marked as an owner-directed proposed amendment.  
 **Purpose:** Product-level feature breakdown for estimation, implementation planning, acceptance and progress tracking.
@@ -39,12 +39,12 @@ A Feature Point (FP) is one coherent, independently identifiable product capabil
 | R1 background session | An active RDP session should continue when the user backgrounds the app / switches to another app | **OWNER-DIRECTED PROPOSED CHANGE**. V1.2 currently requires foreground-only behavior and a five-second teardown. A successor PRD amendment and Android platform spike are required. |
 | Device screen lock | Not explicitly resolved by the background choice | **ENGINEERING DECISION OPEN**. Do not assume screen-off/lock-screen persistence is approved. |
 | R2 Dock architecture | Keep both phone-side encode/stream and Pi-native FreeRDP options open; compare both before selection | **OWNER CONFIRMED / ENGINEERING DECISION OPEN**. No implementation path is selected yet. |
-| Account model | One College Administrator account provisions students; students cannot self-register and can use only their assigned Cloud PC | **OWNER CONFIRMED — 4 Nov 2026**. Admin workspace and control-plane features are added as FP-23..FP-28; trusted server-side authorization is mandatory. |
+| Account model | One College Administrator account provisions students; students cannot self-register and can use only their assigned Cloud PC | **OWNER CONFIRMED — PROPOSED V1.3 CHANGE**. Admin workspace and control-plane features are FP-23..FP-28; server-side authorization is mandatory. |
 | R1/R2 split | Deliver secure Mobile Cloud PC first; Dock capabilities follow in R2 | **V1.2 BASELINE**. |
 
 ## 3. R1 — Mobile Cloud PC
 
-R1 delivers the complete student workflow from college authentication to a secure Windows desktop session on the Android phone.
+R1 delivers two role-based workflows in the same Android app: the College Administrator manages provisioned student accounts, assignments and approved server/session operations; each Student can access only their own assigned Cloud PC.
 
 ### FP-01 — Student Authentication and Account Recovery
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
@@ -440,89 +440,7 @@ These are acceptance targets from the current engineering plan, not achieved mea
 - A build or debug APK is not a production release.
 - Production distribution is blocked until signing, channel, test and operations gates are satisfied.
 
-## 4. R2 — External Monitor and Dock
-
-R2 extends the authorized desktop experience to a paired Raspberry Pi/HDMI dock. The architecture remains open until the comparative spike is complete.
-
-### FP-19 — Dock Discovery, Pairing and Device Authentication
-**Priority:** R2 · **Status:** R2 PLANNED
-
-**Outcome:** A phone can recognize and explicitly authorize a supported dock.
-
-**Included capabilities**
-- USB-C/OTG and Android Open Accessory discovery.
-- Dock capability/version discovery.
-- Explicit user confirmation before desktop content is shared.
-- Cryptographic challenge-response using a dock-provisioned key.
-- Pairing, unpairing and key revocation.
-- Reject unpaired, unknown or spoofed devices.
-
-**Acceptance boundary**
-- AOA manufacturer/model strings are discovery metadata only, never proof of identity.
-- A dock cannot receive desktop content until explicit confirmation and key-backed authentication succeed.
-
-### FP-20 — Dock Desktop Delivery Architecture and External Rendering
-**Priority:** R2 · **Status:** R2 PLANNED; ENGINEERING DECISION OPEN
-
-**Outcome:** Present the same authorized Windows desktop on a dock-connected HDMI monitor.
-
-**Two architectures must be compared before selection**
-1. **Phone-render/transcode path:** Android remains the FreeRDP endpoint, renders the desktop, encodes H.264 and sends the stream over the dock link to the Pi for HDMI output.
-2. **Pi-native FreeRDP path:** The Pi runs the FreeRDP client; the phone acts as identity/session controller and authorizes the Pi's session connection over the approved tethered/private route.
-
-**Comparison criteria**
-- End-to-end input-to-visible-response latency.
-- Presented FPS, dropped frames and display quality.
-- CPU/GPU utilization on phone and Pi.
-- Phone battery impact and charging behavior.
-- Pi thermal behavior and stability.
-- USB throughput and reconnect reliability.
-- Security boundary and dock key handling.
-- Session start time, resource use and recovery behavior.
-
-**Acceptance boundary**
-- No architecture is preselected.
-- The chosen path requires a measured comparison report and explicit Owner decision.
-- The dock uses the same authorized student/VM session policy; it cannot select another VM or bypass the broker.
-
-### FP-21 — Dock Keyboard, Mouse and Input Forwarding
-**Priority:** R2 · **Status:** R2 PLANNED
-
-**Outcome:** A dock-connected keyboard/mouse can control the same authorized Windows desktop.
-
-**Included capabilities**
-- Mouse movement, click, right-click, wheel and drag.
-- Keyboard key-down/key-up, modifiers and special keys.
-- Coordinate mapping for external display resolution.
-- Input routing through the selected dock architecture.
-- Pairing/session validation for each input source.
-- Detach and stale-input handling.
-
-**Acceptance boundary**
-- Only authenticated, paired dock input is forwarded to the active authorized session.
-- Disconnecting or revoking the dock prevents further input.
-
-### FP-22 — Dock Attach/Detach, Display Handover and Session Continuity
-**Priority:** R2 · **Status:** R2 PLANNED; ENGINEERING DECISION OPEN
-
-**Outcome:** Students can attach or remove the dock without changing their authorized VM or leaving orphaned resources.
-
-**Included capabilities**
-- Detect dock attach/detach.
-- Negotiate supported monitor capability and resolution.
-- Enter/leave external display mode.
-- Preserve the logical student session where technically supported.
-- Resize or reattach FreeRDP render target where proven.
-- Controlled reconnect to the same assigned VM if live migration/rebind is unsupported.
-- Clear dock pairing/session state on detach, revoke or fault.
-- Recover from USB power loss, unplug/replug and display changes.
-
-**Acceptance boundary**
-- The chosen path preserves assignment authorization.
-- RDP Display Control (MS-RDPEDISP), Android display handling and Pi display recovery are tested.
-- Seamless hot-plug is not promised unless proven; reconnect to the same assigned VM is the explicit fallback.
-
-## 5. R1 — College Administrator Workspace
+## 4. R1 — College Administrator Workspace
 
 The same MobiDesk Android application presents a College Administrator workspace after server-side role resolution. The prototype has one College Administrator account, bootstrapped outside the app. It provisions student accounts and manages approved server/VM operations and student connections. It does not expose unrestricted host administration.
 
@@ -637,6 +555,88 @@ The same MobiDesk Android application presents a College Administrator workspace
 **Acceptance boundary**
 - Audit records are generated server-side and cannot be edited by the Android client.
 - Passwords, invitation links, grants, JWTs, private endpoints and RDP payloads are never stored in audit events.
+
+## 5. R2 — External Monitor and Dock
+
+R2 extends the authorized desktop experience to a paired Raspberry Pi/HDMI dock. The architecture remains open until the comparative spike is complete.
+
+### FP-19 — Dock Discovery, Pairing and Device Authentication
+**Priority:** R2 · **Status:** R2 PLANNED
+
+**Outcome:** A phone can recognize and explicitly authorize a supported dock.
+
+**Included capabilities**
+- USB-C/OTG and Android Open Accessory discovery.
+- Dock capability/version discovery.
+- Explicit user confirmation before desktop content is shared.
+- Cryptographic challenge-response using a dock-provisioned key.
+- Pairing, unpairing and key revocation.
+- Reject unpaired, unknown or spoofed devices.
+
+**Acceptance boundary**
+- AOA manufacturer/model strings are discovery metadata only, never proof of identity.
+- A dock cannot receive desktop content until explicit confirmation and key-backed authentication succeed.
+
+### FP-20 — Dock Desktop Delivery Architecture and External Rendering
+**Priority:** R2 · **Status:** R2 PLANNED; ENGINEERING DECISION OPEN
+
+**Outcome:** Present the same authorized Windows desktop on a dock-connected HDMI monitor.
+
+**Two architectures must be compared before selection**
+1. **Phone-render/transcode path:** Android remains the FreeRDP endpoint, renders the desktop, encodes H.264 and sends the stream over the dock link to the Pi for HDMI output.
+2. **Pi-native FreeRDP path:** The Pi runs the FreeRDP client; the phone acts as identity/session controller and authorizes the Pi's session connection over the approved tethered/private route.
+
+**Comparison criteria**
+- End-to-end input-to-visible-response latency.
+- Presented FPS, dropped frames and display quality.
+- CPU/GPU utilization on phone and Pi.
+- Phone battery impact and charging behavior.
+- Pi thermal behavior and stability.
+- USB throughput and reconnect reliability.
+- Security boundary and dock key handling.
+- Session start time, resource use and recovery behavior.
+
+**Acceptance boundary**
+- No architecture is preselected.
+- The chosen path requires a measured comparison report and explicit Owner decision.
+- The dock uses the same authorized student/VM session policy; it cannot select another VM or bypass the broker.
+
+### FP-21 — Dock Keyboard, Mouse and Input Forwarding
+**Priority:** R2 · **Status:** R2 PLANNED
+
+**Outcome:** A dock-connected keyboard/mouse can control the same authorized Windows desktop.
+
+**Included capabilities**
+- Mouse movement, click, right-click, wheel and drag.
+- Keyboard key-down/key-up, modifiers and special keys.
+- Coordinate mapping for external display resolution.
+- Input routing through the selected dock architecture.
+- Pairing/session validation for each input source.
+- Detach and stale-input handling.
+
+**Acceptance boundary**
+- Only authenticated, paired dock input is forwarded to the active authorized session.
+- Disconnecting or revoking the dock prevents further input.
+
+### FP-22 — Dock Attach/Detach, Display Handover and Session Continuity
+**Priority:** R2 · **Status:** R2 PLANNED; ENGINEERING DECISION OPEN
+
+**Outcome:** Students can attach or remove the dock without changing their authorized VM or leaving orphaned resources.
+
+**Included capabilities**
+- Detect dock attach/detach.
+- Negotiate supported monitor capability and resolution.
+- Enter/leave external display mode.
+- Preserve the logical student session where technically supported.
+- Resize or reattach FreeRDP render target where proven.
+- Controlled reconnect to the same assigned VM if live migration/rebind is unsupported.
+- Clear dock pairing/session state on detach, revoke or fault.
+- Recover from USB power loss, unplug/replug and display changes.
+
+**Acceptance boundary**
+- The chosen path preserves assignment authorization.
+- RDP Display Control (MS-RDPEDISP), Android display handling and Pi display recovery are tested.
+- Seamless hot-plug is not promised unless proven; reconnect to the same assigned VM is the explicit fallback.
 
 ## 6. Explicitly excluded from current scope
 
