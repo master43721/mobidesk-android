@@ -79,7 +79,7 @@ Estimates are focused engineering hours for one engineer with AI assistance. The
 
 | Current file | Target change |
 |---|---|
-| app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt | Introduce AuthRepository interface; SupabaseAuthRepository implements it; explicit current-session signOut and clearLocalSession methods. Keep StudentWorkspaceRepository separate. |
+| app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt | Introduce AuthRepository interface; SupabaseAuthRepository implements it. Put the existing StudentWorkspaceRepository behind a WorkspaceRepository interface for a fake/spy only. Keep workspace query behavior owned by FP-02/FP-03. |
 | app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt | Inject AuthRepository through a lightweight factory/seam; add AuthLevel/recovery marker gating; never load workspace while RECOVERY_ONLY; fix cancel/sign-out failure paths. |
 | app/src/main/java/com/mobidesk/android/MainActivity.kt | Exact callback path validation; persist callback marker before async SDK call; de-duplicate initial/re-delivered callback. |
 | app/src/main/java/com/mobidesk/android/MobiDeskApplication.kt | Keep one Supabase client; expose repository factory if needed; no new Auth coordinator. |
