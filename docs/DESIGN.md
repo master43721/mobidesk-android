@@ -1,6 +1,6 @@
 # MobiDesk — Product and UX Design Document
 
-**Version:** 1.0 · **Date:** 3 November 2026  
+**Version:** 1.1 · **Date:** 4 November 2026  
 **Normative source:** MobiDesk PRD v1.2, §§4–5, 6, 8, 9 and 12.  
 **Audience:** Product Owner, Android designer/engineer, QA and accessibility reviewer.  
 **Scope:** Role-aware R1 application with College Administrator and Student workspaces, plus explicitly labelled R2 Dock placeholders. This document contains interaction design and screen behavior, not low-level API or native code.
@@ -13,7 +13,8 @@
 4. **Explicit security:** do not offer “accept certificate”, “continue anyway”, or insecure fallback. Device policy and secure-session restrictions are explained plainly.
 5. **Predictable recovery:** show a short progress state, map failure to the PRD error catalogue, and only retry when the catalogue allows it.
 6. **Desktop-first controls:** keep the remote canvas central; make keyboard, pointer and modifier controls available without covering the desktop permanently.
-7. **Accessible by default:** controls have labels, focus order, large touch targets and text labels in addition to icons.\n8. **Role-aware by design:** the same app opens the Administrator or Student workspace only after server-side role validation; neither workspace can be selected by client-side toggles.
+7. **Accessible by default:** controls have labels, focus order, large touch targets and text labels in addition to icons.
+8. **Role-aware by design:** the same app opens the Administrator or Student workspace only after server-side role validation; neither workspace can be selected by client-side toggles.
 
 ## 2. Screen inventory
 
