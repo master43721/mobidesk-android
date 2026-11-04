@@ -15,6 +15,9 @@
 
 ## Read first
 
+Feature-by-feature review packages live in [FEATURE_SPECIFICATIONS](FEATURE_SPECIFICATIONS/README.md). FP-01 is currently a v0.2 critique revision awaiting review; it is not final or implementation-approved.
+
+
 [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) is the product-level feature catalogue. It records the Owner's latest choices and labels the background-session change as a proposal that conflicts with PRD v1.2. The PDF remains normative until a successor PRD is approved.
 
 
@@ -22,6 +25,7 @@
 |---|---|
 | [PRD.md](PRD.md) | Navigational requirement index; the linked PDF remains the normative source |
 | [FEATURE_INVENTORY.md](FEATURE_INVENTORY.md) | 22 product Feature Points, R1/R2 boundary and Owner scope decisions |
+| [FEATURE_SPECIFICATIONS/README.md](FEATURE_SPECIFICATIONS/README.md) | Detailed PRD/design/plan/test/security packages for each FP |
 | [BASELINE_AUDIT.md](BASELINE_AUDIT.md) | G0 repository/stack/build/submodule/security baseline and requirement implementation snapshot |
 | [OPEN_ITEMS.md](OPEN_ITEMS.md) | Decisions, owners, proposed due dates and closure evidence |
 | [TASKS.md](TASKS.md) | G0–G5 work breakdown, estimates, dependencies and schedule reforecast |
