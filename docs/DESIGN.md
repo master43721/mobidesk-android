@@ -3,7 +3,7 @@
 **Version:** 1.0 · **Date:** 3 November 2026  
 **Normative source:** MobiDesk PRD v1.2, §§4–5, 6, 8, 9 and 12.  
 **Audience:** Product Owner, Android designer/engineer, QA and accessibility reviewer.  
-**Scope:** Student-facing R1 experience plus explicitly labelled R2 dock placeholders. This document contains interaction design and screen behavior, not low-level API or native code.
+**Scope:** Role-aware R1 application with College Administrator and Student workspaces, plus explicitly labelled R2 Dock placeholders. This document contains interaction design and screen behavior, not low-level API or native code.
 
 ## 1. Experience principles
 
@@ -13,7 +13,7 @@
 4. **Explicit security:** do not offer “accept certificate”, “continue anyway”, or insecure fallback. Device policy and secure-session restrictions are explained plainly.
 5. **Predictable recovery:** show a short progress state, map failure to the PRD error catalogue, and only retry when the catalogue allows it.
 6. **Desktop-first controls:** keep the remote canvas central; make keyboard, pointer and modifier controls available without covering the desktop permanently.
-7. **Accessible by default:** controls have labels, focus order, large touch targets and text labels in addition to icons.
+7. **Accessible by default:** controls have labels, focus order, large touch targets and text labels in addition to icons.\n8. **Role-aware by design:** the same app opens the Administrator or Student workspace only after server-side role validation; neither workspace can be selected by client-side toggles.
 
 ## 2. Screen inventory
 
@@ -28,8 +28,14 @@
 | S-07 Error / recovery | Explain safe next action | PRD message, optional retry, operator contact instruction | Retry or return | Each PRD §12 error code |
 | S-08 Recovery flow | Complete Supabase password reset | Email confirmation and recovery password update | Send recovery / update password | Link invalid, expired, completed |
 | S-09 Dock placeholder (R2) | Show roadmap concept only | “External display / dock — planned for a later release” | None in R1 | Disabled / informational only |
+| S-10 Administrator home | College Administrator operational overview | Host/service health, VM lifecycle counts, pending invitations, active sessions, recent safe events | Open management area | Loading, stale, service unavailable, authorization denied |
+| S-11 Student management | Provision and manage student accounts | Roster-backed student form, directory, invitation and account status | Create and invite / resend / suspend | Duplicate, pending, invited, active, suspended, disabled |
+| S-12 Assignment management | Assign approved VMs to students | Student, eligible VM display label, current assignment and capacity | Assign / change / unassign | Conflict, ineligible VM, VM4 excluded, action pending |
+| S-13 Server and VM management | Monitor and operate approved infrastructure | Host health, approved VM inventory, lifecycle/readiness, action history | Start / graceful shutdown / restart / maintenance | Confirmation, in progress, denied, timeout, rollback |
+| S-14 Student connections | Support active student sessions | Student label, VM display label, start time, duration, safe connection state | Terminate session | Active, closing, terminated, stale, revoked |
+| S-15 Administrator activity | Review privileged operations | Account, assignment, VM and session audit events | Filter/search | Redacted, paginated, access denied |
 
-R1 must not show a VM power-on/off button or student assignment controls.
+The Student workspace must not show VM power-on/off or assignment controls. Those controls exist only in the College Administrator workspace and are enforced by the trusted backend.
 
 ## 3. Student journey and screen flow
 
@@ -406,3 +412,60 @@ No connect button, device discovery, USB permission request, stream preview or A
 - Native RDP Activity has FLAG_SECURE, accessible toolbar, touch/pointer/keyboard model and explicit disconnect.
 - Rotation, true background, screen lock and network loss do not leave an orphaned session.
 - R2 dock placeholder cannot initiate a connection in R1.
+
+
+## 10. College Administrator experience
+
+### 10.1 Role-aware launch
+
+1. Launch MobiDesk and restore or establish the Supabase session.
+2. The app asks the trusted backend to resolve the account role and status.
+3. A validated college_admin account opens S-10; a validated student account opens S-02.
+4. An unknown, disabled, suspended or ambiguous role is denied protected access. The app does not offer a role selector.
+5. Direct navigation to an admin route or calling an admin API as a student must fail server-side.
+
+~~~mermaid
+flowchart TD
+  A["Launch MobiDesk"] --> B["Restore / establish Auth session"]
+  B -->|No valid session| C["S-01 Sign in"]
+  C --> B
+  B -->|Authenticated| R["Resolve role and account status with backend"]
+  R -->|college_admin| ADM["S-10 Administrator home"]
+  R -->|student| STU["S-02 Student workspace"]
+  R -->|unknown / disabled| DENY["Show access denied / contact college"]
+  ADM --> SM["S-11 Student management"]
+  ADM --> AS["S-12 Assignment management"]
+  ADM --> VM["S-13 Server and VM management"]
+  ADM --> CS["S-14 Student connections"]
+  ADM --> AU["S-15 Administrator activity"]
+  STU --> PC["Assigned Cloud PC flow"]
+~~~
+
+### 10.2 Student management and invitation UX
+
+- The administrator enters institution-approved student details; the app does not ask the admin to choose or create a password for the student.
+- The backend creates the roster record and sends the Auth invitation. The UI reports the actual invitation request result, not assumed email delivery.
+- Display invitation state separately from account access state. Pending invitation is not an active student.
+- Resend is available only when the backend says the account is eligible. Duplicate requests are prevented or made idempotent.
+- Suspension/disable actions require confirmation and show the effect on active sessions.
+- Student invitation links are not treated as public signup. They activate an already provisioned identity.
+
+### 10.3 Assignment management UX
+
+- The admin chooses a student and an eligible VM from the server-provided allowlist. The app never accepts an arbitrary IP, hostname or port.
+- Show capacity and lifecycle/readiness; do not allow an unverified VM.
+- Confirm a change and explain that it may revoke the student's current session.
+- The backend validates uniqueness, eligibility and authorization before writing.
+
+### 10.4 Server/VM management UX
+
+- Show host metrics at a coarse operational level and VM lifecycle separately from RDP readiness.
+- Start, graceful shutdown, restart and maintenance actions require confirmation and show progress/final result.
+- No shell terminal, SSH credentials, arbitrary commands, hostnames or private network endpoints are exposed.
+- If an action fails or times out, show the safe result and preserve the server-side audit reference.
+
+### 10.5 Student connection support
+
+- Show only safe operational metadata; no desktop preview, RDP stream, guest password or bearer token.
+- Termination requires a reason category and confirmation; the backend invalidates the session/grant and closes the relay.
+- If relay closure cannot be verified, show a pending/unknown state and do not claim the connection is terminated.
