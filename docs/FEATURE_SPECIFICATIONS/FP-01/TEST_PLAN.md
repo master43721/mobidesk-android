@@ -1,157 +1,119 @@
-# FP-01 Test Plan — Student Authentication and Account Recovery
+# FP-01 Test Plan — Focused Pilot Acceptance
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
-**Status:** Test design only. No tests in this document are claimed as executed.
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026  
+**Status:** Test cases are proposed; none is claimed to have been run in this revision.
 
-## 1. Test objectives
+## 1. Testing strategy
 
-Prove that FP-01:
-- authenticates only through the approved Supabase Auth flow;
-- restores a valid session correctly;
-- responds correctly to Auth state changes;
-- supports deliberate sign-out;
-- completes recovery through a verified callback;
-- protects passwords, tokens and recovery callback material;
-- does not leak account existence through user-facing responses;
-- hands authenticated identity to FP-02 without claiming student/VM authorization.
+The v0.1 catalogue was too broad and assumed a staging project that is not evidenced. This version separates:
+1. The four named existing baseline tests.
+2. A compact must-run pilot suite for the defects and FP-01 MUST requirements.
+3. Additional security/accessibility checks that remain release checks but are not counted as unit test cases.
 
-## 2. Test environments and test data
+Unit/ViewModel/UI tests use a fake Auth repository and must not require a staging Supabase project. Provider integration and real email tests require an Owner-approved isolated test environment.
 
-| Environment | Purpose | Rules |
+## 2. Existing baseline regression suite — mandatory
+
+These exact tests already exist in the repository:
+
+| Baseline ID | Current test | Purpose |
 |---|---|---|
-| Local unit tests | Validation, state transitions, error mapping | No live credentials or real student records. |
-| Compose instrumentation | Screen routes, enabled/disabled controls, accessibility semantics | Inject fake Auth repository; no production Supabase. |
-| Supabase staging | Real sign-in, refresh, reset email, PKCE callback and sign-out | Synthetic test accounts only; staging Auth configuration must match approved policy. |
-| Physical Android device | App launch/restore, actual mail-app/deep-link handoff, process recreation | Record model/API/ABI and build hash in private test report. |
-| Release artifact inspection | Secret/log/configuration checks | No live user credentials in artifact or test log. |
+| FP01-BASE-01 | AuthErrorMessagesTest.invalidCredentialsUseAStableSafeMessage | Existing invalid-credential message regression. |
+| FP01-BASE-02 | AuthErrorMessagesTest.backendDetailsAreNotShownToTheUser | Raw backend details do not leak into user message. |
+| FP01-BASE-03 | MobiDeskSmokeTest.signInScreenDoesNotOfferFakePreviewAccess | Sign-in remains visible; no fake preview/demo or signup flow. |
+| FP01-BASE-04 | MobiDeskSmokeTest.passwordRecoveryRequestScreenOpensWithoutSendingAnEmail | Reset request route opens; this does not prove email delivery. |
 
-Do not use current student accounts, real student names/emails or production credentials in automated tests. Do not write raw JWTs, recovery URLs or PKCE codes into artifacts.
+The baseline command group is:
+- app unit test task: :app:testDebugUnitTest
+- Compose instrumentation task: :app:connectedDebugAndroidTest
 
-## 3. Unit tests
+A test run counts as baseline PASS only when all four named tests are present in the test report and pass. A Gradle task that was not run is NOT RUN, not PASS.
 
-| Test ID | Scenario | Expected result |
-|---|---|---|
-| FP01-UT-001 | Email has outer spaces | Email is trimmed before Auth call. |
-| FP01-UT-002 | Email has internal spaces | Local validator rejects or provider safely rejects; no silent mutation. |
-| FP01-UT-003 | Password includes leading/trailing spaces | Password is passed unchanged. |
-| FP01-UT-004 | Empty email | No Auth network call; actionable validation. |
-| FP01-UT-005 | Empty password | No Auth network call; actionable validation. |
-| FP01-UT-006 | Valid sign-in SDK call returns but Auth flow has not emitted Authenticated | UI remains in signing-in/awaiting-auth state; no premature navigation. |
-| FP01-UT-007 | Authenticated event emitted | App transitions to Authenticated and emits identity to FP-02. |
-| FP01-UT-008 | Initializing event | Restoration UI remains visible. |
-| FP01-UT-009 | NotAuthenticated event | Signed-out route shown. |
-| FP01-UT-010 | RefreshFailure event | Clear protected UI and route to sign-in with safe expiry behavior. |
-| FP01-UT-011 | Duplicate sign-in tap | Only one in-flight operation. |
-| FP01-UT-012 | Reset request duplicate tap | Only one in-flight operation. |
-| FP01-UT-013 | Password confirmation mismatch | Update API is not called. |
-| FP01-UT-014 | Password shorter than approved client minimum | Update API is not called; approved validation shown. |
-| FP01-UT-015 | Password policy rejects an otherwise locally valid password | Safe provider policy message; no raw internal details. |
-| FP01-UT-016 | Unknown provider exception includes token/host | Safe fallback contains neither. |
-| FP01-UT-017 | Error mapper receives invalid credentials and unconfirmed-email errors | Output follows Owner-approved non-enumeration policy. |
-| FP01-UT-018 | Sign-out completes locally | Auth state changes to SignedOut; protected in-memory state cleared. |
-| FP01-UT-019 | Supabase configuration missing | Client reports ConfigUnavailable; no network request. |
-| FP01-UT-020 | Authenticated user is emitted | Auth layer does not call VM/profile repository in its own responsibility boundary. |
+## 3. Must-run core pilot suite
 
-## 4. UI and navigation tests
+| Test ID | Scenario | Expected result | Level |
+|---|---|---|---|
+| FP01-CORE-01 | First launch with no Auth session | Wait for initialization, then show sign-in; no flash. | ViewModel/UI |
+| FP01-CORE-02 | Valid provisioned email/password | Authenticated SDK event produces FULLY_AUTHENTICATED. | Fake + isolated Auth integration |
+| FP01-CORE-03 | Invalid email/password | Safe generic invalid-credential behavior; no account data exposed. | Unit + integration |
+| FP01-CORE-04 | Session restore after process restart | Valid SDK session routes without premature sign-in UI. | Device |
+| FP01-CORE-05 | Refresh failure/expired session | Route to SIGNED_OUT and clear protected UI. | Fake + integration |
+| FP01-CORE-06 | Default sign-out | Verify LOCAL/current-session behavior and local state clear on success. | SDK contract/integration |
+| FP01-CORE-07 | Sign-out network failure | Show honest error; explicit device-local clear exits Authenticated UI. | Fake + integration |
+| FP01-CORE-08 | Recovery callback begins | Persist CALLBACK_PENDING before asynchronous SDK exchange; Authenticated event remains RECOVERY_ONLY. | Unit/ViewModel |
+| FP01-CORE-09 | Recovery cancel/back | Sign out current recovery session, clear marker and do not load workspace. | UI/ViewModel |
+| FP01-CORE-10 | Valid recovery callback | SDK PKCE exchange succeeds; marker becomes PASSWORD_UPDATE_REQUIRED before recovery form. | Isolated integration/device |
+| FP01-CORE-11 | Activity recreation/re-delivery of same callback | Code is not exchanged a second time; no spurious error or workspace route. | Instrumentation/device |
+| FP01-CORE-12 | Process death while PASSWORD_UPDATE_REQUIRED | Restore recovery form if SDK session remains valid. | Device |
+| FP01-CORE-13 | Process death while CALLBACK_PENDING | Do not replay code or treat session as FULLY_AUTHENTICATED; clear partial recovery session and request a new link. | Device |
+| FP01-CORE-14 | Password update success/failure | Success clears marker and transitions to FULLY_AUTHENTICATED; failure stays RECOVERY_ONLY. | Fake + isolated integration |
+| FP01-CORE-15 | FP-02 handoff | Workspace repository is called only for FULLY_AUTHENTICATED, never RECOVERY_ONLY. | Unit |
+| FP01-CORE-16 | Unexpected callback scheme/host/path | Callback ignored/rejected; no recovery session or workspace access. | Unit + instrumentation |
+| FP01-CORE-17 | Duplicate Auth requests/taps | One in-flight operation; no duplicate reset/password update. | Unit/UI |
+| FP01-CORE-18 | Auth repository injection | ViewModel test constructs with fake; no production Supabase client required. | Unit |
+| FP01-CORE-19 | email_address_not_authorized | Show specific delivery-not-configured message, not generic failure. | Unit + staging |
+| FP01-CORE-20 | over_email_send_rate_limit | Tell student to wait before requesting another recovery email. | Unit + staging |
+| FP01-CORE-21 | over_request_rate_limit | Tell student to wait before making further Auth requests. | Unit + staging |
+| FP01-CORE-22 | email_not_confirmed order | Compare valid and invalid password for an unconfirmed synthetic account; use exact deployed behavior for copy. | Isolated Auth integration |
+| FP01-CORE-23 | Recovery request known vs unknown email | App acknowledgement is the same; provider response must not reveal whether a user exists. | Unit + staging |
+| FP01-CORE-24 | Missing Supabase URL/publishable key | Auth actions disabled; no demo/fake bypass. | Unit/UI |
 
-| Test ID | Scenario | Expected result |
-|---|---|---|
-| FP01-UI-001 | Signed-out initial state | Sign-in screen displayed. |
-| FP01-UI-002 | Session restoring | Loading state shown; no sign-in/dashboard flash. |
-| FP01-UI-003 | Password visibility toggle | Password visibility changes without persisting value. |
-| FP01-UI-004 | Sign-in operation busy | Inputs/buttons disabled and progress shown. |
-| FP01-UI-005 | Forgot password action | Reset request screen opens. |
-| FP01-UI-006 | Recovery request busy | Duplicate send prevented. |
-| FP01-UI-007 | Recovery request generic success | Same generic acknowledgement copy displayed. |
-| FP01-UI-008 | Password recovery callback not yet verified | New-password fields cannot be submitted. |
-| FP01-UI-009 | Recovery ready | New-password and confirmation controls are enabled. |
-| FP01-UI-010 | Password mismatch | Error shown; update disabled/not called. |
-| FP01-UI-011 | Missing Supabase configuration | Sign-in and reset actions disabled; no demo/preview bypass. |
-| FP01-UI-012 | No app registration route | No Create account/sign-up screen reachable. |
-| FP01-UI-013 | Back navigation from reset request | Returns to sign-in without stale success/error message. |
-| FP01-UI-014 | TalkBack reads fields/buttons/errors | Labels and live announcements are meaningful. |
+## 4. SMTP and provider integration gate
 
-## 5. Supabase staging integration tests
+Student recovery is NOT ACCEPTED until all of the following are true:
+1. Custom SMTP or Send Email Hook is configured for the project.
+2. Sender domain/provider is verified and credentials are stored only in Supabase configuration.
+3. A test message reaches a synthetic recipient who is not a member of the Supabase organization.
+4. A recovery link uses the exact approved redirect URI.
+5. Link opens the app on a supported physical Android device.
+6. PKCE exchange completes, password update succeeds and new password can sign in.
+7. Email send throttling and recipient authorization errors are mapped to actionable messages.
 
-Use synthetic student identities that are created through the approved institution provisioning process.
+Supabase's built-in email provider is not sufficient for real student recovery in the documented hosted configuration. See SUPABASE_CONFIGURATION.md.
 
-| Test ID | Scenario | Expected result |
-|---|---|---|
-| FP01-INT-001 | Correct provisioned email/password | Supabase Auth session becomes Authenticated. |
-| FP01-INT-002 | Wrong password | Denied; approved generic message. |
-| FP01-INT-003 | Nonexistent email | Denied; outward behavior is not distinguishable from invalid credentials, subject to provider response normalization. |
-| FP01-INT-004 | Email unconfirmed | Denied; no account-state disclosure beyond Owner-approved behavior. |
-| FP01-INT-005 | Existing session after process restart | Session restored if still valid and refreshable. |
-| FP01-INT-006 | Expired/invalid refresh session | Authenticated state cleared and sign-in shown. |
-| FP01-INT-007 | Network unavailable during initial restore | Safe state; no false authenticated state. |
-| FP01-INT-008 | Network unavailable during sign-in | Safe retry, no duplicate operation or credential log. |
-| FP01-INT-009 | Sign-out while online | Local state cleared and configured server-side sign-out scope behaves as documented. |
-| FP01-INT-010 | Sign-out while offline | No false claim of remote revocation; local behavior matches Owner-selected policy. |
-| FP01-INT-011 | Recovery for existing synthetic account | Generic acknowledgement and recovery email delivered to controlled mailbox. |
-| FP01-INT-012 | Recovery for nonexistent synthetic address | Same user-visible acknowledgement; no disclosure. |
-| FP01-INT-013 | Open valid recovery email on Android | Correct app callback invoked and SDK verifies session. |
-| FP01-INT-014 | Update password from verified recovery session | New password accepted and expected session outcome occurs. |
-| FP01-INT-015 | Sign in with new password | Success. |
-| FP01-INT-016 | Sign in with old password | Failure. |
-| FP01-INT-017 | Recovery email delivery after template/config change | Actual arrival verified; no success inferred from API response alone. |
-| FP01-INT-018 | Project provider-level signup setting | Observed state matches Owner-approved account provisioning policy. |
+## 5. Measurable accessibility check
 
-## 6. Deep-link and recovery negative tests
+Manual device check with TalkBack enabled:
+- 100% of actionable controls on sign-in/reset/recovery screens have non-empty, meaningful accessible names.
+- Focus order follows the visual interaction order: email, password, visibility control, Sign in, Forgot password; analogous order for reset/recovery screens.
+- Busy state and error/success message are announced once and remain available in the accessibility tree.
+- Password visibility toggle announces Show password/Hide password.
+- Font scaling at 1.3x and 1.5x does not hide the primary action or make recovery input impossible.
+- Record device model/API, tester, steps and result.
 
-| Test ID | Attack/failure | Expected result |
-|---|---|---|
-| FP01-DL-001 | Wrong URI scheme | Not accepted as Auth callback. |
-| FP01-DL-002 | Wrong URI host | Not accepted as Auth callback. |
-| FP01-DL-003 | Unexpected path | Not treated as recovery. |
-| FP01-DL-004 | Missing callback code/token material | Recovery fails safely. |
-| FP01-DL-005 | Expired recovery link | RecoveryFailed; new request offered. |
-| FP01-DL-006 | Replayed recovery link/code | SDK rejects; no second password update. |
-| FP01-DL-007 | Invalid PKCE state/verifier | SDK rejects; no RecoveryReady state. |
-| FP01-DL-008 | Callback contains arbitrary user ID/email query fields | Those fields are not used as identity proof. |
-| FP01-DL-009 | Two callback intents arrive in quick succession | One valid callback handled; no duplicate state mutation. |
-| FP01-DL-010 | App process cold-starts from recovery link | SDK callback works without relying on pre-existing Activity/ViewModel state. |
-| FP01-DL-011 | App already running receives new callback via onNewIntent | Correct callback path is handled once. |
-| FP01-DL-012 | Another app claims custom URI scheme | Risk is documented; actual installed-device behavior matches selected redirect architecture. |
+## 6. Custom URI collision check
 
-## 7. Security and privacy tests
+This is a controlled device experiment, not a unit test:
+1. Install MobiDesk on a test device.
+2. Install a small test app that declares the same custom scheme/host.
+3. Trigger a synthetic recovery callback.
+4. Record Android resolver/default handling.
+5. Confirm MobiDesk accepts the session only after the Supabase SDK's PKCE verifier exchange succeeds.
+6. Confirm the competing app cannot use the callback to obtain a session without the verifier.
+7. Decide whether current custom URI is acceptable for pilot or verified HTTPS App Links are required.
 
-| Test ID | Test | Expected result |
-|---|---|---|
-| FP01-SEC-001 | Search source and APK for service-role/secret key pattern | No service-role/secret key. |
-| FP01-SEC-002 | Inspect BuildConfig and resource packaging | Only client-safe publishable/anon key and public project URL. |
-| FP01-SEC-003 | Logcat during valid/invalid sign-in | No password, token, Authorization header or raw exception. |
-| FP01-SEC-004 | Logcat/crash data during recovery | No full callback URI/query, PKCE code/verifier or token. |
-| FP01-SEC-005 | Inspect SavedState/preferences/database | No password or recovery code stored. |
-| FP01-SEC-006 | Inspect session persistence backend used by pinned SDK | Document storage location, encryption and backup behavior; no assumption from SDK auto-restore alone. |
-| FP01-SEC-007 | Backup/restore check | Auth secrets are not included in unsupported app backup/export paths. |
-| FP01-SEC-008 | Existing vs nonexistent recovery address response | No account-existence signal in app UI. |
-| FP01-SEC-009 | Existing vs unconfirmed vs incorrect password messages | Match approved non-enumerating policy. |
-| FP01-SEC-010 | Callback from wrong scheme/host/path | Rejected. |
-| FP01-SEC-011 | User changes account/session while prior request active | Stale result cannot restore previous account's UI state. |
-| FP01-SEC-012 | Rapid sign-in/sign-out requests | No race leaves wrong identity visible. |
+Do not claim that custom URI scheme ownership is exclusive to MobiDesk.
 
-## 8. Accessibility and usability tests
+## 7. Storage/backup and privacy checks
 
-- Email field uses email keyboard and correct label.
-- Password field uses password keyboard and secure visual transformation by default.
-- Visibility toggle exposes a meaningful state description.
-- Sign-in/reset/update actions announce busy state and are disabled while pending.
-- Error and success messages are announced and remain visible long enough to be understood.
-- Focus returns to the relevant input after recoverable validation errors.
-- No information is conveyed by color alone.
-- Layout supports font scaling and smaller supported device widths.
+- Inspect resolved supabase-kt 3.6.0 session storage backend.
+- Confirm app allowBackup=false in merged manifest.
+- Confirm no email/password/refresh token/access token/PKCE code/full callback URL in Logcat, crash output or analytics.
+- Confirm recovery marker stores stage/time/fingerprint only, not raw callback code or URL.
+- Confirm no password in SavedState, preferences or database.
+- Record storage-encryption finding separately; do not mark encrypted at rest without evidence.
 
-## 9. FP-01 release/acceptance gate
+## 8. Release gate
 
-| Gate | Pass rule |
-|---|---|
-| G0 Requirements | Owner-approved PRD and parent FR-AUTH mapping. |
-| G1 SDK behavior | Storage, sign-out and deep-link behavior verified on exact pinned SDK. |
-| G2 Sign-in/session | All MUST unit/UI/INT session cases pass. |
-| G3 Recovery | Real staging email, valid callback, password update, old/new credential checks pass. |
-| G4 Security | All critical negative callback, enumeration, credential and secret-scan tests pass. |
-| G5 Accessibility | Keyboard/TalkBack/font scaling reviewed. |
-| G6 Evidence | Commit SHA, test reports, device/API, environment and reviewer are recorded. |
+FP-01 pilot pass requires:
+- Four baseline tests pass.
+- All must-run core tests applicable to the selected test environment pass.
+- Isolated Auth integration tests pass for valid/invalid login, session restore, sign-out and confirmation behavior.
+- SMTP email delivery and full recovery callback succeed.
+- Physical-device callback recreation/process-death cases pass.
+- TalkBack and URI collision checks are reviewed.
+- No critical credential/session disclosure.
+- Source commit and test report are recorded in PROGRESS.md.
 
-A test that is not run must be marked NOT RUN, not PASS. Emulator-only verification is not evidence for actual email-app deep-link handoff on the nominated physical device.
+Not-run provider/device tests remain BLOCKED/NOT RUN; they cannot be waived by a green unit-test task.
