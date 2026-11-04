@@ -4,7 +4,7 @@
 **Snapshot:** 4 November 2026  
 **Canonical repository:** [master43721/mobidesk-android](https://github.com/master43721/mobidesk-android)  
 **Normative source:** `docs/MobiDesk_PRD_v1.2.pdf` unless a row is explicitly marked as an owner-directed proposed amendment.  
-**Purpose:** Product-level feature breakdown for estimation, implementation planning, acceptance and progress tracking.
+**Purpose:** Product-level feature breakdown for estimation, implementation planning, acceptance and progress tracking. **Current count:** 28 FPs — 18 Student R1, 6 College Administrator R1 and 4 Dock R2.
 
 > **Important source distinction:** The PRD v1.2 PDF remains the current normative specification. This inventory records the Project Owner's latest choices. It does not silently rewrite v1.2. Any conflict with v1.2 is marked **OWNER-DIRECTED PROPOSED CHANGE** and must be incorporated into an approved successor PRD before implementation treats it as normative.
 
