@@ -1,131 +1,122 @@
-# FP-01 Supabase Configuration and Operational Contract
+# FP-01 Supabase Configuration and Email Delivery Plan
 
-**Version:** 0.1 — REVIEW DRAFT  
-**Date:** 3 November 2026  
-**Scope:** Existing MobiDesk Supabase project Auth settings used by Android FP-01.  
-**Status:** Configuration inventory/checklist only. No Supabase setting has been changed by this draft.
+**Version:** 0.2 — OWNER CRITIQUE REVISION  
+**Date:** 4 November 2026  
+**Status:** Configuration checklist and required operational action. No live project setting was changed by this document revision.
 
-## 1. Purpose
+## 1. Why this is a release prerequisite
 
-List the project-side settings and integrations FP-01 depends on. An Android UI implementation cannot by itself guarantee that account registration is restricted, recovery email is deliverable or password policy is strong. These are Supabase project-level responsibilities.
+The historical SUPABASE_DISCOVERY.md snapshot dated 27 October 2026 reported:
+- Email/password provider enabled.
+- Email confirmation required.
+- Provider-level signup enabled.
+- The recovery redirect URI had been added to the allow-list.
+- Custom SMTP disabled.
+- Actual recovery-email delivery unverified.
 
-## 2. Verified Android integration
+These values are historical and must be rechecked. However, Supabase's current documentation states that the hosted built-in email service only sends to organization team-member addresses and is currently limited to two emails/hour project-wide in the documented Confirm email configuration. It is best-effort and not intended for production.
 
-From the canonical repository snapshot inspected for this draft:
+**Disposition:** If custom SMTP remains disabled, recovery/confirmation email delivery to ordinary student email addresses is non-functional for pilot purposes. FP-01 recovery cannot pass release acceptance until custom SMTP or a Send Email Hook is configured and a real message reaches a synthetic non-team recipient.
 
-- Gradle uses Supabase BOM 3.6.0 with auth-kt and postgrest-kt.
-- Ktor Android client is 3.4.3.
-- MobiDeskApplication reads SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY from local.properties and exposes them as BuildConfig constants.
-- Only a client-safe publishable/anon key is intended for Android.
-- Auth is configured with FlowType.PKCE.
-- Current callback scheme is com.mobidesk.android.
-- Current callback host is auth-callback.
-- Current recovery URI is com.mobidesk.android://auth-callback/recovery.
-- MainActivity calls handleDeeplinks for an incoming VIEW intent after scheme/host checks.
+## 2. Current Android integration — verified from source
 
-This verifies app code configuration. It does not verify the current live Auth dashboard configuration.
+- Supabase BOM 3.6.0.
+- auth-kt and postgrest-kt.
+- Ktor Android 3.4.3.
+- SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY read from local.properties and injected into BuildConfig.
+- PKCE enabled.
+- Current recovery URI: com.mobidesk.android://auth-callback/recovery.
+- MainActivity checks VIEW action, scheme and host; current implementation uses a loose pathSegments.contains("recovery") check which FP-01 will tighten.
+- Only publishable/anon key may be in the Android client. No service-role/secret key.
 
-## 3. Historical project evidence — not current confirmation
+This is evidence of app code, not live dashboard configuration.
 
-docs/SUPABASE_DISCOVERY.md records a read-only snapshot dated 27 October 2026:
+## 3. Required project settings review
 
-- Email/password Auth was enabled.
-- Email confirmation was required.
-- New-user signup was reported enabled at that time.
-- The roster-trigger provisioning logic accepted identities matching the institution roster; the discovery report described a trigger that only provisions a student profile when the new Auth email matches a roster record.
-- A recovery redirect URI com.mobidesk.android://auth-callback/recovery was reported as added to the allowed Redirect URLs.
-- Custom SMTP was reported disabled at that time.
-- Actual recovery-email delivery was not verified.
-
-These are **REPORTED historical facts**, not statements about the live project on 3 November. Recheck every item before FP-01 acceptance. Do not assume historical row counts or Auth settings are current.
-
-## 4. Required Auth configuration review
-
-| Setting | Desired condition for FP-01 | Current evidence | Action |
+| Setting | Desired policy | Last evidence | Required action |
 |---|---|---|---|
-| Email provider | Enabled | Historical discovery says enabled; live value UNKNOWN | Recheck read-only. |
-| Email confirmation | Institution policy approved; normally require confirmation for provisioned email | Historical discovery says required | Recheck and owner approve. |
-| Public signups | Must align with roster/invitation model; recommendation is disable public signup if users are provisioned administratively | Historical discovery reported enabled | BLOCKING owner decision and live verification. |
-| Roster provisioning | Auth identity maps to an approved student roster; no app-supplied role/identity metadata grants access | Historical discovery described a roster-gated trigger | Verify current trigger/function/migrations with owner. |
-| Recovery redirect | Exact callback URI allowed, no broad wildcard | Historical discovery reported exact URI added | Recheck exact allow-list. |
-| Recovery email template | Uses correct redirect variable/route and does not direct to a stale site | Not verified | Review in staging. |
-| Custom SMTP | Production sender with tested deliverability | Historical discovery reported custom SMTP disabled | Configure/verify before real pilot recovery. |
-| Password policy | Server policy approved and matches UX guidance | Current setting UNKNOWN | Inspect and record; client minimum is not authoritative. |
-| Leaked password protection | Enable where available/appropriate to project plan | Historical discovery reported disabled | Owner review. |
-| Auth rate limits / abuse protection | Reasonable rate limits and abuse controls for email/password and recovery | Current values UNKNOWN | Inspect and test; do not invent numeric settings. |
-| OTP/recovery expiry | Owner-approved bounded expiry | Current value UNKNOWN | Inspect and record. |
-| Session lifetime/refresh | Matches college access policy | Current values UNKNOWN | Inspect and record. |
-| Auth logs/retention | Appropriate access and retention | Current values UNKNOWN | Owner review. |
+| Email/password provider | Enabled | Historical discovery says enabled | Read current value. |
+| Email confirmation | Keep required unless Owner changes institution policy | Historical discovery says required | Read current value; do not disable just to avoid mail setup. |
+| Public signup | Disable if institution roster/admin is the only approved provisioning path | Historical discovery reported enabled | Owner confirms provisioning model, then read/change project setting under approved action. |
+| Roster provisioning | Server-side/admin process only; client metadata cannot grant student access | Historical discovery described roster-gated Auth trigger | Reinspect live trigger and test. |
+| Recovery redirect | Exact approved URI, no wildcard | Historical discovery reported exact URI added | Recheck current allow-list and exact redirect. |
+| Recovery template | Correct recovery link and redirect path | Not inspected | Review template and send test. |
+| Custom SMTP / Send Email Hook | Required for non-team student recipient delivery | Historical discovery reported SMTP disabled | Configure before recovery release. |
+| Sender domain | Verified and authorized for provider | Unknown | Select domain and complete provider DNS verification. |
+| Password policy | Supabase server setting is authoritative | Unknown | Read min length, required characters and leaked-password protection. |
+| OTP/recovery expiry | Bounded and documented | Unknown | Read current value; use it for recovery marker retention. |
+| Email/request rate limits | Documented and mapped to errors | Unknown | Read project values; test returned errors. |
+| Session lifetime/refresh | Institution-approved policy | Unknown | Read and record; no client override. |
+| Auth logs/retention | Operator access and retention controlled | Unknown | Review. |
 
-## 5. Account provisioning and signup policy
+## 4. Configure custom SMTP or Send Email Hook
 
-The Android app has no sign-up screen. This is not equivalent to disabling provider-level signup.
+### Owner inputs required
 
-Two candidate policies:
+1. Select an email provider that supports transactional email and SMTP or a Supabase Send Email Hook.
+2. Choose the approved sender domain/address.
+3. Complete provider account verification and domain DNS records (SPF/DKIM and any provider-required records).
+4. Obtain SMTP host, port, username and password, or the hook secret/configuration.
+5. Store credentials only in Supabase project secret/configuration settings; never in Android, GitHub, docs or chat.
+6. Configure production mail templates and redirect.
+7. Confirm provider quotas, retry/bounce handling and sender reputation.
 
-**Option A — Disable public signup (recommended if all accounts are institution-provisioned).**
-- Only existing/invited/provisioned users can authenticate.
-- Account creation is performed through an owner-controlled provisioning process.
-- Reduces public account creation and roster-trigger attack surface.
-- Requires owner/admin provisioning to be documented.
+The provider/domain/credentials are not specified in the repository. Do not invent them or select a paid provider without the Owner's decision.
 
-**Option B — Keep provider signup enabled with a hardened roster gate.**
-- Supabase trigger/server-side policy must reject identities not matching an approved roster.
-- The trigger must be transaction-safe, race-safe and protected against metadata-based role escalation.
-- Auth users created without a student profile must not gain application/VM authorization.
-- Must be tested with non-roster, duplicate and already-provisioned emails.
-- Owner must explicitly accept operational and abuse risk.
+### Verification procedure
 
-FP-01 does not call signUp from Android under either option. Select the project-level policy separately.
+- Send a confirmation email to a synthetic recipient not belonging to the Supabase organization.
+- Send a password-recovery email to the same controlled mailbox.
+- Verify the exact recovery URI survives the email template.
+- Open the link on a supported physical Android device.
+- Confirm the SDK PKCE flow succeeds and the password can be updated.
+- Verify the new password works and the old password fails.
+- Exercise email rate-limit and recipient-authorization errors.
+- Record only provider name, sender domain, test timestamp, message outcome and redacted error class. Do not store email content, codes or tokens in public docs.
 
-## 6. Redirect and email flow
+**Acceptance gate:** recovery remains BLOCKED until a non-team synthetic mailbox receives both the required test mail and recovery email and the flow completes end to end.
 
-Required redirect URI currently present in app build configuration:
-- com.mobidesk.android://auth-callback/recovery
+## 5. Rate-limit handling
 
-Checklist:
-1. Recheck the exact URI in Supabase Redirect URLs.
-2. Ensure the request's redirectUrl matches the allowed URI exactly.
-3. Review email templates: when using a custom redirect URL, confirm the template uses the correct Supabase redirect variable and preserves the app callback path.
-4. Open links from the actual mail client on supported Android device(s).
-5. Test a valid link, expired link, replay, wrong callback and app cold-start.
-6. Confirm the SDK processes PKCE/OTP material; app code must not treat callback query values as identity proof.
-7. Decide whether custom scheme is accepted for pilot or a verified HTTPS Android App Link is required for production.
-8. Verify a production email sender. A successful API response does not prove email arrival.
+The pinned supabase-kt 3.6.0 AuthErrorCode enum includes:
+- EmailAddressNotAuthorized — email_address_not_authorized
+- OverEmailSendRateLimit — over_email_send_rate_limit
+- OverRequestRateLimit — over_request_rate_limit
 
-## 7. Key handling and environments
+Required student copy:
+- email_address_not_authorized: explain email delivery is not enabled for this address and point to approved college support.
+- over_email_send_rate_limit: wait before requesting another email.
+- over_request_rate_limit: too many Auth requests; wait before retrying.
 
-- SUPABASE_URL and publishable/anon key may be included as public client configuration.
-- Never include service_role, secret API keys, DB passwords, SMTP credentials or signing keys in Android.
-- Keep local.properties ignored and do not commit actual project credentials.
-- Use separate development/staging/production project configuration where practical.
-- Test builds must clearly identify their environment without including credentials.
-- Release APK/AAB must be scanned for test endpoints and secret patterns.
+Do not map all three to a generic “try again” message. Do not show a fabricated countdown unless the provider supplies a reliable retry duration.
 
-## 8. Supabase owner verification checklist
+## 6. Signup policy
 
-- [ ] Email provider state verified.
-- [ ] Email confirmation policy verified.
-- [ ] Signup policy selected and verified.
-- [ ] Roster trigger/provisioning path inspected and tested.
-- [ ] Recovery redirect URI exact-match verified.
-- [ ] Recovery email template reviewed.
-- [ ] SMTP sender configured and test email received.
-- [ ] Password minimum/strength and leaked-password policy approved.
-- [ ] Auth rate limits/abuse settings reviewed.
-- [ ] OTP/recovery expiry reviewed.
-- [ ] Session/refresh policy reviewed.
-- [ ] Auth logs/retention and operator access reviewed.
-- [ ] No server-side secret is present in the Android project.
+The app has no signup route; that does not disable public provider signup.
 
-## 9. Official references reviewed for this draft
+Recommended if institution provisioning is mandatory:
+- disable public signup in Supabase Auth;
+- retain Owner/admin roster provisioning;
+- verify existing provisioned accounts still sign in;
+- verify unapproved addresses cannot create a usable student identity;
+- ensure Auth users without a student profile cannot enter FP-02/FP-03 workspace authorization.
 
-- Supabase Kotlin initialization, PKCE and Android deep links: https://supabase.com/docs/reference/kotlin/initializing
-- Supabase Kotlin email/password sign-in: https://supabase.com/docs/reference/kotlin/auth-signinwithpassword
-- Supabase Kotlin password reset: https://supabase.com/docs/reference/kotlin/auth-resetpasswordforemail
-- Supabase redirect URLs and mobile deep links: https://supabase.com/docs/guides/auth/redirect-urls
-- Supabase general Auth configuration (including allow new users to sign up): https://supabase.com/docs/guides/auth/general-configuration
-- Supabase password strength and leaked-password protection: https://supabase.com/docs/guides/auth/password-security
-- Supabase production security checklist: https://supabase.com/docs/guides/security/production-checklist
+The Owner must confirm the account-provisioning model before this setting is changed. No project setting is altered by this documentation PR.
 
-These links describe platform behavior. They are not evidence of the live MobiDesk project settings.
+## 7. Environment and secrets policy
+
+- Use only publishable/anon key in Android.
+- Keep local.properties untracked.
+- Never store service-role keys, DB password, SMTP password, Send Email Hook secret or signing keys in GitHub.
+- Use synthetic accounts only in test environments.
+- Do not send provider credentials through chat.
+- A hosted Supabase staging project is not currently evidenced. Unit/UI tests must use a fake Auth repository. Provider integration requires an Owner-approved isolated local or hosted environment.
+
+## 8. Official references
+
+- Built-in email limitations and custom SMTP: https://supabase.com/docs/guides/auth/auth-smtp
+- Testing email flows and two-emails/hour built-in service: https://supabase.com/docs/guides/auth/testing-auth-flows
+- Auth error codes: https://supabase.com/docs/guides/auth/debugging/error-codes
+- Auth rate limits: https://supabase.com/docs/guides/auth/rate-limits
+- Password policy: https://supabase.com/docs/guides/auth/password-security
+- Redirect URLs: https://supabase.com/docs/guides/auth/redirect-urls
