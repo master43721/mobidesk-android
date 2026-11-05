@@ -2,45 +2,43 @@
 
 **Version:** 0.2 · **Date:** 5 November 2026
 
-## 1. Decisions locked for v0.2
-
-| ID | Decision | Rationale / source | State |
+| ID | Decision | Rationale | State |
 |---|---|---|---|
-| D-01 | One student home screen, identity and Cloud PC | FEATURE_INVENTORY FP-02; DESIGN S-02 | Confirmed |
+| D-01 | One student home screen, identity and Cloud PC | Parent FP-02 scope | Confirmed |
 | D-02 | Show approved name and optional college label | Parent S-02 | Confirmed |
-| D-03 | FP-02 renders at most one card; FP-03 resolves exactly one assignment | Separates app presentation from data authorization | Confirmed split |
-| D-04 | Current-user RLS and server-side assignment enforcement | FR-AUTH-02 / FR-VM-01 | Required |
-| D-05 | No VM ID, UUID, hostname, IP, port or Guac routing | Parent privacy boundary | Required |
-| D-06 | Lifecycle and RDP transport remain separate | PRD §5.2 / API_CONTRACT | Required |
-| D-07 | Sample lifetime is 15 seconds | Parent API / PRD | Required |
-| D-08 | PRD.md §9 is the one source of truth for Connect availability and handoff | Resolves stale-button contradiction and prevents duplication | Locked for FP-02; parent amendment pending |
-| D-09 | Broker revalidates assignment and readiness at grant time | UI is not authorization | Required |
-| D-10 | Student VM controls absent; Dock is R2 placeholder | Parent release scope | Required |
-| D-11 | Settings/sign-out delegate to FP-01 | Avoid duplicate auth code | Required |
-| D-12 | Status GET has no body/query/target selector | Parent API security contract | Required |
-| D-13 | Preserve existing Compose/dashboard structure | Existing code/design | Default |
-| D-14 | No periodic polling. Load on entry; manual Refresh; fresh status on every Connect tap. Stale/unknown is still user-actionable for a fresh check. | Avoid battery/network polling and the 15-second race | Locked for FP-02; parent amendment pending |
-| D-15 | Failed refresh invalidates actionable prior readiness | Prevent stale positive state from authorizing | Required |
-| D-16 | Omit absent/blank college label | “Where available” | Locked |
-| D-17 | Use only an FP-03-approved safe Cloud PC label | vms.name safety not proven | Required dependency |
-| D-18 | Connect callback is no-argument; FP-05 owns credentials; FP-06 owns grant/relay | Avoid target/credential leakage | Required |
-| D-19 | Use minimal fakeable WorkspaceRepository and StatusRepository seams | Unit/contract tests without live broker | Locked |
-| D-20 | Monotonic receipt-age with conservative request RTT bound; sampledAt display only | Phone wall-clock skew cannot gate status | Locked |
-| D-21 | FP-03/FP-04 return matching opaque assignmentTag from the same trusted resolver; FP-02 compares before composing status and label | Prevent reassignment race between separate calls | Proposed parent/API amendment |
-| D-22 | Fetch workspace and broker status in parallel after AuthLevel | Broker independently derives assignment; assignmentTag joins results | Locked once D-21 contract is approved |
-| D-23 | FP-02 owns Android StatusRepository; FP-04 owns server endpoint/probe | Correct client/server ownership | Locked |
-| D-24 | 8s client deadline, cancellable calls, 2s local request debounce, honor 429 Retry-After; no automatic retry | Mobile RTT plus 1.5s server probe budget | Locked |
-| D-25 | R1 source locale en-IN; Telugu te-IN only after reviewed translation | Prevent unreviewed mixed-language copy | Owner decision recorded |
-| D-26 | English display copy for all lifecycle/transport enums and freshness states is written in PRD.md §6 | No blank state or UX-review placeholder | Locked |
+| D-03 | FP-02 renders at most one card; FP-03 resolves/enforces exactly one assignment | Presentation vs data authorization | Confirmed split |
+| D-04 | Current-user RLS and server-side assignment checks | Parent FR-AUTH/FR-VM | Required |
+| D-05 | No VM ID/UUID/hostname/IP/port/Guac in app | Privacy boundary | Required |
+| D-06 | Lifecycle and transport remain distinct | Parent PRD §5.2 | Required |
+| D-07 | Sample lifetime remains 15 seconds | Parent/API contract | Required |
+| D-08 | PRD.md §6 is the sole normative Connect rule | Resolves contradiction; no repeated truth tables | Locked in FP-02; parent change pending |
+| D-09 | Broker revalidates during grant issuance | UI is not authorization | Required |
+| D-10 | No student power/assignment controls; Dock is R2 placeholder | Release scope | Required |
+| D-11 | Settings/sign-out delegate to FP-01 | Avoid duplicated auth | Locked |
+| D-12 | Status GET has no body/query/target selector | API security boundary | Required |
+| D-13 | Preserve existing Compose/repository structure | Current native app | Default |
+| D-14 | No periodic polling; load on entry, manual Refresh and fresh status on every Connect. Stale/unknown remains user-actionable. | Avoid 15s race and background battery use | Locked; parent change pending |
+| D-15 | Failed refresh invalidates actionable old readiness | Avoid stale positive authorization | Required |
+| D-16 | Omit null/blank college label | Where available | Locked |
+| D-17 | Use only FP-03-approved safe Cloud PC label | Do not assume raw vms.name is safe | Required |
+| D-18 | No-argument FP-05 callback; FP-05 credentials; FP-06 grant/relay | Keep sensitive data out of navigation | Required |
+| D-19 | Minimal fakeable WorkspaceRepository and StatusRepository | Deterministic tests | Locked |
+| D-20 | Monotonic receipt-age plus request RTT upper-bound; sampledAt display only | Phone wall clock may be wrong | Locked |
+| D-21 | Shared opaque assignmentTag from canonical resolver; compare FP-03 and FP-04 snapshots | Prevent assignment race | Proposed parent/API change |
+| D-22 | Parallel workspace and broker status after AuthLevel | Broker resolves assignment independently; tag joins results | Locked after D-21 |
+| D-23 | FP-02 owns Android StatusRepository; FP-04 owns endpoint/probe | Correct client/server boundary | Locked |
+| D-24 | 8s client deadline, cancellation, 2s debounce, 429 Retry-After; no automatic retry | RTT plus 1.5s server probe budget | Locked |
+| D-25 | R1 source locale en-IN; te-IN after reviewed translation | Avoid unreviewed translation | Owner review |
+| D-26 | Complete enum/freshness copy written in PRD.md §4 | No UX placeholder | Locked |
 
-## 2. Change control
+## Change control
 
-The Connect/freshness rule and assignmentTag are proposed changes to the parent PRD/API. They are documented in docs/PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md. They must be accepted in the parent successor/amendment before G1 is frozen. Do not represent a proposed parent change as already approved.
+Connect/freshness and assignmentTag are proposed parent changes recorded in docs/PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md. They require Owner approval and G1 freeze. Do not represent them as approved until accepted.
 
-## 3. Dependency confirmations still needed
+## External confirmation
 
-- Exact FP-01 implementation commit and FULLY_AUTHENTICATED handoff on the source branch used for FP-02.
-- FP-03 typed result, safe label and assignmentTag implementation.
-- FP-04 API endpoint, request-fresh observation, assignmentTag, 429 and Retry-After behavior.
+- FP-01 exact AuthLevel commit and recovery-only test.
+- FP-03 typed result, safe label, assignmentTag source.
+- FP-04 endpoint, probe, no-cached-sample, assignmentTag and 429.
 - FP-05 no-argument navigation callback.
-- Owner approval of parent amendment and Telugu translation scope.
+- Parent amendment approval and Telugu translation review.
