@@ -38,7 +38,7 @@ FP-02 owns Android StatusRepository; FP-04 owns GET /v1/vm-status and probe. Sen
 
 ## 5. Freshness and Connect safety
 
-PRD.md §6 is the single normative Connect rule. Stale/missing/indeterminate status leaves Connect available only as a user action to request a fresh check when identity/assignment are valid. The new sample must be fresh using monotonic receipt-age, have matching assignmentTag, lifecycle RUNNING and RDP_NEGOTIATION_OK before FP-05 handoff. Known-negative states disable Connect. In-flight requests and cooldown disable it temporarily.
+PRD.md §6 is the single normative Connect rule. Stale/missing/indeterminate status leaves Connect available only as a user action to request a fresh check when identity/assignment are valid. The new sample must be fresh using monotonic receipt-age, have matching assignmentTag, lifecycle RUNNING and RDP_NEGOTIATION_OK before FP-05 handoff. Fresh known-negative states disable Connect. Once any sample is stale, its former state is indeterminate and Connect is available as a fresh-check action. In-flight requests and cooldown disable it temporarily.
 
 Timeout, 429, mismatch or failed refresh invalidates prior actionable readiness. Previous positive sample may be labelled stale but cannot authorize. FP-06/broker independently revalidates assignment/readiness at grant time.
 
