@@ -54,6 +54,7 @@ Before implementation verify FP-01 FULLY_AUTHENTICATED, FP-03 typed assignment+s
 | CORE-39 | Request-fresh status sample | RTT included in age upper-bound; old server cache rejected | Contract |
 | CORE-40 | Missing tag, malformed JSON or unknown enum | Indeterminate; fail closed; no handoff | Contract |
 | CORE-41 | FP-06/grant reports ASSIGN-03 after a previously valid card | Clear card/status, cancel requests, suppress Connect, reload assignment/status pair once; never retry a grant against the old assignment | Fake grant/client integration |
+| CORE-42 | Fresh known-negative sample reaches 15s while workspace remains visible | Local monotonic UI timer changes it to stale and enables fresh-check Connect at the boundary; zero status HTTP requests are emitted | Fake clock/scheduler + Compose |
 
 ## 3. Connect test oracle
 
@@ -70,7 +71,7 @@ PRD.md §6 is the normative policy.
 | In-flight request or Retry-After cooldown | Temporarily disabled | Never |
 | Auth or assignment invalid | Hidden/disabled | Never |
 
-After a tap, only a new fresh sample with matching assignmentTag, RUNNING and RDP_NEGOTIATION_OK can invoke FP-05. Broker/grant checks remain authoritative.
+After a tap, only a new fresh sample with matching assignmentTag, RUNNING and RDP_NEGOTIATION_OK can invoke FP-05. Broker/grant checks remain authoritative. CORE-42 additionally proves the stale transition is triggered by a local UI timer and not by background network polling.
 
 ## 4. Exact parent error snapshots
 

@@ -29,8 +29,8 @@ FR-VM-01 is a presentation requirement for FP-02 and a data authorization requir
 | FP02-FR-005 | CORE-08/25/26/40 | No selector/private field |
 | FP02-FR-006 | CORE-10/11/12 | Separate lifecycle/transport |
 | FP02-FR-007 | CORE-11/12/40 | Complete enum copy |
-| FP02-FR-008 | CORE-15/17/30/38/39 | Monotonic time / wall-clock jump |
-| FP02-FR-009 | CORE-10/13/14/18/19 | Connect availability predicate |
+| FP02-FR-008 | CORE-15/17/30/38/39/42 | Monotonic time / wall-clock jump |
+| FP02-FR-009 | CORE-10/13/14/15/18/19/42 | Connect availability predicate |
 | FP02-FR-010 | CORE-18/19/20/29/36/37 | Fresh status, matching tag, one handoff |
 | FP02-FR-011 | CORE-16/29/33/34 | Refresh/cooldown/429 |
 | FP02-FR-012 | CORE-17/31/32/33/34/37/40/41 | Failure invalidates old readiness |

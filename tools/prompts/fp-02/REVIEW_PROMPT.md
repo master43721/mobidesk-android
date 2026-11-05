@@ -9,7 +9,7 @@ Verify:
 - FP-03 own-user RLS, safe display label, typed zero/one/invalid assignment and exactly-one semantics.
 - FP-04 bearer GET /v1/vm-status with no selector/body/query; request-fresh sample; assignmentTag from same resolver; 429 Retry-After; probe budget.
 - Parallel initial reads and old-session late-result suppression.
-- Monotonic elapsedRealtime formula; device wall-clock jumps; 15-second stale boundary.
+- Monotonic elapsedRealtime formula; device wall-clock jumps; 15-second stale boundary; lifecycle-aware local UI timer updates labels and re-enables Connect with zero network requests (CORE-42).
 - Assignment/status mismatch discards pair and retries once; repeated mismatch = ASSIGN-02.
 - Connect availability vs handoff eligibility exactly matches FP-02 PRD.md §6. No cached result hands off. Matching fresh RUNNING + RDP_NEGOTIATION_OK only; exactly one no-argument FP-05 callback.
 - Post-grant ASSIGN-03 invalidates assignment/card/status and triggers a single paired reload.
@@ -20,4 +20,4 @@ Verify:
 - TalkBack, focus, non-color status meaning, 1.3x/1.5x font scaling and no clipped copy.
 - Current SDK/ABI/Gradle/dependency baseline and pinned FreeRDP gitlink unchanged unless reviewed.
 
-Run all CORE-01..41 plus baseline tests. Inspect reports, not exit code only. End with source SHA, test evidence, environment/device, security findings, changed files and blockers. A compiled APK does not prove R1 or FP-02 acceptance.
+Run all CORE-01..42 plus baseline tests. Inspect reports, not exit code only. End with source SHA, test evidence, environment/device, security findings, changed files and blockers. A compiled APK does not prove R1 or FP-02 acceptance.

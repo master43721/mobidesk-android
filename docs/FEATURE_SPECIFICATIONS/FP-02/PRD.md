@@ -21,8 +21,8 @@ FP-02 is a Compose presentation/orchestration feature. It does not authorize ass
 | FP02-FR-005 | Never expose a target selector or routing field. | UI, DTO, navigation and log scans pass. |
 | FP02-FR-006 | Show lifecycle and RDP transport independently. | All API enums are separately mapped. |
 | FP02-FR-007 | Provide copy for every lifecycle/transport enum. | No blank, generic green or inferred Ready. |
-| FP02-FR-008 | Calculate freshness from monotonic receipt-age, not phone wall time. | 15-second boundary and clock-jump tests pass. |
-| FP02-FR-009 | Keep Connect available for missing/stale/indeterminate status when auth/assignment are valid and there is no known-negative state or temporary request/cooldown gate. | Stale/UNKNOWN/NOT_CHECKED can initiate a fresh check; known-negative states disable. |
+| FP02-FR-008 | Calculate freshness from monotonic receipt-age, not phone wall time; re-evaluate visible age locally without network polling. | 15-second boundary, clock-jump and visible stale-transition tests pass. |
+| FP02-FR-009 | Keep Connect available for missing/stale/indeterminate status when auth/assignment are valid and there is no fresh known-negative state or temporary request/cooldown gate. | A fresh known-negative disables; a local monotonic UI timer re-enables the fresh-check affordance at staleness without a network request. |
 | FP02-FR-010 | Every Connect tap obtains fresh broker status and checks assignmentTag before one no-argument FP-05 handoff. | No stale sample directly hands off; only matching, fresh RUNNING + RDP_NEGOTIATION_OK can proceed. |
 | FP02-FR-011 | Manual Refresh obtains a new sample and reports busy/cooldown/outcome. | Duplicate refresh serialized and Retry-After honored. |
 | FP02-FR-012 | Timeout, cancellation, 429, mismatch, failed refresh or definitive grant-level assignment invalidation never preserves actionable old readiness. | Failure becomes indeterminate; ASSIGN-03 clears card/status and triggers one paired reload; bounded user retry only. |
@@ -59,7 +59,7 @@ All strings are Android resources. R1 source locale is reviewed English India (e
 | Transport RDP_NEGOTIATION_OK | Ready for Windows sign-in | RDP negotiation succeeded. Your Windows credentials are still required. |
 | Transport UNKNOWN | Connection status unavailable | We could not verify the remote desktop service. Refresh status to try again. |
 
-Freshness copy: 0–4s upper-bound age = “Updated just now”; 5–14s = “Updated {n} seconds ago”; >=15s = “Status needs refreshing”; no sample = “Status not checked yet”; in flight = “Checking status…”. Relative age comes from monotonic elapsed time. sampledAt is formatted as an observation timestamp only.
+Freshness copy: 0–4s upper-bound age = “Updated just now”; 5–14s = “Updated {n} seconds ago”; >=15s = “Status needs refreshing”; no sample = “Status not checked yet”; in flight = “Checking status…”. Relative age comes from monotonic elapsed time. sampledAt is formatted as an observation timestamp only. While the workspace is visible, a lifecycle-aware local timer MUST re-evaluate the age label at least once per displayed second and Connect availability at the exact stale boundary. It MUST NOT call the status endpoint. On resume, recalculate immediately from elapsedRealtime before enabling/disabling Connect.
 
 ## 5. Assignment consistency
 
@@ -75,7 +75,7 @@ The Connect button is a fresh-check action, not an authorization stored by a pre
 - Student must be FULLY_AUTHENTICATED and have one valid FP-03 Assigned result.
 - Keep Connect available when status is missing, stale, lifecycle UNKNOWN, transport UNKNOWN or NOT_CHECKED. These are indeterminate and benefit from a fresh user-initiated check.
 - Disable for a **fresh** definitive negative: lifecycle STOPPED, STARTING, STOPPING or ERROR; transport TCP_UNREACHABLE or TCP_REACHABLE. Once any sample reaches the stale boundary, its former positive or negative state is indeterminate and Connect becomes available as a fresh-check action.
-- Disable while a request is in flight, auth/assignment is invalid, or the broker Retry-After cooldown is active. Manual Refresh remains available when its cooldown permits.
+- Disable while a request is in flight, auth/assignment is invalid, or the broker Retry-After cooldown is active. Manual Refresh remains available when its cooldown permits. Expiry from fresh-negative to stale is a local monotonic UI-state transition only; it does not trigger a background status request.
 
 **Tap**
 1. Serialize the tap and obtain the current FP-01 access token.

@@ -17,7 +17,7 @@ The rows sum to **17–27 hours**. External dependencies and service deployment 
 | FP02-002 | Freeze FP-03/04 contract including assignmentTag | 1.5–2.5h | Reviewed models, tag source and no-selector contract |
 | FP02-003 | Android StatusRepository: JWT, timeout, cancellation, DTO, 429/Retry-After | 3–4.5h | Fake-server contract tests |
 | FP02-004 | Parallel loading, session generation and tag reconciliation | 2–3h | Parallel, account-switch and mismatch tests |
-| FP02-005 | Monotonic freshness and separate button/handoff predicates | 1.5–2.5h | Fake clock, 15s boundary and wall-clock-jump tests |
+| FP02-005 | Monotonic freshness, local lifecycle-aware age timer and separate button/handoff predicates | 1.5–2.5h | Fake clock, 15s boundary, zero-network stale transition and wall-clock-jump tests |
 | FP02-006 | Compose S-02/S-03, state copy, Refresh and Connect action | 2.5–4h | All states rendered |
 | FP02-007 | Assignment/error/Settings/sign-out/Dock states | 1–1.5h | Exact parent copy; FP-01 delegation |
 | FP02-008 | en-IN resources, TalkBack, semantics and font scaling | 0.5–1.5h | Accessibility checklist |
@@ -60,7 +60,7 @@ Reforecast on dependency slip; never remove a safety gate to keep a date.
 
 **Phase 2 — repository:** Add FP-02 Android StatusRepository, fake server, 8s deadline, cancellation, 2s local debounce and Retry-After tests. Prove bearer/no selector/no private fields.
 
-**Phase 3 — state:** Parallelize workspace/status after AuthLevel. Ignore late old-session responses. Pair by assignmentTag; reload both once on mismatch; second mismatch = ASSIGN-02. Implement monotonic freshness and pure predicates.
+**Phase 3 — state:** Parallelize workspace/status after AuthLevel. Ignore late old-session responses. Pair by assignmentTag; reload both once on mismatch; second mismatch = ASSIGN-02. Implement monotonic freshness, a local-only lifecycle-aware age timer (no HTTP polling), and pure predicates.
 
 **Phase 4 — Compose:** Add complete S-02/S-03 states/copy. Apply only PRD.md §6 Connect rule. Dock stays inert and account actions delegate to FP-01.
 

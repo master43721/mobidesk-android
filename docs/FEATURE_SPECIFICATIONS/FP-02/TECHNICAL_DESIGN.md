@@ -95,6 +95,17 @@ The first term is the full request round trip and bounds age accrued between a n
 
 This guarantee requires FP-04 to return a newly sampled observation per successful status request and not reuse a pre-request cached sample. sampledAt is formatted for display only. Invalid/missing monotonic timing yields indeterminate freshness and denies handoff. Network latency may expire a sample slightly early; the handset clock cannot make an old sample appear fresh.
 
+### 6.1 Local UI age re-evaluation (not network polling)
+
+A fresh negative state disables Connect only until its sample becomes stale. Because FP-02 does not poll the server, the visible UI MUST still observe local time passing:
+
+- While the workspace lifecycle is `STARTED`, run a lightweight lifecycle-aware monotonic timer that refreshes the UI age value at least once per displayed second and schedules a state update at the exact stale boundary.
+- Recompute from `SystemClock.elapsedRealtime()`; never increment a counter as the source of truth.
+- At `ageUpperBoundMs >= staleAfterSeconds * 1000`, transition the sample to indeterminate and update Connect availability immediately, without an HTTP call.
+- Cancel the timer while the screen is stopped/backgrounded. On resume, recompute immediately before rendering actionable controls.
+- The timer is presentation-only: it MUST NOT make a status request, refresh a token, wake a background service or persist freshness across process recreation.
+- Unit/Compose tests use an injected monotonic clock and scheduler; no real-time sleeps are required.
+
 ## 7. Android StatusRepository mechanics
 
 Implementation location: app/src/main/java/com/mobidesk/android/data/StatusRepository.kt or an equivalent existing data package.

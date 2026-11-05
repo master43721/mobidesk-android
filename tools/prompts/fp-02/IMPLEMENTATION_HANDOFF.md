@@ -34,7 +34,7 @@ Follow FP-02 PRD.md v0.2 as the single normative feature specification. Critical
 - Parallel profile/assignment and status reads after authentication.
 - Compose only one card for typed Assigned; no list-first fallback.
 - Pair assignment and status by opaque assignmentTag; discard mismatch and retry pair once; second mismatch uses ASSIGN-02.
-- Use SystemClock.elapsedRealtime() and conservative request-round-trip age; never use wall-clock sampledAt for eligibility.
+- Use SystemClock.elapsedRealtime() and conservative request-round-trip age; never use wall-clock sampledAt for eligibility. Run a lifecycle-aware local-only age timer while visible; it must re-enable Connect at the stale boundary without issuing a status request.
 - Every Connect tap makes a fresh status GET; never hand off from cached state.
 - Connect remains available for stale/missing/UNKNOWN/NOT_CHECKED so user can request a new check; definitive negative status disables it. Respect in-flight and 429 cooldown gates.
 - 8-second cancellable request deadline, HTTP 429 Retry-After, 2-second debounce, no automatic retry.
@@ -48,6 +48,6 @@ If a later broker grant returns ASSIGN-03 or another definitive assignment-inval
 
 ## Required tests
 
-Implement all CORE-01..41 in FP-02 TEST_PLAN.md plus current baseline regression tests. Add a test for post-grant ASSIGN-03 clearing/reload before final review. Verify fake-server request method/path/headers/no-body/no-selector and exact DTO allowlist. Test timeout, cancellation, 429 with and without Retry-After, mismatch recovery, wall-clock jump, stale boundary, duplicate taps and single FP-05 callback.
+Implement all CORE-01..42 in FP-02 TEST_PLAN.md plus current baseline regression tests. Add a test for post-grant ASSIGN-03 clearing/reload before final review. Verify fake-server request method/path/headers/no-body/no-selector and exact DTO allowlist. Test timeout, cancellation, 429 with and without Retry-After, mismatch recovery, wall-clock jump, visible stale transition with zero network calls, stale boundary, duplicate taps and single FP-05 callback.
 
 Report exact source SHA, changed files, Gradle tasks, reports, device/API, CI URL, privacy scan, TalkBack/font scale and unresolved dependencies. No NOT RUN test may be labeled PASS.
