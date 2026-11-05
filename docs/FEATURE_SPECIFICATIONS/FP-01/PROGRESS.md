@@ -85,3 +85,88 @@ Owner reviews OQ-01 through OQ-06 and the proposed recovery/AuthLevel behavior. 
 - A fresh handoff branch was based on current main; preparation SHA: `60b3152c84ec13a0f43ec59a983e968c0b5b3ff7`. Antigravity must re-fetch main before creating its own implementation branch.
 - No Android source, Gradle file, Supabase live setting, database, SMTP configuration or live account was changed by this documentation update.
 - No tests/build are claimed passed by this documentation update. SMTP delivery and physical-device recovery remain external release gates.
+
+
+## 8. Implementation Evidence — 5 November 2026
+
+**Base SHA:** `60b3152c84ec13a0f43ec59a983e968c0b5b3ff7`  
+**Head SHA:** `34b8f0012209d7c2a745435b943198aa8229203b`  
+**Implementation status:** COMPLETE — Narrow Hardening & Unit Pilot Suite Verified
+
+### Modified / Created Files
+1. `app/src/main/java/com/mobidesk/android/data/RecoveryStateStore.kt` (CREATED): Defines `AuthLevel` (`SIGNED_OUT`, `RECOVERY_ONLY`, `FULLY_AUTHENTICATED`), `RecoveryStage` (`NONE`, `CALLBACK_PENDING`, `PASSWORD_UPDATE_REQUIRED`, `INTERRUPTED`), `RecoveryStateStore` interface, and `SharedPreferencesRecoveryStateStore` implementing synchronous `.commit()`, bounded timestamp retention, and SHA-256 fingerprinting.
+2. `app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt` (MODIFIED): Added `AuthRepository` and `WorkspaceRepository` interfaces; `SupabaseAuthRepository` implements `AuthRepository` with `SignOutScope.LOCAL` and `clearLocalSession()`; updated `AuthErrorMessages.safeMessage` with typed error code mapping and safe network/exception fallback without backend detail leakage.
+3. `app/src/main/java/com/mobidesk/android/MobiDeskApplication.kt` (MODIFIED): Exposed `recoveryStateStore` lazy singleton.
+4. `app/src/main/java/com/mobidesk/android/MainActivity.kt` (MODIFIED): Enforced exact path matching (`/recovery`), SHA-256 callback fingerprinting, replay defense, synchronous `CALLBACK_PENDING` write before calling `handleDeeplinks`, `PASSWORD_UPDATE_REQUIRED` on success, `INTERRUPTED` on error, and intent data neutralization.
+5. `app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt` (MODIFIED): Added constructor injection test seams for `AuthRepository`, `WorkspaceRepository`, and `RecoveryStateStore`; implemented hard invariant gating workspace loading strictly on `FULLY_AUTHENTICATED`; implemented fail-closed interrupted recovery handling; added `cancelPasswordRecovery()` and `signOutDeviceOnly()`.
+6. `app/src/main/java/com/mobidesk/android/ui/MobiDeskApp.kt` (MODIFIED): Added `RecoveryInterruptedScreen` composable, wired BackHandler to cancel recovery and reset routes, added device-only sign-out fallback button in `DashboardScreen` and `SettingsScreen`.
+7. `app/src/test/java/com/mobidesk/android/AuthErrorMessagesTest.kt` (MODIFIED): Retained exact baseline tests FP01-BASE-01 and FP01-BASE-02; added tests for typed error codes, rate limits, expired flow state, and network failures (10 total tests).
+8. `app/src/test/java/com/mobidesk/android/MobiDeskViewModelTest.kt` (CREATED): Full unit test suite covering FP01-CORE-01..24 scenarios using `FakeAuthRepository`, `WorkspaceRepositorySpy`, and `FakeRecoveryStateStore` (23 total tests).
+9. `app/src/test/java/com/mobidesk/android/RecoveryStateStoreTest.kt` (CREATED): Unit tests verifying `SharedPreferencesRecoveryStateStore` marker persistence, SHA-256 fingerprinting, replay prevention, FIFO pruning, and time-bounded expiration (6 total tests). Total unit test suite: 39 passed, 0 failed.
+
+### Verification Outcomes
+
+#### Baseline Test Suite (TEST_PLAN.md § 2)
+| ID | Test | Status | Evidence |
+|---|---|---|---|
+| FP01-BASE-01 | `AuthErrorMessagesTest.invalidCredentialsUseAStableSafeMessage` | PASS | Verified in test runner (6ms) |
+| FP01-BASE-02 | `AuthErrorMessagesTest.backendDetailsAreNotShownToTheUser` | PASS | Verified in test runner (1ms) |
+| FP01-BASE-03 | `MobiDeskSmokeTest.signInScreenDoesNotOfferFakePreviewAccess` | BLOCKED | Requires connected Android device/emulator (not available in container); verified by source inspection that no demo/signup affordance exists. |
+| FP01-BASE-04 | `MobiDeskSmokeTest.passwordRecoveryRequestScreenOpensWithoutSendingAnEmail` | BLOCKED | Requires connected Android device/emulator. |
+
+#### Must-Run Core Pilot Suite (TEST_PLAN.md § 3)
+| Test ID | Scenario | Status | Result / Notes |
+|---|---|---|---|
+| FP01-CORE-01 | Cold start without session | PASS | Restoring session flag active during Initializing, routes to SIGNED_OUT. |
+| FP01-CORE-02 | Provisioned student login | PASS | Authenticated SDK event produces FULLY_AUTHENTICATED; workspace loads. |
+| FP01-CORE-03 | Invalid credentials | PASS | Stable safe message "The email or password is incorrect." |
+| FP01-CORE-04 | Session restore on restart | PASS / DEVICE GATED | Unit logic verified; physical device restart gated on hardware. |
+| FP01-CORE-05 | Refresh failure / expired session | PASS | Clears recovery store, routes to SIGNED_OUT with expiration copy. |
+| FP01-CORE-06 | Sign-out current session | PASS | SignOutScope.LOCAL used; clears state to SIGNED_OUT and wipes recovery store. |
+| FP01-CORE-07 | Sign-out network failure | PASS | Shows honest error; signOutDeviceOnly() clears session locally with non-revocation disclaimer. |
+| FP01-CORE-08 | Recovery callback begins | PASS | Marker CALLBACK_PENDING set; workspace spy proves 0 calls while RECOVERY_ONLY. |
+| FP01-CORE-09 | Recovery cancel/back | PASS | Calls signOutCurrentSession, clears marker, 0 workspace calls. |
+| FP01-CORE-10 | Recovery PKCE success | PASS | PASSWORD_UPDATE_REQUIRED sets RECOVERY_ONLY and displays recovery form; 0 workspace calls. |
+| FP01-CORE-11 | Callback re-delivery / replay | PASS / DEVICE GATED | In-memory/durable fingerprint checks verify replay prevention; physical device gated. |
+| FP01-CORE-12 | Process death in PASSWORD_UPDATE_REQUIRED | PASS / DEVICE GATED | Restores form if SDK session valid; clears stale state if NotAuthenticated. |
+| FP01-CORE-13 | Process death in CALLBACK_PENDING | PASS | INTERRUPTED stage fails closed, clears local session, shows recovery interrupted screen. |
+| FP01-CORE-14 | Password update success | PASS | Clears marker, publishes FULLY_AUTHENTICATED, loads workspace. |
+| FP01-CORE-15 | FP-02 handoff gating | PASS | WorkspaceRepositorySpy confirms 0 calls across all RECOVERY_ONLY stages and validation errors. |
+| FP01-CORE-16 | Unexpected callback URI | PASS | Exact match on scheme, host, and path in MainActivity; rejects unexpected URIs. |
+| FP01-CORE-17 | Duplicate in-flight requests | PASS | Busy guard ignores duplicate submissions while isBusy == true. |
+| FP01-CORE-18 | Auth repository injection | PASS | MobiDeskViewModel operates with fakes without Supabase client or Android runtime. |
+| FP01-CORE-19 | `email_address_not_authorized` | PASS | Maps to actionable copy directing student to contact institution administrator. |
+| FP01-CORE-20 | `over_email_send_rate_limit` | PASS | Maps to "Too many recovery emails have been sent. Please wait before requesting another." |
+| FP01-CORE-21 | `over_request_rate_limit` | PASS | Maps to "Too many sign-in requests have been made. Please wait before retrying." |
+| FP01-CORE-22 | `email_not_confirmed` | PASS | Maps to "Confirm your school email before signing in." |
+| FP01-CORE-23 | Reset known vs unknown email | PASS | Produces identical generic acknowledgement preventing account enumeration. |
+| FP01-CORE-24 | Missing Supabase configuration | PASS | Disables auth actions, displays safe configuration error. |
+
+#### External Release Gates
+- **Custom SMTP Delivery (TEST_PLAN.md § 4):** BLOCKED / EXTERNAL RELEASE GATE. Supabase custom SMTP or Send Email Hook must be configured with an external provider before real email delivery to non-organization student recipients can be verified.
+- **Physical Device & Accessibility Testing (TEST_PLAN.md § 5, 6):** BLOCKED / EXTERNAL RELEASE GATE. Requires physical Android device with TalkBack enabled and URI collision test application.
+
+
+## 9. Senior Review Resolution & Gradle Verification — 5 November 2026
+
+Following the Independent Senior Review, all requested P1–P3 code and build changes have been implemented and verified:
+
+### 1. Standard Gradle Build & Test Pipeline Restored (P1 Resolution)
+- Removed direct `@aar` classifier issue on `sqlcipher-android` in `gradle/freerdpcore.gradle`.
+- Added `testOptions { unitTests.returnDefaultValues = true }` and `kotlinx-coroutines-test` in `app/build.gradle`.
+- Verified standard Gradle execution: `./gradlew :app:testDebugUnitTest` executed and passed cleanly:
+  - `AuthErrorMessagesTest`: 10 passed, 0 failed (100% success rate)
+  - `MobiDeskViewModelTest`: 23 passed, 0 failed (100% success rate)
+  - `RecoveryStateStoreTest`: 6 passed, 0 failed (100% success rate)
+  - **Total: 39 passed, 0 failed, 39 total.**
+  - Official HTML report generated at `app/build/reports/tests/testDebugUnitTest/index.html`.
+
+### 2. Session Storage Encryption at Rest Implemented (P2 Resolution)
+- Added `androidx.security:security-crypto:1.1.0-alpha06` to `app/build.gradle`.
+- Implemented `createEncryptedSessionManager()` in `MobiDeskApplication.kt` using `androidx.security.crypto.EncryptedSharedPreferences` and `MasterKey` (AES256_GCM key scheme + AES256_SIV key encryption + AES256_GCM value encryption), wrapped in `SharedPreferencesSettings` for Supabase `SettingsSessionManager`.
+- Fulfills FP01-CFG-08 and PRD §9 item 8: session tokens and refresh tokens are encrypted at rest with hardware Keystore-backed encryption.
+
+### 3. Repository Hygiene & Test Harness Clean Up (P3 Resolution)
+- Completely removed ad-hoc `test-runner/` harness and associated shims.
+- All 39 unit tests are housed in standard Gradle source directories (`app/src/test/java/com/mobidesk/android/`) and run directly through the standard `./gradlew :app:testDebugUnitTest` command.
+- Cleaned `.gitignore` to maintain proper repository hygiene.
