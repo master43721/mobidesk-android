@@ -71,3 +71,18 @@ For any changed decision:
 2. Identify PRD requirements, APIs, tests, data model, release gates and rollback affected.
 3. Do not weaken a PRD MUST without an approved PRD revision.
 4. Keep old decisions with status SUPERSEDED rather than deleting history.
+
+
+## 4. FP-02 v0.2 and Codespaces decisions — 5 Nov 2026
+
+| ID | Topic | Current decision / position | Evidence or reason | State |
+|---|---|---|---|---|
+| DEC-38 | FP-02 Connect affordance | Connect remains an action to request a fresh status check when status is absent, stale or indeterminate. A fresh known-negative state disables it; when that sample becomes stale, it becomes indeterminate. Every tap rechecks before FP-05. | docs/FEATURE_SPECIFICATIONS/FP-02/PRD.md §6; critique resolution | PROPOSED PARENT AMD-01 — OWNER APPROVAL PENDING |
+| DEC-39 | FP-02 freshness clock | Use Android monotonic elapsedRealtime receipt-age plus conservative request RTT upper-bound. sampledAt is display-only; never gate using handset wall clock. | FP-02 TECHNICAL_DESIGN §6 and API_CONTRACT v1.1 proposal | PROPOSED API/PRD CHANGE — G1 |
+| DEC-40 | Assignment/status consistency | FP-03 workspace and FP-04 status carry the same opaque equality-only assignmentTag from the shared trusted resolver. Mismatch discards/reloads pair once, then ASSIGN-02. | PRD-1.2-AMD-01; API_CONTRACT v1.1 | PROPOSED — FP-03/FP-04 CONTRACT REQUIRED |
+| DEC-41 | Android status client ownership | FP-02 owns Android StatusRepository, timeout/cancellation, freshness, 429 handling and client contract tests; FP-04 owns server endpoint/probe/rate limiting. | FP-02 v0.2 ownership table | SELECTED FEATURE BOUNDARY — PARENT/API APPROVAL PENDING |
+| DEC-42 | Status request mechanics | 8s client deadline, cancellation, 2s local debounce, honor 429 Retry-After, no automatic retry; workspace/status initial reads run in parallel after FULLY_AUTHENTICATED. | FP-02 v0.2 TECHNICAL_DESIGN | SELECTED FOR FP-02 — API G1 REQUIRED |
+| DEC-43 | Primary Codespace | Reuse existing didactic-giggle Codespace for master43721/mobidesk-android; upgrade to available 4-core/16-GB/32-GB Central India tier; preserve existing dirty worktree. | Codespaces API state on 5 Nov 2026; machine update accepted | APPLIED — RESTART REQUIRED FOR NEW MACHINE SIZE |
+| DEC-44 | FP-02 product spec package | Keep product requirements under docs/FEATURE_SPECIFICATIONS/FP-02; keep agent implementation/review prompts under tools/prompts/fp-02. | FP-02 v0.2 branch diff | APPLIED IN REVIEW BRANCH |
+| DEC-45 | FP-01 to FP-02 integration proof | Owner reports FP-01 implementation complete, but the inspected main MobiDeskViewModel snapshot still observes raw SessionStatus.Authenticated and does not expose FULLY_AUTHENTICATED. Identify/merge the exact source commit before FP-02 starts; do not treat the Owner report as source integration evidence. | MobiDeskViewModel blob 32bbfc45c96baf9021bd34f2d860d44bbd95b6ed | OPEN — INTEGRATION BLOCKER |
+
