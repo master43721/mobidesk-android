@@ -1,55 +1,57 @@
 # FP-02 — Student Dashboard and Workspace
 
-**Feature:** FP-02  
-**Priority / release:** P0 / R1  
-**Draft:** 0.1 — source-grounded Owner review draft  
-**Snapshot:** 4 November 2026  
-**Canonical repository:** master43721/mobidesk-android  
-**Status:** REVIEW DRAFT — not approved for implementation.
+**Version:** 0.2  
+**Date:** 5 November 2026  
+**Status:** Corrected owner-review package; implementation not started in this branch  
+**Canonical repository:** master43721/mobidesk-android
 
 ## Purpose
 
-Provide the Student's single home screen showing their approved profile and one Cloud PC, with honest lifecycle/RDP readiness, refresh and Connect handoff only when eligible.
+FP-02 provides the authenticated student's single home screen: approved identity, exactly one safe Cloud PC card, truthful lifecycle and RDP status, status refresh, a guarded Connect handoff, account actions and the R2 Dock placeholder.
 
-FP-02 is primarily student workspace presentation/orchestration. FP-03 owns assignment resolution; FP-04 owns live readiness; FP-05 owns guest credentials; FP-06 owns grant/session authorization.
+This package corrects the v0.1 review findings. It does not claim that FP-03 assignment resolution, the FP-04 broker endpoint, or FP-05/FP-06 session work is complete.
 
-## Package documents
+## Read in this order
 
-| File | Purpose |
+1. PRD.md — normative FP-02 behavior and the single Connect policy.
+2. TECHNICAL_DESIGN.md — client/server boundaries, parallel loading, assignment consistency and monotonic freshness.
+3. IMPLEMENTATION_PLAN.md — tasks, estimates, dates, dependencies and stop gates.
+4. TEST_PLAN.md — test cases and release evidence.
+5. SECURITY_PRIVACY.md — privacy, authorization and failure behavior.
+6. DECISIONS.md — decisions made in v0.2.
+7. OPEN_QUESTIONS.md — only unresolved external approvals and integration facts.
+8. TRACEABILITY.md — parent and FP02 requirement-to-test mapping.
+9. PROGRESS.md — verified repository evidence and current blockers.
+10. REVISION_NOTES.md — what changed from v0.1.
+
+Parent amendment proposal: [AMD-01](../../PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md).
+
+Development environment: [GitHub Codespaces workflow](../../CODESPACES_WORKFLOW.md).
+
+## Ownership
+
+| Area | Owner |
 |---|---|
-| PRD.md | Feature outcome, scope, 18 requirements, UX states and acceptance |
-| TECHNICAL_DESIGN.md | Current-source audit, screen architecture, typed contracts, status mapping and security |
-| IMPLEMENTATION_PLAN.md | Sequenced work packages, dependencies and verification plan |
-| TEST_PLAN.md | 30 core cases, status truth table, exact copy, accessibility and negative tests |
-| SECURITY_PRIVACY.md | Data classification, trust boundary, UI/cache/logging controls |
-| DECISIONS.md | Source-confirmed decisions and proposed implementation defaults |
-| OPEN_QUESTIONS.md | Owner and cross-feature questions that must remain visible |
-| TRACEABILITY.md | Parent FR -> FP-02 requirements -> test/gate matrix |
-| PROGRESS.md | Current source evidence, dependency blockers and no-change statement |
-| REVISION_NOTES.md | Package provenance and assumptions/limitations |
-| ANTIGRAVITY_HANDOFF.md | Copy-ready FP-02 implementation brief |
-| ANTIGRAVITY_REVIEW_PROMPT.md | Independent post-implementation alignment/security review |
+| Fully authenticated session, recovery and sign-out | FP-01 |
+| Student profile and authoritative exactly-one assignment resolution | FP-03 |
+| Android StatusRepository, status UI, refresh, Connect orchestration and client contract tests | FP-02 |
+| Broker status endpoint, probe, rate limiting and assignment-tag calculation | FP-04 |
+| Windows credential prompt and NLA | FP-05 |
+| Grant, relay, FreeRDP transport and session lifecycle | FP-06+ |
+| Dock pairing and external display | R2 |
 
-## Read-first sources
+FP-02 owns the student-facing rule that no more than one assigned Cloud PC card is rendered. FP-03 owns whether the underlying assignment is valid and unique. Both boundaries are required for acceptance.
 
-- `docs/MobiDesk_PRD_v1.2.pdf` — normative parent product requirements.
-- `docs/FEATURE_INVENTORY.md` — FP-02 and adjacent FP-03/04/05/06 boundaries.
-- `docs/DESIGN.md` — screens S-02, S-03, S-07 and S-09; exact status/error treatment.
-- `docs/API_CONTRACT.md` — `GET /v1/vm-status`, auth, enums, sample freshness and errors.
-- `docs/TECHNICAL_SPEC.md` — ViewModel/repository/domain boundaries.
-- `docs/SECURITY_THREAT_MODEL.md` — current user/RLS, no client-selected target, no sensitive telemetry.
-- `docs/TEST_PLAN.md` and `docs/TRACEABILITY_CHECK.md` — parent tests and gate ownership.
-- `docs/SUPABASE_DISCOVERY.md` — historical 27 Oct snapshot only; revalidate live schema before relying on it.
+## v0.2 decisions at a glance
 
-## Scope guard
+- A stale, missing or indeterminate sample does not make the Connect affordance unreachable. Connect remains available when identity and assignment are valid and the sample is stale, missing or indeterminate. A fresh known-negative status disables it; when that status becomes stale, it is indeterminate again. In-flight/cooldown gates temporarily disable it. Tapping always performs a fresh status check before FP-05.
+- A fresh sample is aged using Android monotonic elapsed time from response receipt, conservatively adding the request round-trip duration. A lifecycle-aware local timer updates visible age and re-enables Connect when a fresh-negative sample expires; it makes no network requests. The device wall clock is not used to decide freshness.
+- FP-03 and FP-04 provide the same opaque assignmentTag for an assigned snapshot. FP-02 displays a card and status together only when the tags match.
+- Profile/assignment and status are requested in parallel after FP-01 confirms the session.
+- Android StatusRepository belongs to FP-02. FP-04 continues to own the server endpoint and probe.
+- Status requests have an 8-second client deadline, cancellation, 429/Retry-After handling and a 2-second local refresh debounce.
+- R1 ships reviewed English (en-IN) string resources. Telugu (te-IN) translations are a follow-up requiring review; no unreviewed translation is embedded.
 
-- No student self-registration, Admin functions or assignment writes.
-- No VM power controls, VM picker or direct RDP target.
-- No hard-coded "Online" state.
-- No raw VM/host routing data in client UI.
-- No grant, Windows credentials, WSS relay or FreeRDP implementation.
-- Dock remains a disabled/informational R2 placeholder.
+## Acceptance warning
 
-## Review protocol
-
-Review FP-02 PRD §§4, 7, 12–14 and OPEN_QUESTIONS.md. Resolve safe VM label, assignment result, broker endpoint availability, freshness clock handling, refresh cadence and FP-01 integration evidence before implementation. Do not silently change the parent PRD or adjacent feature ownership.
+A passing Compose test or a visible Ready state does not prove RLS, broker deployment, grant authorization, Windows NLA or a working RDP session. FP-02 is complete only after its tests pass and the FP-01/03/04/05/06 contracts are integrated with real evidence.
