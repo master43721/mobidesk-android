@@ -71,7 +71,7 @@ PRD.md §6 is the normative policy.
 
 After a tap, only a new fresh sample with matching assignmentTag, RUNNING and RDP_NEGOTIATION_OK can invoke FP-05. Broker/grant checks remain authoritative.
 
-## 4. Exact parent error snapshots
+| CORE-41 | FP-06/grant reports ASSIGN-03 after a previously valid card | Clear card/status, cancel requests, suppress Connect, reload assignment/status pair once; never retry against old assignment | Fake grant/client integration |\n\n## 4. Exact parent error snapshots
 
 These seven strings must match PRD v1.2 §12 exactly:
 - AUTH-01: Your sign-in session expired. Sign in again.
