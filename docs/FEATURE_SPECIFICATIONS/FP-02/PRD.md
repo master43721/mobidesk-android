@@ -25,7 +25,7 @@ FP-02 is a Compose presentation/orchestration feature. It does not authorize ass
 | FP02-FR-009 | Keep Connect available for missing/stale/indeterminate status when auth/assignment are valid and there is no known-negative state or temporary request/cooldown gate. | Stale/UNKNOWN/NOT_CHECKED can initiate a fresh check; known-negative states disable. |
 | FP02-FR-010 | Every Connect tap obtains fresh broker status and checks assignmentTag before one no-argument FP-05 handoff. | No stale sample directly hands off; only matching, fresh RUNNING + RDP_NEGOTIATION_OK can proceed. |
 | FP02-FR-011 | Manual Refresh obtains a new sample and reports busy/cooldown/outcome. | Duplicate refresh serialized and Retry-After honored. |
-| FP02-FR-012 | Timeout, cancellation, 429, mismatch and failed refresh never preserve actionable old readiness. | Failure becomes indeterminate; bounded user retry only. |
+| FP02-FR-012 | Timeout, cancellation, 429, mismatch, failed refresh or definitive grant-level assignment invalidation never preserves actionable old readiness. | Failure becomes indeterminate; ASSIGN-03 clears card/status and triggers one paired reload; bounded user retry only. |
 | FP02-FR-013 | Use the seven exact parent error strings. | Snapshot tests equal PRD v1.2 §12. |
 | FP02-FR-014 | Cover loading, no-profile, assignment, lifecycle, transport, stale and service-error states. | All states have reviewed copy. |
 | FP02-FR-015 | Settings and sign-out delegate to FP-01. | No duplicate auth implementation. |
@@ -74,7 +74,7 @@ The Connect button is a fresh-check action, not an authorization stored by a pre
 **Availability**
 - Student must be FULLY_AUTHENTICATED and have one valid FP-03 Assigned result.
 - Keep Connect available when status is missing, stale, lifecycle UNKNOWN, transport UNKNOWN or NOT_CHECKED. These are indeterminate and benefit from a fresh user-initiated check.
-- Disable for definitive negatives: lifecycle STOPPED, STARTING, STOPPING or ERROR; transport TCP_UNREACHABLE or TCP_REACHABLE.
+- Disable for a **fresh** definitive negative: lifecycle STOPPED, STARTING, STOPPING or ERROR; transport TCP_UNREACHABLE or TCP_REACHABLE. Once any sample reaches the stale boundary, its former positive or negative state is indeterminate and Connect becomes available as a fresh-check action.
 - Disable while a request is in flight, auth/assignment is invalid, or the broker Retry-After cooldown is active. Manual Refresh remains available when its cooldown permits.
 
 **Tap**
