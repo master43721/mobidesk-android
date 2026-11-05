@@ -42,7 +42,7 @@ FP-02 owns the student-facing rule that no more than one assigned Cloud PC card 
 
 ## v0.2 decisions at a glance
 
-- A stale, missing or indeterminate sample does not make the Connect affordance unreachable. Connect remains available when identity and assignment are valid and no known-negative status or temporary in-flight/cooldown gate exists. Tapping always performs a fresh status check before FP-05.
+- A stale, missing or indeterminate sample does not make the Connect affordance unreachable. Connect remains available when identity and assignment are valid and the sample is stale, missing or indeterminate. A fresh known-negative status disables it; when that status becomes stale, it is indeterminate again. In-flight/cooldown gates temporarily disable it. Tapping always performs a fresh status check before FP-05.
 - A fresh sample is aged using Android monotonic elapsed time from response receipt, conservatively adding the request round-trip duration. The device wall clock is not used to decide freshness.
 - FP-03 and FP-04 provide the same opaque assignmentTag for an assigned snapshot. FP-02 displays a card and status together only when the tags match.
 - Profile/assignment and status are requested in parallel after FP-01 confirms the session.
