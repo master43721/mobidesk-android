@@ -22,12 +22,14 @@ RUN set -eux; \
     mv /tmp/android-tools/cmdline-tools "${ANDROID_HOME}/cmdline-tools/latest"; \
     rm -rf /tmp/android-tools /tmp/android-tools.zip; \
     yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --sdk_root="${ANDROID_HOME}" --licenses >/dev/null; \
-    "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --sdk_root="${ANDROID_HOME}" --install \
+    "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --sdk_root="${ANDROID_HOME}" --channel=3 --install \
       "platform-tools" \
-      "platforms;android-37" \
+      "platforms;android-37.0" \
       "build-tools;37.0.0" \
       "ndk;29.0.13113456" \
       "cmake;4.1.2"; \
+    test -s "${ANDROID_HOME}/platforms/android-37.0/android.jar"; \
+    test -x "${ANDROID_HOME}/build-tools/37.0.0/apksigner"; \
     chown -R vscode:vscode "${ANDROID_HOME}"
 
 USER vscode
