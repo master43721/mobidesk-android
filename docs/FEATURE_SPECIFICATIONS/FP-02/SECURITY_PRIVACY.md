@@ -1,115 +1,85 @@
-# FP-02 Security and Privacy Requirements — Student Dashboard and Workspace
+# FP-02 Security and Privacy Requirements
 
-**Version:** 0.1  
-**Date:** 4 November 2026  
-**Status:** Feature-level security draft, subordinate to parent PRD v1.2 and SECURITY_THREAT_MODEL.md.
+**Version:** 0.2 · **Date:** 5 November 2026  
+**Subordinate to:** MobiDesk PRD v1.2, SECURITY_THREAT_MODEL.md and approved parent amendments.
 
 ## 1. Security objective
 
-FP-02 must show a student only their own approved profile and assigned Cloud PC display information. It must not reveal infrastructure routing or permit the student UI to act as an authorization, assignment or VM-management authority.
+Show only the current fully authenticated student's approved profile and one valid assigned Cloud PC. The Android client is untrusted. Connect availability is a usability affordance only; the broker and FP-06 remain authoritative.
 
-The Android client is untrusted. The UI's Connect enablement is a usability control only; the broker and FP-03/FP-04 services remain authoritative.
+## 2. Data allowlist
 
-## 2. Data classification
-
-| Data | Allowed in student UI? | Rule |
+| Data | Student UI | Rule |
 |---|---|---|
-| Student display name | Yes, if present in approved profile | Current user's RLS-scoped record only |
-| College/institution label | Yes, if present and approved | Optional; omit when absent |
-| Student email | Only where explicitly approved | Do not display as a fallback name by default |
-| Roll number / roster row | No by default | Not included in existing screen definition |
-| Student Auth user ID | No | Internal repository key only |
-| Cloud PC display label | Yes | Must be a student-safe label from FP-03 |
-| Assignment state | Yes | Typed state such as assigned/not assigned/review needed |
-| VM ID / UUID / hypervisor name | No | Never render or pass from a UI selector |
-| Hostname / private IP / port / network route | No | Never fetch into FP-02 DTO |
-| Guacamole connection ID/base URL | No | Never request from Supabase into student UI |
-| Lifecycle state / RDP transport state | Yes | Use approved enums and safe wording |
-| sampledAt / sample age | Yes | Only as status freshness metadata |
-| requestId | Not as user content | Opaque diagnostic only, safely redacted if logged |
-| Supabase access JWT / refresh token | No | SDK only; never Compose state, navigation or logs |
-| Session grant | No | Not part of FP-02 |
-| Windows credentials | No | Owned by FP-05; FP-02 never collects them |
-| Raw backend exception / response body | No | Map to exact PRD error code/copy |
+| Student display name | Yes | Current student RLS result only |
+| College label | Optional | Approved profile field only |
+| Safe Cloud PC display label | Yes | FP-03-approved field only |
+| Lifecycle/transport | Yes | Approved enums and safe wording |
+| sampledAt/probe duration | Optional | No private infrastructure detail |
+| assignmentTag | No | Equality only in memory; never display or log |
+| requestId | No | Opaque diagnostic only if parent telemetry permits |
+| User ID/roll/other student | No | Never render or log |
+| VM ID/UUID/name/hostname/IP/port/Guac | No | Never request as client target or expose |
+| JWT, grant, guest credentials | No | Never place in Compose, navigation, disk or logs |
+| Raw response/exception | No | Map to approved safe copy |
 
-## 3. Identity and authorization controls
+## 3. Identity and assignment
 
-- FP-01 must provide a fully authenticated student session before workspace data is requested.
-- Use the current session/user token; don't accept user ID from text fields, navigation arguments, saved state or client-supplied API payload.
-- Student profile and assignment reads remain RLS-scoped and are implemented/owned by FP-03.
-- The status request uses the current Supabase access JWT in its Authorization header and no target selector.
-- A missing/ambiguous/inactive/unmapped assignment fails closed.
-- Do not show a VM card for a profile merely because a row exists in a previous cache.
-- Clear cached workspace/status data on sign-out, session expiry and subject change.
-- Broker revalidates assignment/readiness during grant flow independently.
+- Protected reads start only after FP-01 FULLY_AUTHENTICATED for the current session generation.
+- Use the current Supabase user session and RLS; never accept a caller-chosen subject ID.
+- FP-03 owns assignment authorization and exactly-one resolution.
+- Clear all prior user state and cancel calls on sign-out, AUTH-01, session generation change or invalidation.
+- Only FP-03 Assigned produces a card; zero/multiple/inactive/unmapped results fail closed.
+- assignmentTag is opaque, equality-only and generated from the shared trusted assignment resolver. It is not a secret or authorization credential. Rotate on assignment revision; never log or persist it.
 
-## 4. Infrastructure and action boundary
+## 4. API and routing boundary
 
-Student workspace must not include:
-- VM start/stop/restart/power controls;
-- assignment selection or change;
-- host terminal, SSH, libvirt console or server settings;
-- arbitrary network endpoint fields;
-- RDP hostname/IP/port;
-- admin links or student directory.
+- StatusRepository is the FP-02 Android client adapter; FP-04 owns GET /v1/vm-status and probe.
+- Current Supabase access JWT in Authorization header; HTTPS only.
+- GET has no body, query, user selector or VM/endpoint selector.
+- Status response allowlist: lifecycle, rdpTransport, sampledAt, probeDurationMs, staleAfterSeconds, requestId and assignmentTag.
+- Unknown JSON properties must not be mapped into student UI models.
+- The endpoint resolves the target server-side and returns no VM identity or route.
+- No service-role credential is included in the APK.
+- No student VM power, assignment or host-management action is present.
 
-The user may refresh readiness and request a connection only when eligible. FP-02 must not make the client directly open RDP to a guest.
+## 5. Freshness and Connect safety
 
-## 5. Freshness and UI tampering
+Use PRD.md §9 as the single normative Connect rule. A stale/missing/indeterminate sample does not hand off; it leaves Connect available only as a way to request a new sample when auth/assignment are valid. The new response must be fresh by monotonic receipt-age and have a matching assignmentTag plus RUNNING and RDP_NEGOTIATION_OK before FP-05 handoff. Known-negative states disable Connect. In-flight calls and broker cooldown also disable it.
 
-- Status is fresh only within the contract's stated sample lifetime (15 seconds in current API contract).
-- Stale, missing, malformed, unknown or failed status disables Connect.
-- A failed refresh cannot preserve an actionable prior Ready state.
-- UI state cannot override server assignment or authorization; FP-06/broker rechecks.
-- The status endpoint itself must not return private target information. The current API contract explicitly excludes VM identifiers, names, endpoints, hostnames and ports from the status response.
+A failed refresh, timeout, 429 or assignment mismatch invalidates previous actionable readiness. The old sample may be shown explicitly as stale but cannot authorize. FP-06/broker performs independent grant-time assignment/readiness checks.
 
-## 6. Logging and telemetry
+## 6. Timeouts, cancellation and rate limits
 
-Permitted diagnostics may include:
-- feature/screen stage;
-- safe PRD error code;
-- request outcome class;
-- elapsed duration;
-- non-sensitive, opaque request correlation ID if approved by parent telemetry rules.
+- 8-second cancellable client deadline; cancel on view/session lifecycle changes.
+- Never convert cancellation into an error toast or retry loop.
+- Respect non-negative Retry-After delta seconds and the matching safe retryAfterSeconds body value; use the larger valid delay.
+- No automatic retry; user action only after cooldown.
+- A local 2-second minimum refresh interval prevents rapid duplicate requests.
+- Fallback cooldown is bounded at 2/4/8/16/30 seconds only when the server gives no usable retry value.
 
-Forbidden:
-- student name/email/roll number/subject ID in general app logs;
-- JWT/access/refresh token/Authorization header;
-- raw status response body;
-- VM ID/UUID, hostname, private IP, port, Guacamole ID;
-- guest credentials or grant;
-- raw backend exception, stack trace containing user data, desktop pixels.
+## 7. Monotonic time
 
-Do not introduce a new telemetry event schema inside FP-02; follow FR-OBS-01 and the parent telemetry allowlist.
+Use SystemClock.elapsedRealtime() for age and cooldown. Never compare sampledAt with the handset wall clock to authorize. FP-04 must return a newly sampled observation for every successful request, not a pre-request cached response. If timing is invalid, state is indeterminate and handoff is denied.
 
-## 7. Threat/abuse cases specific to FP-02
+## 8. Logging and telemetry
 
-| Threat | Required control |
+Permitted only where parent allowlist approves: feature stage, safe PRD error code, outcome class, elapsed duration and redacted opaque request correlation. Forbidden: student identifier/name/email, assignmentTag, JWT, Authorization header, grant, password, VM identity/routing, raw response, stack trace containing user data, screen pixels or RDP payload.
+
+## 9. Threat controls
+
+| Threat | Control |
 |---|---|
-| Stale cache shows ready after the VM stopped | Age-gated status; disable Connect at expiry; refresh-before-Connect |
-| Multiple VM rows appear and the screen chooses one | FP-03 exactly-one typed contract; FP-02 displays only an Assigned singleton; ambiguity fails closed |
-| User modifies an ID in navigation to display another user's VM | No caller-selected subject/VM selector; current authenticated identity and RLS |
-| UI equates TCP open port with RDP readiness | Separate lifecycle/transport display; only RDP_NEGOTIATION_OK can qualify |
-| API returns internal host fields | DTO allowlist; reject/ignore unknown fields; static/contract test for no endpoint data |
-| Previous student data remains after account switch | Clear state before loading the new identity |
-| User tries to start or reassign their Cloud PC | No student power/assignment controls; backend independently denies such operations |
-| Server error leaks host/database detail | Exact PRD error mapping; raw exception never shown/logged |
+| Stale Ready view | Fresh request on every Connect; monotonic age; broker recheck |
+| Status for a different assignment than card | Shared assignmentTag comparison; paired reload once; ASSIGN-02 on repeat mismatch |
+| Multiple VM rows | FP-03 typed singleton; no first-row selection |
+| Port open mistaken for readiness | TCP_REACHABLE copy is distinct and never handoffs |
+| Phone wall clock wrong | monotonic receipt-age only |
+| Hung/abused refresh | 8s timeout, cancellation, debounce and 429 cooldown |
+| Cross-account late result | session-generation check and cache clear |
+| Backend details leaked | allowlisted DTO and exact safe copy |
+| UI tampering | broker/FP-06 revalidates independently |
 
-## 8. Dependencies and residual risk
+## 10. Acceptance
 
-- FP-03's current data/schema/policies need live verification; SUPABASE_DISCOVERY.md is a historical snapshot dated 27 October 2026 and must not be treated as current assignment truth.
-- FP-04 status endpoint/host probe needs deployment and contract evidence; SSH availability is not proof.
-- Existing current-main dashboard code iterates a list of VM results. FP-03 must replace that with exactly-one semantics before FP-02 can claim compliance.
-- The exact safety of `vms.name` as a student-facing label is UNKNOWN.
-- The device/server sample-time relationship and clock skew need a documented freshness decision.
-
-## 9. Security acceptance
-
-FP-02 is security-acceptable only when:
-- cross-student negative tests pass;
-- UI/DTO/logs expose no forbidden infrastructure or identity fields;
-- status freshness blocks Connect when stale/unknown;
-- Connect has no caller-selected assignment/VM target;
-- account switch/sign-out clears prior user's data;
-- the broker remains the final authorization authority;
-- no student administration or power controls exist.
+Cross-student negatives, tag mismatch, timeout/429, stale/wall-clock-jump, no-selector, sensitive-field scans and account-switch tests must pass. No private field or credential may appear in UI/log/state. Broker authorization remains independent of UI.
