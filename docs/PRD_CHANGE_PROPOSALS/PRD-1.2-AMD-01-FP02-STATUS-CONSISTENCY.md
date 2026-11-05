@@ -17,7 +17,7 @@ Finally, comparing RFC3339 sampledAt with handset wall time makes the 15-second 
 
 ### 2.1 Student journey — replace §5.1 step 4
 
-> **Connect action:** When the student is fully authenticated and has one valid assignment, Connect is an action to request a fresh status check and proceed if eligible. A missing, stale or indeterminate observation does not by itself make Connect unavailable. A definitive negative observation (STOPPED, STARTING, STOPPING, ERROR, TCP_UNREACHABLE or TCP_REACHABLE) disables Connect while the state remains current. Every Connect tap obtains a new broker status observation and proceeds only if the fresh result is RUNNING plus RDP_NEGOTIATION_OK and belongs to the same assignment revision as the displayed Cloud PC. The broker independently revalidates the assignment and readiness while issuing the session grant. Connect availability is a usability affordance, not authorization.
+> **Connect action:** When the student is fully authenticated and has one valid assignment, Connect is an action to request a fresh status check and proceed if eligible. A missing, stale or indeterminate observation does not by itself make Connect unavailable. A fresh definitive negative observation (STOPPED, STARTING, STOPPING, ERROR, TCP_UNREACHABLE or TCP_REACHABLE) disables Connect. Once any observation reaches the stale boundary, even a former negative result becomes indeterminate and Connect is available to request a fresh observation. Every Connect tap obtains a new broker status observation and proceeds only if the fresh result is RUNNING plus RDP_NEGOTIATION_OK and belongs to the same assignment revision as the displayed Cloud PC. The broker independently revalidates the assignment and readiness while issuing the session grant. Connect availability is a usability affordance, not authorization.
 
 ### 2.2 Freshness — clarify §5.2 / FR-VM-05
 
@@ -36,10 +36,10 @@ Finally, comparing RFC3339 sampledAt with handset wall time makes the 15-second 
 | Condition | Connect |
 |---|---|
 | No status sample / NOT_CHECKED | Available when auth and assignment are valid |
-| UNKNOWN lifecycle or transport | Available to request a fresh check |
+| UNKNOWN lifecycle or transport | Available to request a fresh check |\n| Any stale sample, including a formerly negative sample | Available to request a fresh check |
 | Stale previously positive observation | Available to request a fresh check |
-| STOPPED / STARTING / STOPPING / ERROR | Disabled |
-| TCP_UNREACHABLE / TCP_REACHABLE | Disabled |
+| Fresh STOPPED / STARTING / STOPPING / ERROR | Disabled |
+| Fresh TCP_UNREACHABLE / TCP_REACHABLE | Disabled |
 | Status request in flight | Temporarily disabled |
 | Retry-After cooldown active | Temporarily disabled |
 | Auth or assignment invalid | Hidden/disabled |
