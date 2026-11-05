@@ -24,7 +24,9 @@ This package corrects the v0.1 review findings. It does not claim that FP-03 ass
 9. PROGRESS.md — verified repository evidence and current blockers.
 10. REVISION_NOTES.md — what changed from v0.1.
 
-Parent amendment proposal: [AMD-01](../../PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md).\n\nDevelopment environment: [GitHub Codespaces workflow](../../CODESPACES_WORKFLOW.md).
+Parent amendment proposal: [AMD-01](../../PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md).
+
+Development environment: [GitHub Codespaces workflow](../../CODESPACES_WORKFLOW.md).
 
 ## Ownership
 
@@ -43,7 +45,7 @@ FP-02 owns the student-facing rule that no more than one assigned Cloud PC card 
 ## v0.2 decisions at a glance
 
 - A stale, missing or indeterminate sample does not make the Connect affordance unreachable. Connect remains available when identity and assignment are valid and the sample is stale, missing or indeterminate. A fresh known-negative status disables it; when that status becomes stale, it is indeterminate again. In-flight/cooldown gates temporarily disable it. Tapping always performs a fresh status check before FP-05.
-- A fresh sample is aged using Android monotonic elapsed time from response receipt, conservatively adding the request round-trip duration. The device wall clock is not used to decide freshness.
+- A fresh sample is aged using Android monotonic elapsed time from response receipt, conservatively adding the request round-trip duration. A lifecycle-aware local timer updates visible age and re-enables Connect when a fresh-negative sample expires; it makes no network requests. The device wall clock is not used to decide freshness.
 - FP-03 and FP-04 provide the same opaque assignmentTag for an assigned snapshot. FP-02 displays a card and status together only when the tags match.
 - Profile/assignment and status are requested in parallel after FP-01 confirms the session.
 - Android StatusRepository belongs to FP-02. FP-04 continues to own the server endpoint and probe.

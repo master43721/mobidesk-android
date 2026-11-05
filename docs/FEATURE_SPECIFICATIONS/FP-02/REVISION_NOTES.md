@@ -23,3 +23,5 @@
 ## Scope and no-change statement
 
 This review branch changes FP-02 documentation, parent/API proposals, CI SDK provisioning and Codespaces configuration only. It does not implement FP-02 application behavior, modify Supabase, deploy the broker, change VM state or alter the FreeRDP gitlink. CI run 42024067666 failed before Gradle due to the old SDK package name. The corrected run was pending at the last recorded check; no build/test/device/RDP pass is claimed.
+
+16. Added CORE-42 and a lifecycle-aware local monotonic age timer so a fresh-negative Connect state automatically becomes stale in the visible UI without network polling.

@@ -42,3 +42,5 @@ Connect/freshness and assignmentTag are proposed parent changes recorded in docs
 - FP-04 endpoint, probe, no-cached-sample, assignmentTag and 429.
 - FP-05 no-argument navigation callback.
 - Parent amendment approval and Telugu translation review.
+
+| D-27 | Use a lifecycle-aware local monotonic timer to update visible freshness labels and transition fresh-negative Connect availability at the stale boundary; timer makes no network requests | No network polling is retained while UI does not freeze in a disabled state | Confirmed feature design; test CORE-42 |

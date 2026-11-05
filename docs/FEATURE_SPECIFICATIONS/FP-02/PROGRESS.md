@@ -46,3 +46,7 @@
 No Android source, Supabase schema/data/RLS, broker, server VM, tunnel, FreeRDP gitlink or signing key was changed. No build, unit test, device or physical RDP test is claimed.
 
 Record each future result with exact branch/base SHA, source files, Gradle task, report path, result, device and reviewer. Missing evidence is BLOCKED or NOT RUN, never PASS.
+
+## Additional design hardening — 5 November 2026
+
+- Added a lifecycle-aware local monotonic age timer. It updates visible age text and transitions a fresh known-negative state to stale/Connect-available at the 15-second boundary without issuing a status request. CORE-42 covers the zero-network behavior. This preserves the no-network-polling policy while preventing a permanently disabled Connect affordance.
