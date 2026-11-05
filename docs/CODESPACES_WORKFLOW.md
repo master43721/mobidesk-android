@@ -99,7 +99,7 @@ For native FreeRDP work, build/test only the affected target and preserve the pi
 - Use the 4-core/16-GB Codespace for Gradle, Kotlin, CMake and native compilation; avoid building in a slow local laptop environment.
 - Build only the changed module/test task during iteration; run the full CI task before PR.
 - Do not run multiple Gradle builds concurrently in the same worktree.
-- Keep Gradle dependency cache and C/C++ compiler cache outside the Git repository under `/workspaces/.cache`.
+- Keep the Gradle dependency cache and Android user cache outside the Git repository under `/workspaces/.cache`. A ccache directory is provisioned there, but native compiler caching is effective only after the relevant CMake/Gradle targets explicitly configure ccache as their compiler launcher; do not assume it is active merely because the binary is installed.
 - Keep the pinned FreeRDP submodule and generated build outputs out of commits.
 - Use GitHub Actions for clean-room JVM tests and debug APK. Use an API 36 emulator workflow only when explicitly requested; physical R1 acceptance still requires the nominated physical device.
 - Codespaces prebuilds may reduce startup time after the devcontainer works, but they consume GitHub Actions/storage/billing resources. Enable them only after the first successful build and owner approval.
