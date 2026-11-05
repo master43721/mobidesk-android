@@ -2,32 +2,23 @@
 
 **Version:** 0.2 · **Date:** 5 November 2026
 
-Only unresolved external facts/approvals remain here. Closed design choices live in DECISIONS.md.
-
 | ID | Open item | Recommended closure | Status |
 |---|---|---|---|
-| OQ-01 | Is the selected FP-03 display label safe for students? | FP-03/Owner approve the exact source field and examples; no raw vms.name by assumption | OPEN — FP-03 |
-| OQ-02 | Where is the completed FP-01 AuthLevel implementation commit? | Owner reports FP-01 complete. Inspected main MobiDeskViewModel still observes SessionStatus.Authenticated and does not expose FULLY_AUTHENTICATED; identify/merge the correct commit and run recovery-only tests | OPEN — INTEGRATION BLOCKER |
-| OQ-03 | Exact FP-03 typed assignment model and assignmentTag resolver? | Publish model contract, zero/one/invalid cases, safe label and resolver source; tests prove stable equality for the same revision and rotation on reassignment | OPEN — FP-03 |
-| OQ-04 | Is FP-04 GET /v1/vm-status deployed at approved HTTPS base URL? | Test TLS, current JWT, request-fresh sample, no private response fields, matching assignmentTag and error/429 behavior | OPEN — FP-04 |
-| OQ-05 | What clock is used for freshness? | Closed in v0.2: Android elapsedRealtime receipt-age plus conservative request RTT; sampledAt display only; no cached prior sample | CLOSED — API amendment approval remains |
-| OQ-06 | Is periodic polling required? | Closed in v0.2: no periodic polling; load on entry, manual refresh and fresh request on Connect | CLOSED — parent amendment approval remains |
-| OQ-07 | User copy for missing profile? | FP-03 confirms typed result; use resource-backed safe account-not-provisioned state without placeholder identity | OPEN — FP-03/UX |
-| OQ-08 | College label missing behavior? | Closed: omit null/blank label | CLOSED |
-| OQ-09 | Does FP-05 expose stable no-argument navigation callback? | Confirm destination/callback name and navigation test | OPEN — FP-05 |
-| OQ-10 | May status survive Activity/process recreation? | Do not persist status freshness across process death; reload on re-entry | CLOSED — safe default |
-| OQ-11 | Is assignmentTag part of the parent/API contract? | Approve PRD amendment and API_CONTRACT v1.1 draft; FP-03 and FP-04 must use one canonical resolver | OPEN — OWNER/G1 |
-| OQ-12 | When is Telugu te-IN copy approved? | R1 English en-IN; add reviewed Telugu translations as a scoped follow-up with a fluent reviewer | OPEN — LOCALISATION |
+| OQ-01 | Is the FP-03 display label safe? | Owner/FP-03 approve exact source field and examples; do not assume raw vms.name is safe | OPEN — FP-03 |
+| OQ-02 | Where is completed FP-01 AuthLevel source commit? | Owner reports FP-01 complete. Inspected main ViewModel still observes SessionStatus.Authenticated and lacks FULLY_AUTHENTICATED; identify/merge exact implementation and test recovery-only | OPEN — integration blocker |
+| OQ-03 | FP-03 typed assignment and tag contract? | Freeze zero/one/invalid model, safe label and shared resolver tag; test rotation on reassignment | OPEN — FP-03 |
+| OQ-04 | Is FP-04 status endpoint deployed at approved HTTPS URL? | Verify JWT, request-fresh sample, tag, safe response and 429/Retry-After | OPEN — FP-04 |
+| OQ-05 | Which clock determines freshness? | Monotonic elapsedRealtime receipt-age + conservative request RTT; sampledAt display only | CLOSED — parent/API approval pending |
+| OQ-06 | Is periodic polling required? | No polling. Load on entry, manual Refresh, fresh request on Connect | CLOSED — parent approval pending |
+| OQ-07 | Exact missing-profile copy? | FP-03 confirms typed result; use safe resource-backed account-not-provisioned state | OPEN — FP-03/UX |
+| OQ-08 | Missing college label behavior? | Omit null/blank label | CLOSED |
+| OQ-09 | Does FP-05 expose a stable no-argument callback? | Confirm destination/callback and navigation test | OPEN — FP-05 |
+| OQ-10 | Persist status freshness across process recreation? | No; reload on re-entry | CLOSED — safe default |
+| OQ-11 | Is assignmentTag approved in parent/API? | Approve PRD amendment/API v1.1; FP-03/FP-04 use one canonical resolver | OPEN — Owner/G1 |
+| OQ-12 | When is Telugu copy approved? | R1 reviewed en-IN; te-IN only with fluent reviewer sign-off | OPEN — localization |
 
-## Non-negotiable known boundaries
+## Non-negotiable boundaries
 
-- No student VM selector, assignment mutation or VM power control.
-- No endpoint, hostname, IP, port, VM UUID or Guacamole metadata.
-- No “Online” inference from assignment existence or TCP_REACHABLE.
-- No stale or mismatched sample may be handed to FP-05.
-- UI availability is not authorization; grant-time server checks remain mandatory.
-- Dock stays informational for R1.
+No VM picker, assignment write, student power control, infrastructure identifiers, fake Ready, TCP-as-RDP inference, stale/mismatched handoff or student-side grant authorization. Dock is informational only in R1.
 
-## Evidence format
-
-Close an item only with the decision owner/date, source commit or API revision, relevant test report, affected FR/CORE IDs and any required parent-document update.
+Close an item only with decision owner/date, source commit or API revision, relevant tests, affected FR/CORE IDs and parent-document update.
