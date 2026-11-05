@@ -67,11 +67,15 @@ jobs:
           yes | sdkmanager --licenses
           set -o pipefail
           sdkmanager --licenses
-          sdkmanager --install \
-            "platforms;android-37" \
+          # Android 17/API 37 is published as android-37.0, not android-37.
+          # Install explicitly before Gradle starts to avoid on-demand SDK resolution.
+          sdkmanager --channel=3 --install \
+            "platforms;android-37.0" \
             "build-tools;37.0.0" \
             "ndk;29.0.13113456" \
             "cmake;4.1.2"
+          test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
 
       - name: Run JVM unit tests and assemble debug APK
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
