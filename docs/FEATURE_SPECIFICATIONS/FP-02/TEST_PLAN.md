@@ -27,7 +27,7 @@ Before implementation verify FP-01 FULLY_AUTHENTICATED, FP-03 typed assignment+s
 | CORE-12 | All transport enums | Five states remain distinct | Unit |
 | CORE-13 | Fresh RUNNING + RDP_NEGOTIATION_OK + matching tag | Connect available; tap still refreshes | Unit |
 | CORE-14 | Known-negative lifecycle/transport | Connect disabled; manual Refresh remains | Unit |
-| CORE-15 | Conservative age reaches 15s | Stale at >=15,000ms; stale alone does not disable Connect | Fake clock |
+| CORE-15 | Conservative age reaches 15s after any prior state, including STOPPED | Stale at >=15,000ms; former positive or negative becomes indeterminate and Connect is available for a fresh check | Fake clock |
 | CORE-16 | Refresh succeeds | Busy, replaces sample, recalculates age | UI |
 | CORE-17 | Refresh fails after Ready | Old sample not actionable | Unit |
 | CORE-18 | Connect tapped with stale sample | Fresh status first; no premature handoff | UI |
@@ -62,10 +62,10 @@ PRD.md §6 is the normative policy.
 |---|---|---|
 | No sample / NOT_CHECKED | Available after initial load | Never |
 | UNKNOWN lifecycle/transport | Available | Never |
-| Stale formerly-ready sample | Available | Never |
+| Stale formerly-ready or formerly-negative sample | Available | Never |
 | Fresh RUNNING + RDP_NEGOTIATION_OK + matching tag | Available | Never; tap refreshes first |
-| STOPPED / STARTING / STOPPING / ERROR | Disabled | Never |
-| TCP_UNREACHABLE / TCP_REACHABLE | Disabled | Never |
+| Fresh STOPPED / STARTING / STOPPING / ERROR | Disabled | Never |
+| Fresh TCP_UNREACHABLE / TCP_REACHABLE | Disabled | Never |
 | In-flight request or Retry-After cooldown | Temporarily disabled | Never |
 | Auth or assignment invalid | Hidden/disabled | Never |
 
