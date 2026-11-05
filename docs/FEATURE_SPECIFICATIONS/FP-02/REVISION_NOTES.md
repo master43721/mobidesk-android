@@ -13,9 +13,9 @@
 7. Parallelized profile/assignment and status calls after AuthLevel.
 8. Corrected FR-VM-01 split: FP-02 owns exactly-one card presentation; FP-03 owns resolution/authorization.
 9. Mapped CORE-25/27/29 and added CORE-31..40.
-10. Corrected estimate to 17–27h and added dependency effort and dates.
-11. Filed formal parent PRD/API change proposal; parent PRD v1.2 remains owner-review draft.
-12. Moved tool prompts out of the product spec folder into tools/prompts/fp-02/.
-13. Added pinned Android devcontainer with Java 21, Android SDK 37, NDK/CMake matching checked-in CI, NASM, submodule setup and persistent build caches.
+10. Corrected estimate to 17–27h and added dependency effort and dates.\n11. Added stale-formerly-negative semantics: once expired, every status is indeterminate and Connect can request a fresh observation.\n12. Added CORE-41 for a grant-level ASSIGN-03: clear old card/status and reload the assignment/status pair once.
+13. Filed formal parent PRD/API change proposal; parent PRD v1.2 remains owner-review draft.
+14. Moved tool prompts out of the product spec folder into tools/prompts/fp-02/.
+15. Added pinned Android devcontainer with Java 21, Android SDK 37, NDK/CMake matching checked-in CI, NASM, submodule setup and persistent build caches.
 
 This branch changes FP-02 documentation and Codespaces configuration only. No app code, Supabase, broker or VM implementation is claimed; tests remain NOT RUN.
