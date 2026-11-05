@@ -162,7 +162,7 @@ Following the Independent Senior Review, all requested P1–P3 code and build ch
   - Official HTML report generated at `app/build/reports/tests/testDebugUnitTest/index.html`.
 
 ### 2. Session Storage Encryption at Rest Implemented (P2 Resolution)
-- Added `androidx.security:security-crypto:1.1.0-alpha06` to `app/build.gradle`.
+- Added `androidx.security:security-crypto:1.1.0` to `app/build.gradle`.
 - Implemented `createEncryptedSessionManager()` in `MobiDeskApplication.kt` using `androidx.security.crypto.EncryptedSharedPreferences` and `MasterKey` (AES256_GCM key scheme + AES256_SIV key encryption + AES256_GCM value encryption), wrapped in `SharedPreferencesSettings` for Supabase `SettingsSessionManager`.
 - Fulfills FP01-CFG-08 and PRD §9 item 8: session tokens and refresh tokens are encrypted at rest with hardware Keystore-backed encryption.
 

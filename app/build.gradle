@@ -86,6 +86,7 @@ dependencies {
     implementation 'io.github.jan-tennert.supabase:postgrest-kt'
     implementation 'io.ktor:ktor-client-android:3.4.3'
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0'
+    implementation 'androidx.security:security-crypto:1.1.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
