@@ -31,6 +31,7 @@
 - GitHub: inspect repository/branch/file content and commit updated documentation/configuration.
 - GitHub: create branch from `main` and compare final review branch to `main`.
 - Codespaces: inspect existing Codespace/machine choices; update the existing workspace machine tier and display name.
+- Desktop Commander device discovery found the configured `penguin` device OFFLINE (last seen 91 hours earlier), so no terminal session was available to inspect the Codespace or Ubuntu Server.
 - No SSH into Ubuntu Server, browser-based terminal execution, local file modification or shell command on the running Codespace was performed.
 - No Supabase schema/query, broker deployment, VM/libvirt action, Cloudflare tunnel, FreeRDP gitlink update or release signing action was performed.
 
