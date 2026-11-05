@@ -17,7 +17,7 @@
 | Status client ownership | Corrected | FP-02 Android StatusRepository; FP-04 endpoint |
 | Timeout/cancellation/429 | Specified | 8s, cancellation, Retry-After, 2s debounce |
 | Parallel reads | Specified | After AuthLevel, paired by tag |
-| Traceability | Corrected | CORE-25/27/29 mapped; FR-VM-01 split |
+| Traceability | Corrected | CORE-25/27/29/41 mapped; FR-VM-01 split; grant-level ASSIGN-03 clears/reloads |
 | Estimate/schedule | Corrected | 17–27h; dated 5–11 Nov |
 | Parent PRD/API approval | OPEN | Amendment and API draft need G1/Owner approval |
 | FP-01 integration | BLOCKED — verify commit | Owner reports complete; inspected main lacks FULLY_AUTHENTICATED |
