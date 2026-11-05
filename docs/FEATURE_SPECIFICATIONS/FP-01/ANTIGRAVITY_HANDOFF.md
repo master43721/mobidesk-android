@@ -1,9 +1,9 @@
 # FP-01 Antigravity Implementation Handoff
 
-**Canonical repository:** `master43721/mobidesk-android`  
-**Feature:** FP-01 — Student Authentication and Account Recovery  
-**Prepared:** 4 November 2026  
-**Fresh documentation branch base:** current `main` at preparation SHA `60b3152c84ec13a0f43ec59a983e968c0b5b3ff7`. Re-fetch main before coding.  
+**Canonical repository:** `master43721/mobidesk-android`
+**Feature:** FP-01 — Student Authentication and Account Recovery
+**Prepared:** 4 November 2026
+**Fresh documentation branch base:** current `main` at preparation SHA `60b3152c84ec13a0f43ec59a983e968c0b5b3ff7`. Re-fetch main before coding.
 **Do not use:** `feature/fp-01-authentication-draft`; it was 39 commits behind current main when compared.
 
 ## 1. Goal
@@ -136,19 +136,26 @@ Run `:app:testDebugUnitTest`, `:app:connectedDebugAndroidTest` and debug assembl
 
 Historical discovery reported SMTP disabled; recheck live settings read-only. Custom SMTP or Send Email Hook is required for real recovery to ordinary non-team students. Local Supabase + Mailpit is valid repeatable local testing but does not prove production delivery. Real acceptance requires a synthetic non-team mailbox, exact redirect, physical Android callback, successful PKCE exchange, password update, new-password login and old-password rejection. Provider/domain/DNS/credentials are Owner-controlled; do not invent provider, paid plan or secrets. Do not change public signup toggle until Admin invitation path works; keep Email provider enabled.
 
-## 10. Execution plan and two-step verification
+## 10. Execution plan and mandatory 9-stage sequence
 
-1. Baseline: confirm latest main/head, Gradle/dependency/config and exact paths; run four existing tests before editing.
-2. Test seam: add interfaces/factory; verify production adapters and fake/spy tests.
-3. AuthLevel/marker: implement durable stage/fingerprint; prove zero workspace calls during recovery race.
-4. Lifecycle: exact callback path, replay prevention, process death, cancellation, LOCAL sign-out and fallback.
-5. UX/errors: typed codes, generic reset acknowledgement, rate limits and minimal Compose updates.
-6. Acceptance: all baseline/core tests, build, diff, manifest, storage and secret scans.
-7. External gates: local Mailpit if available; real SMTP/device tests are PASS only with actual evidence.
-8. Docs: update FP-01 PROGRESS with base/source SHA, changed paths, commands, each test result, device/environment, blockers and requirement matrix.
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, FP-01 must proceed through the mandatory 9-stage sequence:
+1. **Implementation:** Baseline test seams, `RecoveryStateStore`, `AuthLevel`, `SupabaseAuthRepository`, `MobiDeskViewModel` invariants, error mappings.
+2. **Automated tests:** 39 unit tests (`AuthErrorMessagesTest`, `MobiDeskViewModelTest`, `RecoveryStateStoreTest`) must pass cleanly (100% pass rate).
+3. **Build and integration verification:** Verify clean `:app:assembleDebug` and package validity.
+4. **Independent implementation review:** Senior review of implementation diff and automated tests.
+5. **Live-drill preparation:** Prepare `docs/live-drills/FP-01/` (`EXECUTION_REPORT.md`, `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`, `DEFECTS.md`). Set `LIVE_DRILL_STATUS = READY FOR OWNER`.
+6. **Explicit live-drill request to Owner:** Agent sends explicit live-drill handoff and **STOPS**.
+7. **Owner live demonstration:** Project Owner executes the 13 live scenarios on a physical Android device.
+8. **Evidence capture and review:** Update execution report, log defects in `DEFECTS.md`, capture redacted evidence, independent review of drill evidence.
+9. **Explicit Owner acceptance:** Owner records `ACCEPTED` or `REJECTED`.
 
-Every phase gets two checks: (A) direct acceptance test/inspection; (B) independent diff/regression/security review. Use small commits. Continue safe work when hardware/provider access is missing, but mark gates BLOCKED/NOT RUN.
+## 11. Mandatory Live-Drill Handoff Protocol & Stop Rule
 
-## 11. Final delivery report
+When Stages 1 through 4 pass, the agent MUST explicitly send the live-drill handoff to the Project Owner:
+> "FP-01 is ready for its mandatory live drill. Here is the exact artifact, source SHA, test environment, installation/setup procedure, scenario checklist and expected outcomes. Please perform the live drill."
 
-Return implementation branch/base SHA; changed files; design/state/callback sequence; FP01-FR-001..018 status with evidence; all baseline and CORE-01..24 results; build/test report paths; physical device outcome; read-only Supabase setting evidence (no secrets); SMTP gate; storage/backup/logging scan; diff scope; unresolved risks. Update `PROGRESS.md`. Do not label FP-01 DONE while any MUST or acceptance gate lacks evidence.
+The agent MUST then STOP execution and wait for the Owner's interaction results. An FP cannot be marked COMPLETE or ACCEPTED unless `LIVE_DRILL_STATUS` is `PASS` and Project Owner acceptance is recorded.
+
+## 12. Final delivery report
+
+Return implementation branch/base SHA; changed files; design/state/callback sequence; FP01-FR-001..018 status with evidence; all baseline and CORE-01..24 results; build/test report paths; `LIVE_DRILL_STATUS` value; physical device checklist outcome (`docs/live-drills/FP-01/DEVICE_OR_ENVIRONMENT_CHECKLIST.md`); read-only Supabase setting evidence (no secrets); SMTP gate; storage/backup/logging scan; diff scope; unresolved defects in `DEFECTS.md`. Update `PROGRESS.md`. Do not label FP-01 COMPLETE or ACCEPTED while `LIVE_DRILL_STATUS` is not PASS or Owner acceptance is lacking.

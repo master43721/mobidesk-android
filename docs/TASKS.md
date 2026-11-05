@@ -1,6 +1,6 @@
 # MobiDesk — G0–G5 Delivery Plan and Reforecast
 
-**Baseline:** PRD v1.2 dated 3 November 2026  
+**Baseline:** PRD v1.2 dated 3 November 2026
 **Planning model:** one Project Owner/engineer with AI assistance; approximately six focused engineering hours per working day; tasks are sequential where they share one owner. Estimates are planning ranges, not completed work or a promise. Weekend/holiday work is not assumed.
 
 ## 1. Gate estimates and forecast
@@ -111,3 +111,24 @@ These tasks implement the Owner-confirmed two-role prototype model. They are add
 | MD-ADM-12 | Configure and verify SMTP invitation delivery | 3–6 h engineering + provider/DNS lead time | Owner sender/domain choice | Project Owner | Provider verification, sender, templates, invite/resend delivery; DNS propagation and approval tracked separately |
 
 **Critical ordering:** MD-ADM-01 before any admin screen/action; MD-ADM-03 before student activation; MD-ADM-04 before disabling any existing signup/provisioning route; MD-ADM-08 only after host action allowlist and rollback are approved. No service-role/secret key is added to the Android app.
+
+
+## 7. Mandatory Live Drill Gate Tasks for Feature Points
+
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, every Feature Point (FP-01 through FP-28) requires an explicit, blocking live demonstration gate at the end of the feature lifecycle. An FP cannot be marked complete or accepted without `LIVE_DRILL_STATUS: PASS` and explicit Project Owner sign-off.
+
+| Task ID | FP Target | Work Package | Estimate | Dependencies | Owner | Gate Impact / Acceptance Evidence |
+|:---|:---:|:---|:---:|:---|:---:|:---|
+| **MD-FP01-LD01** | FP-01 | Resolve build blockers: DEF-001 (FFmpeg linker OOM) & DEF-002 (publishable key in `local.properties`) | 2–4 h | Owner approval for CMake parallelism | Project Owner + Agent | Successful `:app:assembleDebug` |
+| **MD-FP01-LD02** | FP-01 | Produce testable debug APK, record commit SHA and artifact SHA-256; seed QA student account | 1–2 h | MD-FP01-LD01 | Project Owner + Agent | Verified APK artifact in `docs/live-drills/FP-01/EXECUTION_REPORT.md` |
+| **MD-FP01-LD03** | FP-01 | Transmit explicit live-drill handoff request to Project Owner and STOP | < 1 h | MD-FP01-LD02 | Agent | `LIVE_DRILL_STATUS = READY FOR OWNER`; handoff sent |
+| **MD-FP01-LD04** | FP-01 | Execute live demonstration on physical Android phone (13 scenarios in `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`) | 2–3 h | MD-FP01-LD03; physical phone | Project Owner | `LIVE_DRILL_STATUS = IN PROGRESS` -> `PASS` (or `FAIL` in `DEFECTS.md`) |
+| **MD-FP01-LD05** | FP-01 | Audit live-drill evidence, verify privacy redaction, and perform independent drill review | 1–2 h | MD-FP01-LD04 | Independent Reviewer | `EXECUTION_REPORT.md` and `DEFECTS.md` reviewed |
+| **MD-FP01-LD06** | FP-01 | Record explicit written Project Owner acceptance or rejection | < 1 h | MD-FP01-LD05 | Project Owner | FP-01 promoted to `COMPLETE` only if accepted |
+| **MD-FP02-LD01** | FP-02 | Complete Stages 1–4 implementation, automated tests, and independent review | 17–27 h | FP-01 accepted, FP-03, FP-04 | Engineer / Agent | 100% tests passing; review approved |
+| **MD-FP02-LD02** | FP-02 | Prepare `docs/live-drills/FP-02/`, staging broker connection, and live scenario checklist | 2–3 h | MD-FP02-LD01 | Agent | `LIVE_DRILL_STATUS = READY FOR OWNER` |
+| **MD-FP02-LD03** | FP-02 | Transmit explicit live-drill handoff request to Project Owner and STOP | < 1 h | MD-FP02-LD02 | Agent | Handoff sent; execution halted |
+| **MD-FP02-LD04** | FP-02 | Execute live demonstration on physical Android phone against live staging broker API | 2–3 h | MD-FP02-LD03; staging broker | Project Owner | `LIVE_DRILL_STATUS = IN PROGRESS` -> `PASS` |
+| **MD-FP02-LD05** | FP-02 | Audit evidence, check privacy redaction, and conduct independent drill review | 1–2 h | MD-FP02-LD04 | Independent Reviewer | Drill review approved |
+| **MD-FP02-LD06** | FP-02 | Record explicit written Project Owner acceptance or rejection | < 1 h | MD-FP02-LD05 | Project Owner | FP-02 promoted to `COMPLETE` only if accepted |
+| **MD-FPXX-LD** | FP-03..28 | Execute standard 9-stage sequence and mandatory live drill gate for all remaining FPs | Ongoing | Prior FP acceptance | Project Owner + Agent | Mandated for every FP completion |

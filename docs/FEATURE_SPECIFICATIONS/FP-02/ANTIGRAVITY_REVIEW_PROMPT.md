@@ -97,23 +97,35 @@ Verify:
 - no unrelated Gradle/dependency/manifest change.
 - no new unapproved endpoint or hard-coded server address.
 
-## 8. External gates
+## 8. Live drill gate and physical demonstration review (Mandatory Stage 8)
+
+Review `docs/live-drills/FP-02/` (`EXECUTION_REPORT.md`, `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`, `DEFECTS.md`).
+Evaluate `LIVE_DRILL_STATUS` against allowed values: `NOT REQUESTED`, `NOT READY`, `READY FOR OWNER`, `IN PROGRESS`, `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`.
+Verify:
+- Artifact was tested on real physical Android device (SDK 29–37) against approved staging broker API and real assignment data.
+- Live demonstration exercised interactive dashboard loading, Cloud PC status rendering, fresh/stale transitions, and Connect button gating.
+- Any defect or visual/state glitch is recorded in `DEFECTS.md` (no silent fixes).
+- Redaction compliance: zero tokens, private IPs, or student PII in logs/screenshots.
+- Owner written decision is recorded. FP cannot be marked COMPLETE or ACCEPTED without Owner sign-off and `LIVE_DRILL_STATUS = PASS`.
+
+## 9. External gates
 
 A fake StatusRepository does not prove the broker endpoint is deployed. A reachable SSH host does not prove a stable HTTPS status route. A ready dashboard does not prove Windows NLA or RDP connection. Mark missing broker/FP-03/FP-01 integration, physical device or server evidence BLOCKED/NOT TESTED.
 
-## 9. Required review output
+## 10. Required review output
 
-1. Verdict: APPROVE / REQUEST CHANGES / BLOCKED / NOT READY.
-2. Summary of what is implemented vs mocked/documented.
-3. P0–P3 findings with file/line, requirement, impact, reproduction and recommended fix.
-4. FP02-FR-001..018 traceability matrix.
-5. CORE-01..30 test matrix with command/result/report/environment.
-6. Connect eligibility truth-table evidence.
-7. API/RLS/privacy/security audit.
-8. Accessibility review.
-9. Cross-feature ownership and PRD consistency report.
-10. Diff/build/dependency/base-branch report.
-11. External dependency/release-gate matrix.
-12. Merge recommendation and exact remaining closure evidence.
+1. Verdict: APPROVE FOR LIVE DRILL / APPROVE FOR OWNER SIGN-OFF / REQUEST CHANGES / BLOCKED / NOT READY.
+2. `LIVE_DRILL_STATUS` assessment: current state, blockers, and next action.
+3. Summary of what is implemented vs mocked/documented.
+4. P0–P3 findings with file/line, requirement, impact, reproduction and recommended fix.
+5. FP02-FR-001..018 traceability matrix.
+6. CORE-01..30 test matrix with command/result/report/environment.
+7. Connect eligibility truth-table evidence.
+8. API/RLS/privacy/security audit.
+9. Accessibility review.
+10. Cross-feature ownership and PRD consistency report.
+11. Diff/build/dependency/base-branch report.
+12. Live-drill scenario matrix and defect audit.
+13. Merge recommendation and exact remaining closure evidence.
 
-Be strict: compilation is not acceptance; a fake status test is not broker verification; a Ready button is not RDP success; no requirement may be marked PASS without inspectable evidence.
+Be strict: compilation is not acceptance; a fake status test is not broker verification; a Ready button is not RDP success; no requirement may be marked PASS without inspectable evidence. FP-02 cannot be accepted without a live demonstration on physical Android hardware and explicit Project Owner sign-off.

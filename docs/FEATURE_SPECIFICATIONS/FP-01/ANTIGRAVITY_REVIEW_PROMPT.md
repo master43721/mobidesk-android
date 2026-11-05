@@ -52,17 +52,28 @@ Verify typed handling for invalid_credentials, email_not_confirmed, email_addres
 ### External gates
 Inspect live Supabase settings read-only only. Local Mailpit is not proof of real SMTP delivery. Production recovery acceptance requires verified SMTP/Send Email Hook and sender domain, non-team synthetic mailbox delivery, real physical-device callback, PKCE exchange, password update, new-password login and old-password rejection. Public signup remains unchanged in FP-01.
 
+### Live drill gate and physical demonstration review (Mandatory Stage 8)
+Review `docs/live-drills/FP-01/` (`EXECUTION_REPORT.md`, `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`, `DEFECTS.md`).
+Evaluate `LIVE_DRILL_STATUS` against allowed values: `NOT REQUESTED`, `NOT READY`, `READY FOR OWNER`, `IN PROGRESS`, `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`.
+Verify:
+- Artifact was tested on real physical Android device (SDK 29–37), not emulator.
+- All 13 physical scenarios in `DEVICE_OR_ENVIRONMENT_CHECKLIST.md` are accounted for.
+- Any defect or crash is recorded in `DEFECTS.md` (no silent fixes).
+- Redaction compliance: zero passwords, tokens, PKCE verifiers, or student PII in logs/screenshots.
+- Owner written decision is recorded. FP cannot be marked COMPLETE or ACCEPTED without Owner sign-off and `LIVE_DRILL_STATUS = PASS`.
+
 ## Required review output
 
-1. Verdict: APPROVE / REQUEST CHANGES / BLOCKED / NOT READY.
-2. Executive summary separating implemented behavior from documented or unverified behavior.
-3. P0–P3 findings, each with file/line, requirement, observed behavior, impact, reproduction/test evidence and proposed fix.
-4. FP01-FR-001..018 traceability matrix with PASS/PARTIAL/FAIL/BLOCKED/NOT TESTED.
-5. Baseline + CORE-01..24 matrix with command, exact test, environment, result and report path.
-6. Security/privacy and secret-scan results.
-7. Parent PRD/cross-feature consistency check (FR-AUTH-01 vs FR-AUTH-02; no signup; invitation boundary).
-8. Diff/build/manifest/dependency compatibility and unrelated-change report.
-9. Separate implementation-completeness and external release-gate matrices.
-10. Merge recommendation, blockers and exact closure evidence.
+1. Verdict: APPROVE FOR LIVE DRILL / APPROVE FOR OWNER SIGN-OFF / REQUEST CHANGES / BLOCKED / NOT READY.
+2. `LIVE_DRILL_STATUS` assessment: current state, blockers, and next action.
+3. Executive summary separating implemented behavior from documented or unverified behavior.
+4. P0–P3 findings, each with file/line, requirement, observed behavior, impact, reproduction/test evidence and proposed fix.
+5. FP01-FR-001..018 traceability matrix with PASS/PARTIAL/FAIL/BLOCKED/NOT TESTED.
+6. Baseline + CORE-01..24 matrix with command, exact test, environment, result and report path.
+7. Security/privacy and secret-scan results.
+8. Parent PRD/cross-feature consistency check (FR-AUTH-01 vs FR-AUTH-02; no signup; invitation boundary).
+9. Diff/build/manifest/dependency compatibility and unrelated-change report.
+10. Live-drill scenario matrix and defect audit.
+11. Merge recommendation, blockers and exact closure evidence.
 
-Be strict. A successful build is not feature acceptance. A green fake-repository test is not proof of physical callback/process-death behavior. A local Mailpit test is not proof of production SMTP. Missing evidence must remain BLOCKED or NOT TESTED.
+Be strict. A successful build or passing unit tests is NOT feature acceptance. A green fake-repository test is not proof of physical callback/process-death behavior. A local Mailpit test is not proof of production SMTP. Missing physical evidence must remain BLOCKED or NOT RUN. FP-01 cannot be accepted without a live demonstration on physical Android hardware and explicit Project Owner sign-off.

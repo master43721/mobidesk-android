@@ -1,7 +1,7 @@
 # MobiDesk — R1 Verification and Acceptance Test Plan
 
-**Version:** 1.0 · **Date:** 3 November 2026  
-**Normative source:** MobiDesk PRD v1.2.  
+**Version:** 1.0 · **Date:** 3 November 2026
+**Normative source:** MobiDesk PRD v1.2.
 **Rule:** A build, code review or plan is not a passing test. Each PASS requires recorded procedure, tested commit, environment, result, evidence link/hash and reviewer.
 
 ## 1. Test strategy and levels
@@ -164,7 +164,7 @@ Each test injects the fault and asserts the exact error code and exact English u
 
 ## 5. RD-1 physical device procedure
 
-**PRD nomination:** Pixel 6, Android 16 / API 36, arm64.  
+**PRD nomination:** Pixel 6, Android 16 / API 36, arm64.
 **Availability:** [UNKNOWN as of 3 Nov 2026] Project Owner must verify that this exact physical device is available. If a different phone will be the test device, update the PRD through an approved change before G4; do not silently substitute.
 
 Record:
@@ -271,16 +271,22 @@ Open issue / next action:
 
 Raw test evidence must not contain student identifiers, email, usernames, passwords, grants/JWTs, VM UUIDs, private IPs/hostnames, screenshots of student data or desktop contents.
 
-## 9. Gate exit criteria
+## 9. Gate exit criteria & Mandatory Live Drill Policy
+
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, automated unit tests and test seams are necessary but never sufficient for completion. Every Feature Point (FP) requires an explicit, blocking live demonstration in the target environment:
+
+- **State Model:** Every FP must maintain `LIVE_DRILL_STATUS`: `NOT REQUESTED`, `NOT READY`, `READY FOR OWNER`, `IN PROGRESS`, `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`.
+- **Target Matching:** Android UI features require physical phone demonstration; Broker features require live deployed broker scenarios; FreeRDP features require live Windows VM connections; Dock features require physical hardware.
+- **Terminal Acceptance:** An FP cannot achieve `COMPLETE` or `ACCEPTED` status without `LIVE_DRILL_STATUS: PASS` and recorded written Project Owner sign-off.
 
 | Gate | Mandatory test groups | Exit condition |
 |---|---|---|
 | G0 | T-COMP-01/02; G0 repository audit | Owner PRD direction, exact main/branch/gitlink and SDK/ABI baseline recorded; conflicts open |
 | G1 | T-AUTH-01–05; contract schema; SEC control map; error snapshot tests | API/OpenAPI, threat model, error and traceability reviews accepted; FR-SEC numbering issue explicitly handled |
-| G2 | T-VM-01–11; T-SES-01–09; T-SEC-01–06,09–11; relay contract | Active session, assignment, grant, status, allowlist, WSS and revocation tests pass; VM4 remains excluded |
-| G3 | T-GUEST-01–06; T-RDP-01–10; T-BRIDGE-01–07; TS-RDP-01–05 | Real pinned FreeRDP NLA session with secure bridge/cert validation, renderer lifecycle and complete cleanup |
-| G4 | T-INPUT-01–05; T-LIFE-01–07; T-PERF-01–06; T-NEG-01–20 | Physical RD-1 procedure and all PRD reliability/performance/security gates pass |
-| G5 | T-OBS-01/02; T-PRIV-01/02; T-REL-01–05; T-SEC-12 | Owner-signed artifact, static/privacy scan, support, rotation, backup/retention, incident/rollback evidence approved |
+| G2 | T-VM-01–11; T-SES-01–09; T-SEC-01–06,09–11; relay contract; Live Broker Drill | Active session, assignment, grant, status, allowlist, WSS and revocation tests pass; live drill PASS; VM4 remains excluded |
+| G3 | T-GUEST-01–06; T-RDP-01–10; T-BRIDGE-01–07; TS-RDP-01–05; Live Client Drill | Real pinned FreeRDP NLA session with secure bridge/cert validation, renderer lifecycle and complete cleanup; live drill PASS |
+| G4 | T-INPUT-01–05; T-LIFE-01–07; T-PERF-01–06; T-NEG-01–20; Physical RD-1 Drill | Physical RD-1 procedure and all PRD reliability/performance/security gates pass; live drill PASS |
+| G5 | T-OBS-01/02; T-PRIV-01/02; T-REL-01–05; T-SEC-12; Release Operations Drill | Owner-signed artifact, static/privacy scan, support, rotation, backup/retention, incident/rollback evidence approved; Owner acceptance |
 
 ## 10. Current evidence status
 

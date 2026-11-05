@@ -1,6 +1,6 @@
 # MobiDesk — Gated Implementation Sequence
 
-**Version:** 1.0 · **Date:** 3 November 2026  
+**Version:** 1.0 · **Date:** 3 November 2026
 **Owner:** Project Owner; Lab IT consulted for guest-account and VM operations.
 
 This file summarizes sequencing. Hour estimates, detailed dependencies and dates are authoritative in TASKS.md.
@@ -14,6 +14,13 @@ This file summarizes sequencing. Hour estimates, detailed dependencies and dates
 | P4 / G4 — Device acceptance | RD-1 tests, 20 attempts, p90, 120s FPS workload, input latency, 20-cycle cleanup, recovery and negatives | All PRD NFR-PERF and security tests pass with reproducible private evidence | Yes: no pilot release before pass |
 | P5 / G5 — Release/operations | Channel/key decision, signed artifact, static scan/SBOM, pin rotation, support, backup/restore, retention, incident and rollback | Owner go/no-go and Lab IT operational sign-off | Terminal release gate |
 | R2 — Dock | Compare phone transcode vs Pi-native FreeRDP; key-backed pairing; external display/input UX | Comparative latency/FPS/power/thermal/recovery test; owner decision record | Not required for R1 |
+
+## Mandatory Live Drill Acceptance Gate
+
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, **every Feature Point (FP-01 through FP-28)** across all phases must satisfy the mandatory 9-stage sequence:
+1. Implementation -> 2. Automated tests -> 3. Build verification -> 4. Independent implementation review -> 5. Live-drill preparation -> 6. Explicit live-drill handoff request to Owner -> 7. Owner live demonstration in target environment -> 8. Evidence capture & drill review -> 9. Explicit Owner acceptance.
+
+No feature point may be marked complete or accepted merely because automated tests or code review passed. `LIVE_DRILL_STATUS: PASS` and recorded Project Owner sign-off are blocking exit criteria for every FP.
 
 ## Critical path
 G1 contract/threat freeze -> G2 secure broker -> G3 FreeRDP transport/render/NLA -> G4 physical validation -> G5 distribution and operations.

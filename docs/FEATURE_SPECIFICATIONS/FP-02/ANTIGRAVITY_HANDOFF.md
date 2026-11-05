@@ -1,9 +1,9 @@
 # Antigravity Implementation Handoff — FP-02 Student Dashboard and Workspace
 
-**Repository:** `master43721/mobidesk-android`  
-**Feature:** FP-02 — Student Dashboard and Workspace  
-**Specification branch:** `docs/fp-02-student-dashboard-workspace`  
-**Implementation branch:** create a new branch from latest `main` after this specification is reviewed/approved.  
+**Repository:** `master43721/mobidesk-android`
+**Feature:** FP-02 — Student Dashboard and Workspace
+**Specification branch:** `docs/fp-02-student-dashboard-workspace`
+**Implementation branch:** create a new branch from latest `main` after this specification is reviewed/approved.
 **Status:** Owner review draft. Do not begin production implementation until the open cross-feature contracts are verified.
 
 ## 1. Task
@@ -138,10 +138,23 @@ Implement/run all FP02-CORE-01..30 from `TEST_PLAN.md`. This includes:
 
 Run existing app unit/Compose tests as well. Report exact task names, test names, report paths and device/emulator. A test not run is NOT RUN, not PASS.
 
-## 6. Stop conditions
+## 6. Stop conditions & Mandatory 9-Stage Gate Sequence
+
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, FP-02 must adhere to the mandatory 9-stage sequence:
+1. **Implementation:** Dashboard Compose UI, `DashboardViewModel`, status model, Connect gating.
+2. **Automated tests:** CORE-01..30 unit and contract tests pass cleanly (100% pass rate).
+3. **Build verification:** Standard Gradle build succeeds with verified APK artifact and SHA-256.
+4. **Independent review:** Senior review of implementation diff and automated tests.
+5. **Live-drill preparation:** Prepare `docs/live-drills/FP-02/` (`EXECUTION_REPORT.md`, `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`, `DEFECTS.md`). Set `LIVE_DRILL_STATUS = READY FOR OWNER`.
+6. **Explicit live-drill request:** Agent sends explicit handoff message to Owner and **STOPS**.
+7. **Owner live demonstration:** Owner executes live demonstration on physical Android device against approved staging broker API and real assignment data.
+8. **Evidence capture and review:** Update reports, record defects, capture redacted evidence, independent review of drill evidence.
+9. **Explicit Owner acceptance:** Owner records `ACCEPTED` or `REJECTED`.
+
+### Stop conditions
 
 Stop Connect integration and report BLOCKED if:
-- FP-01 AuthLevel is missing/unverified.
+- FP-01 live drill is not complete / `LIVE_DRILL_STATUS` not PASS.
 - FP-03 exact-one contract is missing.
 - Student-safe Cloud PC display label is not agreed.
 - FP-04 status endpoint/client is missing or not authenticated.
@@ -150,7 +163,14 @@ Stop Connect integration and report BLOCKED if:
 
 Do not replace a missing dependency with mocked live UI data, a fake "Online" status, a hard-coded endpoint or a client-side VM selector.
 
-## 7. Final report
+## 7. Mandatory Live-Drill Handoff Protocol & Stop Rule
+
+When Stages 1 through 4 pass, the agent MUST explicitly send the live-drill handoff to the Project Owner:
+> "FP-02 is ready for its mandatory live drill. Here is the exact artifact, source SHA, test environment, installation/setup procedure, scenario checklist and expected outcomes. Please perform the live drill."
+
+The agent MUST then STOP execution and wait for the Owner's interaction results. An FP cannot be marked COMPLETE or ACCEPTED unless `LIVE_DRILL_STATUS` is `PASS` and Project Owner acceptance is recorded.
+
+## 8. Final report
 
 Return:
 - implementation branch/base SHA;
@@ -160,8 +180,10 @@ Return:
 - current status endpoint/environment evidence;
 - freshness implementation and Connect truth table;
 - accessibility/security/static scan evidence;
+- `LIVE_DRILL_STATUS` value;
+- physical device checklist outcome (`docs/live-drills/FP-02/DEVICE_OR_ENVIRONMENT_CHECKLIST.md`);
 - unresolved FP-01/FP-03/FP-04/FP-05 dependencies;
 - screenshots/test reports from synthetic data only;
 - updated `docs/FEATURE_SPECIFICATIONS/FP-02/PROGRESS.md`.
 
-Do not claim FP-02 complete while any MUST requirement or dependency gate remains BLOCKED/NOT RUN.
+Do not claim FP-02 COMPLETE or ACCEPTED while `LIVE_DRILL_STATUS` is not PASS or Owner acceptance is lacking.

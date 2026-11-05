@@ -1,9 +1,9 @@
 # FP-02 Progress and Evidence
 
-**Version:** 0.1  
-**Snapshot:** 4 November 2026  
-**Canonical repository:** master43721/mobidesk-android  
-**Branch:** docs/fp-02-student-dashboard-workspace  
+**Version:** 0.1
+**Snapshot:** 4 November 2026
+**Canonical repository:** master43721/mobidesk-android
+**Branch:** docs/fp-02-student-dashboard-workspace
 **Implementation changes:** None. This branch contains FP-02 documentation only.
 
 ## 1. Current status
@@ -48,10 +48,20 @@ This note is not a claim that the Owner has not completed FP-01 locally or in an
 
 No Android source, Gradle, Manifest, dependency, Supabase live setting/schema/data, broker, server, VM, Cloudflare tunnel, firewall, RDP or FreeRDP file was changed. No build or test result is claimed.
 
-## 5. Next steps
+## 5. Next steps and Mandatory Live Drill Gate
 
-1. Close FP-01 integration discrepancy with a commit and accepted evidence.
-2. Agree FP-03 typed exactly-one assignment result and student-safe label.
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, FP-02 is subject to the mandatory 9-stage gate sequence:
+- **Current `LIVE_DRILL_STATUS`:** `NOT REQUESTED` (Blocks FP completion; implementation has not started).
+- **Owner Acceptance Status:** `UNACCEPTED`.
+- **Live Drill Requirement:** Execution on a physical Android device against the approved staging broker API with real student assignment and live VM lifecycle/status data. Connect button gating must be physically demonstrated.
+
+### Phased Execution Sequence
+1. Await FP-01 live-drill completion (`LIVE_DRILL_STATUS: PASS`) and written Project Owner acceptance.
+2. Agree on FP-03 typed exactly-one assignment result and student-safe label.
 3. Verify FP-04 status endpoint/client contract and stable server route.
 4. Obtain Owner answers to OPEN_QUESTIONS.md.
-5. Implement FP-02 on a fresh branch from latest main in small phases and update this file with real test evidence.
+5. Implement FP-02 on a fresh branch from latest main in small phases with 100% automated test coverage.
+6. Conduct independent implementation review.
+7. Prepare `docs/live-drills/FP-02/` and set `LIVE_DRILL_STATUS = READY FOR OWNER`.
+8. Send explicit live-drill handoff request to Project Owner and **STOP**.
+9. Owner executes live demonstration on physical Android phone; audit evidence and record written Owner acceptance.

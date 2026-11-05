@@ -1,9 +1,9 @@
 # MobiDesk — Feature Inventory and Release Scope
 
-**Document version:** 1.0  
-**Snapshot:** 4 November 2026  
-**Canonical repository:** [master43721/mobidesk-android](https://github.com/master43721/mobidesk-android)  
-**Normative source:** `docs/MobiDesk_PRD_v1.2.pdf` unless a row is explicitly marked as an owner-directed proposed amendment.  
+**Document version:** 1.0
+**Snapshot:** 4 November 2026
+**Canonical repository:** [master43721/mobidesk-android](https://github.com/master43721/mobidesk-android)
+**Normative source:** `docs/MobiDesk_PRD_v1.2.pdf` unless a row is explicitly marked as an owner-directed proposed amendment.
 **Purpose:** Product-level feature breakdown for estimation, implementation planning, acceptance and progress tracking. **Current count:** 28 FPs — 18 Student R1, 6 College Administrator R1 and 4 Dock R2.
 
 > **Important source distinction:** The PRD v1.2 PDF remains the current normative specification. This inventory records the Project Owner's latest choices. It does not silently rewrite v1.2. Any conflict with v1.2 is marked **OWNER-DIRECTED PROPOSED CHANGE** and must be incorporated into an approved successor PRD before implementation treats it as normative.
@@ -17,6 +17,21 @@ A Feature Point (FP) is one coherent, independently identifiable product capabil
 - An FP is not automatically a screen, API route, class, commit or coding task.
 - Each FP will later be decomposed into engineering tasks, tests, dependencies and evidence.
 - A feature is not complete merely because its UI exists or an APK compiles.
+- **Mandatory Live Drill Gate:** Every FP must complete the 9-stage sequence defined in `docs/MANDATORY_LIVE_DRILL_POLICY.md` ending in a live target demonstration, evidence review, and explicit Project Owner acceptance.
+
+### Mandatory Live Drill Status Model
+
+Each FP tracks `LIVE_DRILL_STATUS`:
+- `NOT REQUESTED`: Implementation or prerequisites in progress (blocks completion).
+- `NOT READY`: Build, tests, or environment incomplete (blocks drill request).
+- `READY FOR OWNER`: Artifact verified, environment seeded, checklist ready, handoff sent.
+- `IN PROGRESS`: Project Owner executing demonstration in target environment.
+- `PASS`: All mandatory live scenarios passed; physical/target evidence captured.
+- `FAIL`: Scenarios failed or defects encountered; documented in `DEFECTS.md`.
+- `BLOCKED`: External hardware/build/environment blocker; documented with blocker ID.
+- `NOT RUN`: Scenarios catalogued but unexecuted (never equivalent to PASS).
+
+An FP cannot be marked `COMPLETE` or `ACCEPTED` unless `LIVE_DRILL_STATUS` is `PASS` and explicit Project Owner sign-off is recorded.
 
 ### Status labels
 
@@ -48,6 +63,8 @@ R1 delivers two role-based workflows in the same Android app: the College Admini
 
 ### FP-01 — Student Authentication and Account Recovery
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
+**LIVE_DRILL_STATUS:** BLOCKED (Gated on DEF-001 linker OOM, DEF-002 publishable key, QA student credentials)
+**Acceptance Status:** UNACCEPTED (Mandatory physical Android demonstration pending)
 
 **Outcome:** A provisioned student securely signs in using their institutional identity.
 
@@ -66,9 +83,12 @@ R1 delivers two role-based workflows in the same Android app: the College Admini
 - Expired/revoked sessions return to sign-in.
 - Recovery does not claim that an email was delivered until the configured mail flow is verified.
 - Credentials and tokens never appear in logs or navigation arguments.
+- Mandatory Live Drill (`docs/live-drills/FP-01/DEVICE_OR_ENVIRONMENT_CHECKLIST.md`) must pass 100% on physical Android hardware and receive Project Owner written sign-off.
 
 ### FP-02 — Student Dashboard and Workspace
 **Priority:** P0 · **Release:** R1 · **Status:** V1.2 BASELINE
+**LIVE_DRILL_STATUS:** NOT REQUESTED (Blocks FP completion; implementation not started)
+**Acceptance Status:** UNACCEPTED
 
 **Outcome:** The student has one clear home screen for their identity and Cloud PC.
 
@@ -87,6 +107,7 @@ R1 delivers two role-based workflows in the same Android app: the College Admini
 - Only the current student's profile and one valid assigned VM are shown.
 - No infrastructure hostname, IP, VM UUID, port or other student's data is exposed.
 - No hard-coded “Online” indicator or fake assignment is displayed.
+- Mandatory Live Drill (`docs/live-drills/FP-02/DEVICE_OR_ENVIRONMENT_CHECKLIST.md`) must pass against approved staging broker API and receive Project Owner written sign-off.
 
 **Detailed feature package:** [FP-02 specification, design, implementation plan, test plan and Antigravity handoff](FEATURE_SPECIFICATIONS/FP-02/README.md). The package preserves FP-03 assignment resolution and FP-04 status ownership.
 
