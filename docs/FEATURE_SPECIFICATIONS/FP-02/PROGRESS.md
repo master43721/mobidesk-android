@@ -3,49 +3,46 @@
 **Version:** 0.2 · **Snapshot:** 5 November 2026  
 **Repository:** master43721/mobidesk-android  
 **Specification branch:** docs/fp-02-v0.2-corrected-codespaces  
-**Application implementation:** Not started by this change.
+**Application implementation:** Not started by this documentation change.
 
-## 1. Current status
+## Current status
 
-| Workstream | Status | Evidence |
+| Workstream | State | Evidence |
 |---|---|---|
-| FP-02 critique review | DONE | Seven review groups reconciled in v0.2 |
-| Connect contradiction | CORRECTED IN SPEC | PRD.md §9; parent amendment proposal filed |
-| Freshness clock | DECIDED IN SPEC | Monotonic receipt-age + round-trip upper bound |
-| Assignment/card status consistency | CONTRACT PROPOSED | assignmentTag requires FP-03/FP-04 agreement |
-| Missing state copy | CORRECTED IN SPEC | PRD.md §6 includes every enum and freshness state |
-| Status client ownership | CORRECTED IN SPEC | FP-02 owns Android StatusRepository; FP-04 owns endpoint |
-| Timeout/cancellation/429 | SPECIFIED | 8s deadline, cancellation, Retry-After, cooldown |
-| Parallel initial requests | SPECIFIED | Workspace/status concurrent after AuthLevel |
-| Traceability | CORRECTED IN SPEC | CORE-25/27/29 mapped; FR-VM-01 split correctly |
-| Estimate | CORRECTED | 17–27 h arithmetic sum |
-| Schedule | DATED | 5–11 November 2026 plan, reforecast on dependency slip |
-| Parent PRD/API approval | OPEN | Proposal and API draft require G1/Owner approval |
-| FP-01 integration | BLOCKED / VERIFY COMMIT | Owner reports complete, but inspected main source lacks FULLY_AUTHENTICATED handoff |
+| Critique review | DONE | Seven groups reconciled |
+| Connect contradiction | Corrected in FP-02 spec | PRD.md §6; parent amendment filed |
+| Freshness clock | Decided | Monotonic receipt-age + request RTT upper-bound |
+| Assignment/card consistency | Contract proposed | Opaque assignmentTag needs FP-03/04 |
+| Enum/freshness copy | Written | PRD.md §4 |
+| Status client ownership | Corrected | FP-02 Android StatusRepository; FP-04 endpoint |
+| Timeout/cancellation/429 | Specified | 8s, cancellation, Retry-After, 2s debounce |
+| Parallel reads | Specified | After AuthLevel, paired by tag |
+| Traceability | Corrected | CORE-25/27/29 mapped; FR-VM-01 split |
+| Estimate/schedule | Corrected | 17–27h; dated 5–11 Nov |
+| Parent PRD/API approval | OPEN | Amendment and API draft need G1/Owner approval |
+| FP-01 integration | BLOCKED — verify commit | Owner reports complete; inspected main lacks FULLY_AUTHENTICATED |
 | FP-03 result/tag | BLOCKED | Typed singleton and safe label not verified |
-| FP-04 deployment/tag/429 | BLOCKED | Status endpoint and approved HTTPS route not evidenced |
-| FP-05 callback | BLOCKED | No-argument navigation contract not verified |
-| Application code/tests | NOT STARTED / NOT RUN | This branch changes documentation and Codespaces configuration only |
+| FP-04 API/tag/429 | BLOCKED | Endpoint/deployment not evidenced |
+| FP-05 callback | BLOCKED | No-argument callback not verified |
+| App code and tests | NOT STARTED / NOT RUN | This change is docs and Codespaces configuration only |
 
-## 2. Repository evidence
+## Repository evidence
 
-- Canonical codebase: master43721/mobidesk-android, native Kotlin + Jetpack Compose with pinned FreeRDP submodule.
-- Current main MobiDeskViewModel.kt blob inspected: 32bbfc45c96baf9021bd34f2d860d44bbd95b6ed.
-- That source observes Supabase SessionStatus.Authenticated, sets a boolean isAuthenticated and loads workspace. No FULLY_AUTHENTICATED AuthLevel contract is present in that inspected file.
-- This is a repository integration discrepancy, not a claim that the Owner did not complete FP-01 locally or on a different commit.
-- Current status API contract is a G1 proposal and does not prove that the endpoint is deployed.
+- Canonical repo: master43721/mobidesk-android, native Kotlin/Compose with pinned FreeRDP submodule.
+- Inspected main MobiDeskViewModel.kt blob: 32bbfc45c96baf9021bd34f2d860d44bbd95b6ed.
+- That source observes Supabase SessionStatus.Authenticated, sets isAuthenticated and loads workspace; the inspected file does not expose FULLY_AUTHENTICATED AuthLevel.
+- This is a repository integration discrepancy, not a claim that local/other-branch FP-01 work does not exist.
+- API_CONTRACT is a G1 proposal; it does not prove a deployed endpoint.
 
-## 3. Workspace / Codespaces evidence
+## Codespaces evidence
 
-- Existing Codespace: didactic-giggle-xr5r9j9g76q629974; Central India; repository master43721/mobidesk-android.
-- Upgraded from 2 cores/8 GB to 4 cores/16 GB (standardLinux32gb). This machine change takes effect on next start.
-- GitHub reports the existing Codespace has uncommitted and unpushed changes on main. No reset, clean or branch switch was performed.
-- The v0.2 branch adds a reproducible Android devcontainer configuration. Build and tests must be run inside the Codespace after it checks out this branch or the merged setup.
+- Existing Codespace: didactic-giggle-xr5r9j9g76q629974, Central India, master43721/mobidesk-android.
+- Upgraded from 2 cores/8 GB to 4 cores/16 GB (standardLinux32gb); machine change applies on next start.
+- GitHub reports uncommitted and unpushed work on main. No reset, clean or branch switch was performed.
+- v0.2 branch adds a reproducible Android devcontainer; build/tests remain NOT RUN until opened and verified.
 
-## 4. No-claim statement
+## No-claim statement
 
-No Android/Kotlin source, Supabase schema/data/RLS, broker, host VM, Cloudflare tunnel, FreeRDP gitlink or release-signing file was changed. No build, unit test, device test or physical RDP test is claimed as run.
+No Android source, Supabase schema/data/RLS, broker, server VM, tunnel, FreeRDP gitlink or signing key was changed. No build, unit test, device or physical RDP test is claimed.
 
-## 5. Next evidence to record
-
-For each implementation step record the exact branch/base SHA, source files, Gradle task, test report path, result, emulator/device and reviewer. Use PASS, PARTIAL, FAIL, BLOCKED or NOT RUN; do not convert a missing result to PASS.
+Record each future result with exact branch/base SHA, source files, Gradle task, report path, result, device and reviewer. Missing evidence is BLOCKED or NOT RUN, never PASS.
