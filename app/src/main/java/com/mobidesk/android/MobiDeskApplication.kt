@@ -9,6 +9,7 @@ import com.russhwolf.settings.SharedPreferencesSettings
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.FlowType
+import io.github.jan.supabase.auth.MemorySessionManager
 import io.github.jan.supabase.auth.SessionManager
 import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
@@ -19,7 +20,7 @@ class MobiDeskApplication : Application() {
         SharedPreferencesRecoveryStateStore(this)
     }
 
-    private fun createEncryptedSessionManager(): SessionManager {
+    internal fun createEncryptedSessionManager(): SessionManager {
         return try {
             val masterKey = MasterKey.Builder(this)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -33,7 +34,12 @@ class MobiDeskApplication : Application() {
             )
             SettingsSessionManager(SharedPreferencesSettings(encryptedPrefs))
         } catch (_: Throwable) {
-            SettingsSessionManager()
+            try {
+                val plainPrefs = getSharedPreferences("mobidesk_session", MODE_PRIVATE)
+                SettingsSessionManager(SharedPreferencesSettings(plainPrefs))
+            } catch (_: Throwable) {
+                MemorySessionManager()
+            }
         }
     }
 

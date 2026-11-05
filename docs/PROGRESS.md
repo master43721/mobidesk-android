@@ -36,23 +36,30 @@
 | 3 Nov 2026 | Revalidated FreeRDP gitlink | Pinned commit identified as signed FreeRDP 3.32.0 release | Supports G3 spike, not RDP completion |
 | 3 Nov 2026 | Compared current main and prior docs branch | this suite branch existed at ca34e425a9f8c02dfc3f831ca620e590ecb6c789 with merge base a6c7282; it was 18 commits ahead and one behind current main; its three-dot diff contained documentation paths only | Avoids inheriting branch drift |
 | 3 Nov 2026 | Identified owner evidence questions | Repository visibility, PDF cover status, RD-1 actual hardware, distribution, VM4 and WSS remain open | OPEN_ITEMS.md |
+| 3 Nov 2026 | Branch drift and scope check | GitHub compare: docs/prd-v1.2-suite was 18 ahead / 1 behind main; three-dot diff contained only 18 docs paths | PR should be opened from this documentation branch after final checks |
+| 5 Nov 2026 | Introduced Mandatory Live Drill Gate for every FP | docs/MANDATORY_LIVE_DRILL_POLICY.md, FEATURE_ACCEPTANCE_CHECKLIST.md; live demonstration is a mandatory blocking gate for all FPs | Process Gate Active |
 
-| 3 Nov 2026 | Branch drift and scope check | GitHub compare: docs/prd-v1.2-suite was 18 ahead / 1 behind main; three-dot diff contained only 18 docs paths | PR should be opened from this documentation branch after final checks |\n\n## 4. Append-only progress entry template
+## 4. Append-only progress entry template
 
 Copy this row for each meaningful engineering/test event. Do not record secrets, student identifiers, private endpoints, screen contents or bearer values.
 
-| Date/time UTC | Branch + commit | Gate/task ID | Change or test performed | Environment / device | Result | Evidence link / artifact hash | Open issue / next action |
-|---|---|---|---|---|---|---|---|
-| YYYY-MM-DD HH:MM | branch@sha | MD-... | Exact change/test | Device/API/ABI or server class only | PASS / FAIL / BLOCKED / NOT RUN | Link or SHA-256 | Owner/action/date |
+| Date/time UTC | Branch + commit | Gate/task ID | Change or test performed | Environment / device | Test Result | LIVE_DRILL_STATUS | Evidence link / artifact hash | Owner decision / next action |
+|---|---|---|---|---|---|---|---|---|
+| YYYY-MM-DD HH:MM | branch@sha | MD-... | Exact change/test | Device/API/ABI or server class only | PASS / FAIL / BLOCKED / NOT RUN | NOT REQUESTED / READY / IN PROGRESS / PASS / FAIL / BLOCKED | Link or SHA-256 | ACCEPTED / REJECTED / Owner action |
 
 ## 5. Gate evidence rules
 
+- **Mandatory 9-Stage Sequence:** Every FP must complete: (1) Implementation -> (2) Automated tests -> (3) Build verification -> (4) Independent implementation review -> (5) Live-drill preparation -> (6) Explicit live-drill request to Project Owner -> (7) Owner live demonstration in target environment -> (8) Evidence capture & independent drill review -> (9) Explicit Owner acceptance or rejection.
+- **Mandatory State Model:** Each FP tracks `LIVE_DRILL_STATUS`: `NOT REQUESTED`, `NOT READY`, `READY FOR OWNER`, `IN PROGRESS`, `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`.
+- **Terminal Acceptance Invariant:** A feature point is NEVER complete or accepted merely because implementation, automated tests, or code review passed. It requires `LIVE_DRILL_STATUS: PASS` and recorded Project Owner acceptance.
+- **Explicit Agent Stop Rule:** When Stages 1–4 pass, the agent MUST explicitly send the handoff: *"FP-XX is ready for its mandatory live drill. Here is the exact artifact, source SHA, test environment, installation/setup procedure, scenario checklist and expected outcomes. Please perform the live drill."* and STOP execution to await Owner interaction.
+- **Environment Matching:** Android UI/auth requires physical Android hardware; dashboard/status requires physical phone + real staging broker API; session broker requires deployed test broker; FreeRDP requires physical phone to real Windows VM; Dock requires physical hardware. Mocks and emulators cannot replace required live drills.
 - A document existing is not proof that its implementation is complete.
 - A successful Gradle build or debug APK is not proof of a real Windows NLA/RDP session.
 - Emulator-only testing does not satisfy the physical RD-1 performance gate.
 - A TCP/3389 reachability check is not proof that RDP negotiation or Windows NLA succeeds.
 - A test is PASS only when its procedure, commit, environment, result and evidence artifact are recorded.
-- No G0–G5 gate is declared fully passed in this status report unless every PRD exit criterion has evidence.
+- No G0–G5 gate or FP is declared complete unless every PRD exit criterion and live-drill evidence has been verified and accepted by the Owner.
 
 
 ## 6. Owner feature scope decisions recorded — 3 Nov 2026
@@ -74,4 +81,33 @@ Copy this row for each meaningful engineering/test event. Do not record secrets,
 - **SECURITY BOUNDARY:** All privileged actions execute through trusted server-side APIs. No Supabase service-role/secret key, direct libvirt connection, SSH credential or arbitrary shell command is exposed to Android.
 - Added docs/ADMIN_ACCOUNT_MODEL.md and FP-23..FP-28 in docs/FEATURE_INVENTORY.md. The admin scope conflicts with v1.2's explicit admin-console exclusion; proposed successor-PRD wording is maintained in PRD_V1_3_CHANGES.md. The v1.2 PDF is unchanged.
 - The current branch contains documentation changes only. No Android source, Supabase settings, database schema, server or VM was changed. private.app_user_roles is a proposed schema addition only. Invitation delivery, invite callback support, admin role/RLS, and admin control-plane APIs remain NOT IMPLEMENTED / BLOCKED pending the listed tasks and tests.
+
+
+## 8. Owner-directed mandatory live drill gate & FP status reconciliation — 5 Nov 2026
+
+- **OWNER DIRECTED:** Introduced mandatory, blocking live feature demonstration gate for every FP (FP-01 through FP-28), formalizing `docs/MANDATORY_LIVE_DRILL_POLICY.md` and `docs/FEATURE_ACCEPTANCE_CHECKLIST.md`.
+- **STATUS MODEL ENFORCED:** Every FP must maintain `LIVE_DRILL_STATUS` (`NOT REQUESTED`, `NOT READY`, `READY FOR OWNER`, `IN PROGRESS`, `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`). An FP cannot be marked complete or accepted without `LIVE_DRILL_STATUS: PASS` and explicit Project Owner acceptance.
+- **AGENT PROTOCOL ENFORCED:** When Stages 1–4 pass, the agent MUST explicitly send the handoff: *"FP-XX is ready for its mandatory live drill. Here is the exact artifact, source SHA, test environment, installation/setup procedure, scenario checklist and expected outcomes. Please perform the live drill."* and STOP execution.
+
+### FP-01 Status Reconciliation
+- **Branch / Commit:** `feature/fp-01-auth-hardening` @ `cf01c89deb7dd0b0cb4a272811d9b322f33a93e8`
+- **Implementation (Stage 1):** PASS. `RecoveryStateStore`, `AuthLevel`, `SupabaseAuthRepository` test seams, `MobiDeskViewModel` invariants, encrypted session storage (`EncryptedSharedPreferences` + `MasterKey`).
+- **Automated Tests (Stage 2):** PASS. 40 unit tests pass (100% success rate: 10 AuthErrorMessagesTest, 1 MobiDeskApplicationTest, 23 MobiDeskViewModelTest, 6 RecoveryStateStoreTest).
+- **Build Verification (Stage 3):** BLOCKED by Defect DEF-001 (CMake linker memory exhaustion during `make -j` in `ExternalFFmpeg.cmake`) and Defect DEF-002 (missing `SUPABASE_PUBLISHABLE_KEY` in `local.properties`).
+- **Independent Implementation Review (Stage 4):** APPROVED with P1–P3 resolutions in commit `cf01c89`.
+- **Live-Drill Preparation (Stage 5):** Evidence directory established at `docs/live-drills/FP-01/` with 13 physical scenarios catalogued in `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`.
+- **Live-Drill Request (Stage 6):** BLOCKED pending build resolution and test account configuration.
+- **`LIVE_DRILL_STATUS`:** `BLOCKED` (gated on DEF-001, DEF-002, and QA account credentials).
+- **Owner Acceptance:** `NOT ACCEPTED` (Human physical demonstration pending).
+
+### FP-02 Status Reconciliation
+- **Branch:** `main` (spec v0.1 merged); `docs/fp-02-v0.2-final` (spec v0.2 in draft PR #7).
+- **Implementation (Stage 1):** NOT STARTED.
+- **Automated Tests (Stage 2):** NOT RUN.
+- **Build Verification (Stage 3):** NOT STARTED.
+- **Independent Review (Stage 4):** NOT STARTED.
+- **Live-Drill Preparation (Stage 5):** Scaffolding established at `docs/live-drills/FP-02/`.
+- **`LIVE_DRILL_STATUS`:** `NOT REQUESTED` (blocks FP completion).
+- **Owner Acceptance:** `NOT ACCEPTED`.
+
 

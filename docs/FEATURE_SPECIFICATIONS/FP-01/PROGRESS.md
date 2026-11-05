@@ -152,21 +152,48 @@ Owner reviews OQ-01 through OQ-06 and the proposed recovery/AuthLevel behavior. 
 Following the Independent Senior Review, all requested P1–P3 code and build changes have been implemented and verified:
 
 ### 1. Standard Gradle Build & Test Pipeline Restored (P1 Resolution)
-- Removed direct `@aar` classifier issue on `sqlcipher-android` in `gradle/freerdpcore.gradle`.
+- Removed direct `@aar` classifier on `sqlcipher-android` in `gradle/freerdpcore.gradle` (`net.zetetic:sqlcipher-android:4.17.0`), eliminating the AGP 9.2.1 / Gradle 9.6.1 variant provider resolution failure.
+- Removed duplicate `androidx.security:security-crypto:1.1.0-alpha06` dependency from `app/build.gradle` (retaining stable `1.1.0`).
 - Added `testOptions { unitTests.returnDefaultValues = true }` and `kotlinx-coroutines-test` in `app/build.gradle`.
 - Verified standard Gradle execution: `./gradlew :app:testDebugUnitTest` executed and passed cleanly:
   - `AuthErrorMessagesTest`: 10 passed, 0 failed (100% success rate)
+  - `MobiDeskApplicationTest`: 1 passed, 0 failed (100% success rate)
   - `MobiDeskViewModelTest`: 23 passed, 0 failed (100% success rate)
   - `RecoveryStateStoreTest`: 6 passed, 0 failed (100% success rate)
-  - **Total: 39 passed, 0 failed, 39 total.**
+  - **Total: 40 passed, 0 failed, 40 total.**
   - Official HTML report generated at `app/build/reports/tests/testDebugUnitTest/index.html`.
 
 ### 2. Session Storage Encryption at Rest Implemented (P2 Resolution)
 - Added `androidx.security:security-crypto:1.1.0` to `app/build.gradle`.
 - Implemented `createEncryptedSessionManager()` in `MobiDeskApplication.kt` using `androidx.security.crypto.EncryptedSharedPreferences` and `MasterKey` (AES256_GCM key scheme + AES256_SIV key encryption + AES256_GCM value encryption), wrapped in `SharedPreferencesSettings` for Supabase `SettingsSessionManager`.
+- Hardened fallback chain: if hardware Keystore encryption is unavailable (e.g. JVM tests, corrupted Keystore), gracefully falls back to private `SharedPreferencesSettings` (`mobidesk_session`) and ultimately to `MemorySessionManager()`, preventing `IllegalStateException: Failed to create default settings for SettingsSessionManager`.
+- Added unit test `MobiDeskApplicationTest` verifying non-null session manager creation.
 - Fulfills FP01-CFG-08 and PRD §9 item 8: session tokens and refresh tokens are encrypted at rest with hardware Keystore-backed encryption.
 
 ### 3. Repository Hygiene & Test Harness Clean Up (P3 Resolution)
 - Completely removed ad-hoc `test-runner/` harness and associated shims.
-- All 39 unit tests are housed in standard Gradle source directories (`app/src/test/java/com/mobidesk/android/`) and run directly through the standard `./gradlew :app:testDebugUnitTest` command.
+- All 40 unit tests are housed in standard Gradle source directories (`app/src/test/java/com/mobidesk/android/`) and run directly through the standard `./gradlew :app:testDebugUnitTest` command.
 - Cleaned `.gitignore` to maintain proper repository hygiene.
+
+
+## 10. Mandatory Live-Drill Gate Status & Reconciliation — 5 November 2026
+
+Per `docs/MANDATORY_LIVE_DRILL_POLICY.md`, automated unit tests and senior code reviews are necessary prerequisites, but do not complete FP-01. Physical demonstration on an Android phone is a mandatory, blocking acceptance gate.
+
+- **Current `LIVE_DRILL_STATUS`:** `BLOCKED`
+- **Owner Acceptance Status:** `UNACCEPTED` (Human physical demonstration pending)
+- **Active Blockers Documented:**
+  1. **DEF-001:** FreeRDP ExternalFFmpeg CMake linker memory exhaustion during `make -j` link of `libavcodec.so.62` on container with ~8 GB RAM and 0 swap. Proposed resolution: bound compilation parallelism or configure swap. Awaiting Owner approval.
+  2. **DEF-002:** `local.properties` contains `SUPABASE_URL` but is missing `SUPABASE_PUBLISHABLE_KEY`. Live drill requires key insertion before building the testable APK.
+  3. **QA Account:** Provisioning of dedicated staging QA student account and confirmation of email delivery path.
+- **Scenarios Catalogued:** 13 physical scenarios defined in `docs/live-drills/FP-01/DEVICE_OR_ENVIRONMENT_CHECKLIST.md` (all currently `NOT RUN` pending APK build and test account).
+- **Evidence Directory:** `docs/live-drills/FP-01/` (`EXECUTION_REPORT.md`, `DEVICE_OR_ENVIRONMENT_CHECKLIST.md`, `DEFECTS.md`).
+- **Next Required Actions:**
+  1. Owner approves CMake build parameter adjustment to resolve DEF-001.
+  2. Configure Supabase publishable key in `local.properties` (DEF-002).
+  3. Build debug APK and record artifact SHA-256.
+  4. Transition `LIVE_DRILL_STATUS` to `READY FOR OWNER`.
+  5. Send explicit live-drill handoff request to Project Owner and STOP.
+  6. Project Owner performs live demonstration on physical Android phone.
+  7. Audit evidence and record written Owner acceptance.
+
