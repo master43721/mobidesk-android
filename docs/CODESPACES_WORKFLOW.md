@@ -38,17 +38,17 @@ After the current work is safely committed or stashed:
 
 ```bash
 git fetch origin --prune
-git switch -c docs/fp-02-v0.2-corrected-codespaces --track origin/docs/fp-02-v0.2-corrected-codespaces
+git switch -c docs/fp-02-v0.2-final --track origin/docs/fp-02-v0.2-final
 git submodule update --init --recursive
 ```
 
-If the local branch already exists, use `git switch docs/fp-02-v0.2-corrected-codespaces` after verifying its upstream and status. Do not use `-f`.
+If the local branch already exists, use `git switch docs/fp-02-v0.2-final` after verifying its upstream and status. Do not use `-f`.
 
 ## 4. Environment verification
 
 The committed `.devcontainer` installs the same core Android toolchain pinned in the checked-in Android CI workflow:
 - Temurin/OpenJDK 21
-- Android SDK platform 37 and build-tools 37.0.0
+- Android SDK platform package `platforms;android-37.0` and build-tools 37.0.0
 - NDK 29.0.13113456
 - CMake 4.1.2
 - NASM and C/C++ build prerequisites
@@ -64,7 +64,7 @@ git submodule status --recursive
 ./gradlew --version
 ```
 
-If the Codespace asks to rebuild the container, rebuild only after the dirty worktree is preserved. The 4-core/16-GB machine update applies on the next start.
+If the Codespace asks to rebuild the container, rebuild only after the dirty worktree is preserved. The 4-core/16-GB machine update is confirmed by GitHub and applies when the environment is restarted.
 
 ## 5. Build/test loop
 
