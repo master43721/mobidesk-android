@@ -8,7 +8,7 @@
 - Canonical repository verified: `master43721/mobidesk-android` (native Kotlin + Jetpack Compose). The separate `SudheendraSripada/mobidesk_app` Flutter starter is not the Android product repository.
 - Existing FP-02 v0.1 source branch inspected: `docs/fp-02-student-dashboard-workspace`.
 - Final clean review branch created from current `main`: `docs/fp-02-v0.2-final`.
-- Final branch comparison: 31 commits ahead, 0 behind; exactly 27 changed files (FP-02 docs, API contract, amendment proposal, devcontainer, Codespaces guide and prompts). No Android source changes.
+- Final branch comparison: directly based on main, 0 behind; exactly 27 changed files (FP-02 docs, API contract, amendment proposal, devcontainer, Codespaces guide and prompts). No Android source changes.
 - An earlier staging branch `docs/fp-02-v0.2-corrected-codespaces` contains the working draft; final review branch was recreated from main to avoid its long inherited commit history.
 
 ## 2. Workspace
