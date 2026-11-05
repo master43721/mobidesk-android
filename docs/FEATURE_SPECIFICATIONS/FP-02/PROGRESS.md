@@ -1,57 +1,51 @@
 # FP-02 Progress and Evidence
 
-**Version:** 0.1  
-**Snapshot:** 4 November 2026  
-**Canonical repository:** master43721/mobidesk-android  
-**Branch:** docs/fp-02-student-dashboard-workspace  
-**Implementation changes:** None. This branch contains FP-02 documentation only.
+**Version:** 0.2 · **Snapshot:** 5 November 2026  
+**Repository:** master43721/mobidesk-android  
+**Specification branch:** docs/fp-02-v0.2-corrected-codespaces  
+**Application implementation:** Not started by this change.
 
 ## 1. Current status
 
 | Workstream | Status | Evidence |
 |---|---|---|
-| Feature scope | DRAFTED | FEATURE_INVENTORY.md FP-02 and parent DESIGN.md S-02/S-03/S-07/S-09 |
-| Parent requirement mapping | DRAFTED | FR-AUTH-02, FR-VM-01, FR-VM-04/05 plus R2 Dock boundaries mapped in TRACEABILITY.md |
-| Current dashboard source audit | DONE — read-only | Current main MobiDeskViewModel.kt, MobiDeskRepositories.kt and MobiDeskApp.kt inspected |
-| FP-01 integration | BLOCKED / VERIFY OWNER CLAIM | Current main source snapshot still loads workspace on Supabase Authenticated; current implementation does not expose the completed AuthLevel gate described in FP-01 docs |
-| FP-03 assignment contract | BLOCKED — DEPENDENCY | Current StudentWorkspaceResult.Ready contains a list; no exactly-one typed assignment result in inspected main source |
-| FP-04 status integration | BLOCKED — DEPENDENCY | API contract specifies GET /v1/vm-status, but no StatusRepository/client in inspected Android source |
-| Broker deployment/base URL | UNKNOWN | OPEN_ITEMS.md previously recorded stable broker HTTPS/WSS route as open; new server reachability report is not evidence of endpoint deployment |
-| Student-safe VM label | UNKNOWN | Current source displays VmSummary.name; current values/semantics are not proven safe |
-| Automated tests | NOT RUN | No application code changed in this documentation revision |
-| Physical device/accessibility | NOT RUN | No physical device evidence in this documentation revision |
-| FP-02 acceptance | NOT STARTED | Feature package only |
+| FP-02 critique review | DONE | Seven review groups reconciled in v0.2 |
+| Connect contradiction | CORRECTED IN SPEC | PRD.md §9; parent amendment proposal filed |
+| Freshness clock | DECIDED IN SPEC | Monotonic receipt-age + round-trip upper bound |
+| Assignment/card status consistency | CONTRACT PROPOSED | assignmentTag requires FP-03/FP-04 agreement |
+| Missing state copy | CORRECTED IN SPEC | PRD.md §6 includes every enum and freshness state |
+| Status client ownership | CORRECTED IN SPEC | FP-02 owns Android StatusRepository; FP-04 owns endpoint |
+| Timeout/cancellation/429 | SPECIFIED | 8s deadline, cancellation, Retry-After, cooldown |
+| Parallel initial requests | SPECIFIED | Workspace/status concurrent after AuthLevel |
+| Traceability | CORRECTED IN SPEC | CORE-25/27/29 mapped; FR-VM-01 split correctly |
+| Estimate | CORRECTED | 17–27 h arithmetic sum |
+| Schedule | DATED | 5–11 November 2026 plan, reforecast on dependency slip |
+| Parent PRD/API approval | OPEN | Proposal and API draft require G1/Owner approval |
+| FP-01 integration | BLOCKED / VERIFY COMMIT | Owner reports complete, but inspected main source lacks FULLY_AUTHENTICATED handoff |
+| FP-03 result/tag | BLOCKED | Typed singleton and safe label not verified |
+| FP-04 deployment/tag/429 | BLOCKED | Status endpoint and approved HTTPS route not evidenced |
+| FP-05 callback | BLOCKED | No-argument navigation contract not verified |
+| Application code/tests | NOT STARTED / NOT RUN | This branch changes documentation and Codespaces configuration only |
 
-## 2. Repository provenance and FP-01 status note
+## 2. Repository evidence
 
-The latest observed main commit during preparation is the merge of documentation PR #5. GitHub reports:
-- PR #5 (FP-01 handoff documentation): merged.
-- PR #4 (account-model documentation): merged.
-- PR #3 (FP-01 review draft): still open and its PR description labels the package documentation-only.
-- The checked-in `MobiDeskViewModel.kt` inspected on main still reacts to `SessionStatus.Authenticated` by setting authenticated UI state and calling `loadWorkspace(userId)`; the inspected `cancelPasswordRecovery()` clears a UI boolean only.
-- Therefore the GitHub main source snapshot does not substantiate that FP-01 application implementation is completed, despite the Project Owner's report. FP-02 implementation must consume the actual completed FP-01 branch/commit once supplied or merged; it must not bypass AuthLevel with raw SDK status.
+- Canonical codebase: master43721/mobidesk-android, native Kotlin + Jetpack Compose with pinned FreeRDP submodule.
+- Current main MobiDeskViewModel.kt blob inspected: 32bbfc45c96baf9021bd34f2d860d44bbd95b6ed.
+- That source observes Supabase SessionStatus.Authenticated, sets a boolean isAuthenticated and loads workspace. No FULLY_AUTHENTICATED AuthLevel contract is present in that inspected file.
+- This is a repository integration discrepancy, not a claim that the Owner did not complete FP-01 locally or on a different commit.
+- Current status API contract is a G1 proposal and does not prove that the endpoint is deployed.
 
-This note is not a claim that the Owner has not completed FP-01 locally or in another branch. It identifies a repository integration discrepancy to close before FP-02 code integration.
+## 3. Workspace / Codespaces evidence
 
-## 3. Current source baseline observations
+- Existing Codespace: didactic-giggle-xr5r9j9g76q629974; Central India; repository master43721/mobidesk-android.
+- Upgraded from 2 cores/8 GB to 4 cores/16 GB (standardLinux32gb). This machine change takes effect on next start.
+- GitHub reports the existing Codespace has uncommitted and unpushed changes on main. No reset, clean or branch switch was performed.
+- The v0.2 branch adds a reproducible Android devcontainer configuration. Build and tests must be run inside the Codespace after it checks out this branch or the merged setup.
 
-- DashboardScreen currently shows student name and college label.
-- The Cloud PC card renders every item in `workspace.assignedVms`.
-- The button is permanently disabled with "Remote session not configured".
-- A static notice says remote desktop is not ready.
-- The action says "Refresh assignment".
-- The repository selects `students(id,name,college)` and RLS-filtered `vms(id,name)`.
-- Current main has no observed broker status repository/client in the student workspace path.
-- API_CONTRACT.md already specifies the target status route and payload semantics; this is not evidence of a deployed endpoint.
+## 4. No-claim statement
 
-## 4. No-change statement
+No Android/Kotlin source, Supabase schema/data/RLS, broker, host VM, Cloudflare tunnel, FreeRDP gitlink or release-signing file was changed. No build, unit test, device test or physical RDP test is claimed as run.
 
-No Android source, Gradle, Manifest, dependency, Supabase live setting/schema/data, broker, server, VM, Cloudflare tunnel, firewall, RDP or FreeRDP file was changed. No build or test result is claimed.
+## 5. Next evidence to record
 
-## 5. Next steps
-
-1. Close FP-01 integration discrepancy with a commit and accepted evidence.
-2. Agree FP-03 typed exactly-one assignment result and student-safe label.
-3. Verify FP-04 status endpoint/client contract and stable server route.
-4. Obtain Owner answers to OPEN_QUESTIONS.md.
-5. Implement FP-02 on a fresh branch from latest main in small phases and update this file with real test evidence.
+For each implementation step record the exact branch/base SHA, source files, Gradle task, test report path, result, emulator/device and reviewer. Use PASS, PARTIAL, FAIL, BLOCKED or NOT RUN; do not convert a missing result to PASS.
