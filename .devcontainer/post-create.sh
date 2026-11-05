@@ -17,6 +17,8 @@ ensure_property "org.gradle.parallel=true"
 ensure_property "org.gradle.workers.max=3"
 
 sdkmanager --list_installed
+test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
+test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
 adb version
 git submodule status --recursive
 printf '\nMobiDesk Android devcontainer is ready. Run tests/build explicitly.\n'
