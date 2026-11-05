@@ -38,3 +38,6 @@
 ## 5. Sensitive data rule
 
 Never put PATs, Supabase service-role keys, JWTs, passwords, Windows credentials, signing keystores, private endpoints, student identities or raw authorization headers in this file. Record only redacted action, branch/commit, environment and outcome.
+
+- GitHub Actions run 42024067666 was inspected. It failed before Gradle because `platforms;android-37` is not a published package. Updated CI + devcontainer to `platforms;android-37.0`, `--channel=3`, and explicit SDK jar/apksigner checks.
+- Corrected CI run 42024768048 was pending at the last check; no test/build pass is claimed.
