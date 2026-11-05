@@ -33,12 +33,12 @@ FR-VM-01 is a presentation requirement for FP-02 and a data authorization requir
 | FP02-FR-009 | CORE-10/13/14/18/19 | Connect availability predicate |
 | FP02-FR-010 | CORE-18/19/20/29/36/37 | Fresh status, matching tag, one handoff |
 | FP02-FR-011 | CORE-16/29/33/34 | Refresh/cooldown/429 |
-| FP02-FR-012 | CORE-17/31/32/33/34/37/40 | Failure invalidates old readiness |
+| FP02-FR-012 | CORE-17/31/32/33/34/37/40/41 | Failure invalidates old readiness |
 | FP02-FR-013 | CORE-09/27/28/33 | Exact parent error copy |
 | FP02-FR-014 | CORE-06–12/16–19/31–40 | All states |
 | FP02-FR-015 | CORE-22/23 | FP-01 delegation |
 | FP02-FR-016 | CORE-24 | Inert Dock |
-| FP02-FR-017 | CORE-21/22/30/32/35 | Cancellation/cache clearing |
+| FP02-FR-017 | CORE-21/22/30/32/35/41 | Cancellation/cache clearing |
 | FP02-FR-018 | Accessibility review §6 | TalkBack/scaling |
 
 ## 3. Previously unmapped tests
