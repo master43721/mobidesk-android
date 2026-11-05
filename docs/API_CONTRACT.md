@@ -120,7 +120,7 @@ The lifecycle/transport observation MUST complete within the PRD's 1,500 ms prob
 }
 ```
 
-The sample becomes stale 15 seconds after `sampledAt`. The client MUST refresh before Connect; the grant endpoint MUST independently recheck assignment/readiness. The response MUST NOT expose a VM ID, VM display name, endpoint, hostname or port.
+The sample is considered stale after 15 seconds from server sampling. The Android client measures freshness using the approved monotonic receipt-age algorithm and MUST obtain a new status observation on every Connect tap before handoff. The grant endpoint MUST independently recheck assignment/readiness. The response MUST NOT expose a VM ID, VM display name, endpoint, hostname or port.
 
 **v1.1 proposed additions — assignment consistency and sample freshness**
 
