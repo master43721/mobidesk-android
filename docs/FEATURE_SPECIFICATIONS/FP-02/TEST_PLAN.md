@@ -26,7 +26,7 @@ Before implementation verify FP-01 FULLY_AUTHENTICATED, FP-03 typed assignment+s
 | CORE-11 | All lifecycle enums | Six states have explicit copy | Unit |
 | CORE-12 | All transport enums | Five states remain distinct | Unit |
 | CORE-13 | Fresh RUNNING + RDP_NEGOTIATION_OK + matching tag | Connect available; tap still refreshes | Unit |
-| CORE-14 | Known-negative lifecycle/transport | Connect disabled; manual Refresh remains | Unit |
+| CORE-14 | Fresh known-negative lifecycle/transport | Connect disabled; manual Refresh remains | Unit |
 | CORE-15 | Conservative age reaches 15s after any prior state, including STOPPED | Stale at >=15,000ms; former positive or negative becomes indeterminate and Connect is available for a fresh check | Fake clock |
 | CORE-16 | Refresh succeeds | Busy, replaces sample, recalculates age | UI |
 | CORE-17 | Refresh fails after Ready | Old sample not actionable | Unit |
@@ -53,6 +53,7 @@ Before implementation verify FP-01 FULLY_AUTHENTICATED, FP-03 typed assignment+s
 | CORE-38 | Phone wall clock jumps | Freshness unchanged | Fake clock |
 | CORE-39 | Request-fresh status sample | RTT included in age upper-bound; old server cache rejected | Contract |
 | CORE-40 | Missing tag, malformed JSON or unknown enum | Indeterminate; fail closed; no handoff | Contract |
+| CORE-41 | FP-06/grant reports ASSIGN-03 after a previously valid card | Clear card/status, cancel requests, suppress Connect, reload assignment/status pair once; never retry a grant against the old assignment | Fake grant/client integration |
 
 ## 3. Connect test oracle
 
@@ -71,7 +72,7 @@ PRD.md §6 is the normative policy.
 
 After a tap, only a new fresh sample with matching assignmentTag, RUNNING and RDP_NEGOTIATION_OK can invoke FP-05. Broker/grant checks remain authoritative.
 
-| CORE-41 | FP-06/grant reports ASSIGN-03 after a previously valid card | Clear card/status, cancel requests, suppress Connect, reload assignment/status pair once; never retry against old assignment | Fake grant/client integration |\n\n## 4. Exact parent error snapshots
+## 4. Exact parent error snapshots
 
 These seven strings must match PRD v1.2 §12 exactly:
 - AUTH-01: Your sign-in session expired. Sign in again.

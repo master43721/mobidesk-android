@@ -36,7 +36,8 @@ Finally, comparing RFC3339 sampledAt with handset wall time makes the 15-second 
 | Condition | Connect |
 |---|---|
 | No status sample / NOT_CHECKED | Available when auth and assignment are valid |
-| UNKNOWN lifecycle or transport | Available to request a fresh check |\n| Any stale sample, including a formerly negative sample | Available to request a fresh check |
+| UNKNOWN lifecycle or transport | Available to request a fresh check |
+| Any stale sample, including a formerly negative sample | Available to request a fresh check |
 | Stale previously positive observation | Available to request a fresh check |
 | Fresh STOPPED / STARTING / STOPPING / ERROR | Disabled |
 | Fresh TCP_UNREACHABLE / TCP_REACHABLE | Disabled |

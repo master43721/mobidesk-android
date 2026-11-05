@@ -20,4 +20,4 @@ Verify:
 - TalkBack, focus, non-color status meaning, 1.3x/1.5x font scaling and no clipped copy.
 - Current SDK/ABI/Gradle/dependency baseline and pinned FreeRDP gitlink unchanged unless reviewed.
 
-Run all CORE-01..40 plus baseline tests and new post-grant assignment-invalid case. Inspect reports, not exit code only. End with source SHA, test evidence, environment/device, security findings, changed files and blockers. A compiled APK does not prove R1 or FP-02 acceptance.
+Run all CORE-01..41 plus baseline tests. Inspect reports, not exit code only. End with source SHA, test evidence, environment/device, security findings, changed files and blockers. A compiled APK does not prove R1 or FP-02 acceptance.

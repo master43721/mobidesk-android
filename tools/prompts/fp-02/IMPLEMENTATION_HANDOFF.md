@@ -1,7 +1,7 @@
 # FP-02 Implementation Handoff — Student Dashboard and Workspace
 
 **Repository:** master43721/mobidesk-android  
-**Target branch:** docs/fp-02-v0.2-corrected-codespaces  
+**Target branch:** docs/fp-02-v0.2-final  
 **Implementation branch:** create from latest approved main after FP-02 v0.2 and parent/API contract approval.
 
 ## Assignment

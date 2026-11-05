@@ -2,7 +2,7 @@
 
 **Version:** 0.2 · **Snapshot:** 5 November 2026  
 **Repository:** master43721/mobidesk-android  
-**Specification branch:** docs/fp-02-v0.2-corrected-codespaces  
+**Specification branch:** docs/fp-02-v0.2-final  
 **Application implementation:** Not started by this documentation change.
 
 ## Current status

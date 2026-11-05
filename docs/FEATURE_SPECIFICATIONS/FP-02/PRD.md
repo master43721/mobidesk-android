@@ -53,7 +53,7 @@ All strings are Android resources. R1 source locale is reviewed English India (e
 | Lifecycle STOPPING | Shutting down | Your Cloud PC is shutting down. Try again when it is ready. |
 | Lifecycle ERROR | Needs attention | Your Cloud PC needs attention. Contact the lab administrator. |
 | Lifecycle UNKNOWN | Power status unavailable | We could not confirm your Cloud PC power state. Refresh status to try again. |
-| Transport NOT_CHECKED | Checking connection | The remote desktop connection has not been checked yet. |
+| Transport NOT_CHECKED | Not checked yet | The remote desktop connection has not been checked yet. |
 | Transport TCP_UNREACHABLE | Cannot reach remote desktop service | Your Cloud PC cannot be reached right now. |
 | Transport TCP_REACHABLE | Service responding | The service responded, but RDP negotiation is not ready. |
 | Transport RDP_NEGOTIATION_OK | Ready for Windows sign-in | RDP negotiation succeeded. Your Windows credentials are still required. |

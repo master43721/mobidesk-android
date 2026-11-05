@@ -8,7 +8,7 @@
 - Canonical repository verified: `master43721/mobidesk-android` (native Kotlin + Jetpack Compose). The separate `SudheendraSripada/mobidesk_app` Flutter starter is not the Android product repository.
 - Existing FP-02 v0.1 source branch inspected: `docs/fp-02-student-dashboard-workspace`.
 - Final clean review branch created from current `main`: `docs/fp-02-v0.2-final`.
-- Final branch comparison: directly based on main, 0 behind; exactly 27 changed files (FP-02 docs, API contract, amendment proposal, devcontainer, Codespaces guide and prompts). No Android source changes.
+- Final branch comparison: directly based on main, 0 behind; exactly 28 changed files (FP-02 docs, API contract, amendment proposal, devcontainer, Codespaces guide and prompts). No Android source changes.
 - An earlier staging branch `docs/fp-02-v0.2-corrected-codespaces` contains the working draft; final review branch was recreated from main to avoid its long inherited commit history.
 
 ## 2. Workspace
@@ -39,8 +39,9 @@
 
 Never put PATs, Supabase service-role keys, JWTs, passwords, Windows credentials, signing keystores, private endpoints, student identities or raw authorization headers in this file. Record only redacted action, branch/commit, environment and outcome.
 
-- GitHub Actions run 42024067666 was inspected. It failed before Gradle because `platforms;android-37` is not a published package. Updated CI + devcontainer to `platforms;android-37.0`, `--channel=3`, and explicit SDK jar/apksigner checks.
-- Corrected CI run 42024768048 was pending at the last check; no test/build pass is claimed.
+- GitHub Actions run 42024067666 was inspected. It failed before Gradle because `platforms;android-37` is not a published package. CI and the devcontainer now use `platforms;android-37.0`, `--channel=3`, and explicit SDK jar/apksigner checks.
+- Corrected-SDK runs 42024683887, 42024750458, 42024768048, 42024976412 and 42024993156 were cancelled during rapid branch updates. Run 42025560530 was in progress at the last check; no Gradle test/build pass is claimed.
+- The final review pass corrected the CORE-41 table placement, clarified the fresh-negative case, fixed NOT_CHECKED copy, removed a malformed escaped newline in AMD-01, and aligned implementation/review handoff branch references.
 
 - Extended `docs/OPERATIONS.md §12` with prior owner-reported MobiLab host/VM, Tailscale, Guacamole, Cloudflare Quick Tunnel and Ethernet history; each is explicitly labelled historical and requires revalidation before operations.
 - Updated project decision records to keep GitHub Codespaces as the Android development environment and the Ubuntu Server as the persistent libvirt/runtime host. Dirty Codespace worktree preservation remains mandatory.
