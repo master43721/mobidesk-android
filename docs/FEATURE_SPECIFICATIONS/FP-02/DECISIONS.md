@@ -11,7 +11,7 @@
 | D-05 | No VM ID/UUID/hostname/IP/port/Guac in app | Privacy boundary | Required |
 | D-06 | Lifecycle and transport remain distinct | Parent PRD §5.2 | Required |
 | D-07 | Sample lifetime remains 15 seconds | Parent/API contract | Required |
-| D-08 | PRD.md §6 is the sole normative Connect rule | Resolves contradiction; no repeated truth tables | Locked in FP-02; parent change pending |
+| D-08 | PRD.md §6 is the sole normative Connect rule; a known-negative state disables only while its sample remains fresh | Resolves contradiction; once stale, even a former STOPPED result is indeterminate and can be refreshed through Connect | Locked in FP-02; parent change pending |
 | D-09 | Broker revalidates during grant issuance | UI is not authorization | Required |
 | D-10 | No student power/assignment controls; Dock is R2 placeholder | Release scope | Required |
 | D-11 | Settings/sign-out delegate to FP-01 | Avoid duplicated auth | Locked |
