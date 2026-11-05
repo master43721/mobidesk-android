@@ -1,136 +1,75 @@
 # FP-02 Implementation Plan — Student Dashboard and Workspace
 
-**Version:** 0.1 — source-grounded Owner review draft  
-**Date:** 4 November 2026  
-**Status:** Planning draft; no application code changed.
+**Version:** 0.2 · **Date:** 5 November 2026  
+**Estimate:** focused engineering hours for one developer with AI assistance.
 
 ## 1. Delivery approach
 
-Implement the workspace as a focused evolution of the existing Compose dashboard. Do not redesign the whole application or duplicate FP-03/FP-04 backend behavior.
+Preserve the native Kotlin/Compose application. FP-02 owns the Android StatusRepository and client tests; FP-04 owns endpoint/probe. FP-03 owns authoritative assignment and label. FP-01 owns AuthLevel. FP-05 owns Windows credentials and handoff destination. Missing upstream contracts are BLOCKED, not replaced with production mocks.
 
-The work is dependent on three upstream contracts:
-- FP-01: a stable fully-authenticated student session gate.
-- FP-03: an exactly-one, student-safe profile/assignment presentation result.
-- FP-04: an authenticated VM lifecycle/RDP status client that consumes the current broker API contract.
+## 2. FP-02 estimate
 
-If any dependency is missing, complete the safe UI/domain/test seam work, but do not fake data or ship a false-positive Ready state.
+The rows sum to **17–27 hours**. External dependencies and service deployment are excluded.
 
-## 2. Work packages and effort estimate
-
-Estimates are focused engineering hours for one developer with AI assistance. They are indicative, not a delivery commitment, and exclude FP-03/FP-04 implementation, broker deployment and physical device availability.
-
-| Task | Work | Estimate | Exit evidence / dependency |
+| Task | Work | Estimate | Exit evidence |
 |---|---|---:|---|
-| FP02-001 | Reconfirm current main, FP-01 AuthLevel integration and baseline Compose behavior | 1–1.5 h | Main source inspected; baseline run captured; FP-01 integration proven or blocker recorded |
-| FP02-002 | Freeze screen-facing workspace/assignment/status models with FP-03/FP-04 | 1–2 h | Typed contract agreed; no client target selector or sensitive fields |
-| FP02-003 | Add/adjust WorkspaceViewModel state composition and fakeable repository seams | 2–3 h | Unit tests cover state transitions; no network work in Composables |
-| FP02-004 | Implement S-02 dashboard profile + single Cloud PC card | 1.5–2.5 h | Existing layout retained; zero/multi assignment never renders arbitrary card |
-| FP02-005 | Implement S-03 lifecycle/RDP detail and freshness display | 1.5–2.5 h | All enums mapped; 15s boundary test passes |
-| FP02-006 | Add manual refresh and refresh-before-Connect orchestration | 1–2 h | Refresh disables Connect; fresh-ready route is the only path to FP-05 |
-| FP02-007 | Add exact PRD error presentation and complete empty/stale/unknown states | 1–1.5 h | Error snapshots match PRD; no raw details |
-| FP02-008 | Add Settings/Sign-out delegation and inert R2 Dock placeholder | 0.5–1 h | FP-01 action called; no admin or dock actions |
-| FP02-009 | Unit/Compose/accessibility/contract-adapter tests | 2.5–3.5 h | Baseline and FP02 test plan results recorded |
-| FP02-010 | Security/diff/traceability/docs and Owner acceptance | 1–1.5 h | No sensitive values or unrelated code; requirement evidence in PROGRESS |
+| FP02-001 | Reconfirm source SHA, FP-01 AuthLevel integration and baseline | 1–1.5h | Exact FULLY_AUTHENTICATED path; regression baseline |
+| FP02-002 | Freeze FP-03/04 contract including assignmentTag | 1.5–2.5h | Reviewed models, tag source and no-selector contract |
+| FP02-003 | Android StatusRepository: JWT, timeout, cancellation, DTO, 429/Retry-After | 3–4.5h | Fake-server contract tests |
+| FP02-004 | Parallel loading, session generation and tag reconciliation | 2–3h | Parallel, account-switch and mismatch tests |
+| FP02-005 | Monotonic freshness and separate button/handoff predicates | 1.5–2.5h | Fake clock, 15s boundary and wall-clock-jump tests |
+| FP02-006 | Compose S-02/S-03, state copy, Refresh and Connect action | 2.5–4h | All states rendered |
+| FP02-007 | Assignment/error/Settings/sign-out/Dock states | 1–1.5h | Exact parent copy; FP-01 delegation |
+| FP02-008 | en-IN resources, TalkBack, semantics and font scaling | 0.5–1.5h | Accessibility checklist |
+| FP02-009 | Unit, Compose, contract, race, timeout, rate-limit/security tests | 3–4h | CORE suite reports |
+| FP02-010 | Diff/security review, traceability and acceptance report | 1–2h | Scoped clean diff and evidence ledger |
 
-**Indicative FP-02 app-only effort:** approximately 14–19 focused hours, assuming FP-01/FP-03/FP-04 interfaces are ready. If those contracts are not ready, report dependency work separately; do not absorb their implementation into FP-02.
+**Arithmetic:** minimum 17h; maximum 27h.
 
-## 3. Phase sequence
+## 3. Separate dependency effort
 
-### Phase 0 — Current baseline and dependency check
-1. Fetch latest `main` and create a fresh implementation branch from it.
-2. Confirm FP-01 implementation commit, tests and current AuthLevel contract.
-3. Re-run existing sign-in/dashboard Compose tests.
-4. Inspect current `MobiDeskViewModel`, repositories, Composables, API DTOs and build configuration.
-5. Capture the current visual/test baseline.
+| Dependency | Estimate | Required before |
+|---|---:|---|
+| FP-01 identify/merge AuthLevel source and verify recovery-only gate | 0.5–1.5h | FP02-001 |
+| FP-03 typed singleton result, safe label, shared assignmentTag | 4–6h | FP02-002/004 |
+| FP-04 tag, request-fresh status, 429/Retry-After, endpoint/probe tests | 6–10h | FP02-002/003/004 |
+| FP-05 no-argument navigation callback | 1–2h | FP02-006 |
+| FP-06 grant-time assignment/readiness validation | Separate FP-06 scope | End-to-end session |
 
-**Stop:** if FP-01 has no fully-authenticated handoff in current source, do not bypass it with a generic SDK Authenticated boolean.
+These are estimates, not completed work. Broker DNS/TLS, server access, Windows guest config and deployment time are additional risks.
 
-### Phase 1 — Contract freeze
-1. Agree the FP-03 screen-facing typed assignment result.
-2. Confirm the student-safe Cloud PC label and permitted profile fields.
-3. Agree the FP-04 status DTO and exact error mapping from `API_CONTRACT.md`.
-4. Confirm the approved broker HTTPS base URL/configuration source.
-5. Keep API ownership with FP-04; no new endpoint is added by FP-02.
+## 4. Dated sequence
 
-**Stop:** do not code a guess about VM label, assignment cardinality, status JSON or broker URL.
+| Date (2026) | Work | Gate |
+|---|---|---|
+| 5 Nov | Correct spec, parent proposal, API draft and Codespaces setup | v0.2 review branch |
+| 6 Nov | Verify FP-01; agree FP-03 tag/result and FP-04 API | G1 contract freeze or BLOCKED |
+| 7 Nov | StatusRepository and fake-server contracts | FP02-003 |
+| 8 Nov | Parallel loader, tag recovery and monotonic time | FP02-004/005 |
+| 9 Nov | Compose states, Refresh/Connect, resources | FP02-006/007/008 |
+| 10 Nov | CORE suite, negatives, security and regression build | G3 candidate evidence |
+| 11 Nov | Independent review, accessibility and Owner acceptance | FP-02 DONE only if upstream gates pass |
 
-### Phase 2 — State and repository seams
-1. Introduce only the minimal WorkspaceViewModel/repository contract needed by current architecture.
-2. Inject fake WorkspaceRepository and fake StatusRepository in tests.
-3. Build a pure Connect eligibility function with a fake clock.
-4. Prove prior-user data clears on auth subject change/sign-out.
+Reforecast on dependency slip; never remove a safety gate to keep a date.
 
-### Phase 3 — S-02 / S-03 UI
-1. Evolve the current DashboardScreen, preserving existing visual language.
-2. Render profile name and optional college label.
-3. Render exactly one safe Cloud PC card for an Assigned result.
-4. Show lifecycle and transport separately.
-5. Show sample age/freshness.
-6. Render not-assigned/review/unknown/error states from the typed result.
-7. Keep Dock informational and inert.
-8. Delegate settings/sign-out to FP-01.
+## 5. Phases and stop conditions
 
-### Phase 4 — Refresh and Connect handoff
-1. Implement initial status load.
-2. Implement explicit refresh status.
-3. Disable Connect during refresh and on error/stale/unknown/not-ready states.
-4. On Connect tap, force a fresh status read.
-5. Only after fresh eligible status hand off to FP-05.
-6. Do not create a grant or open an RDP socket in FP-02.
+**Phase 0 — source:** Work only in master43721/mobidesk-android. Preserve the existing Codespace worktree; inspect and commit/stash before branch switch. Record latest main SHA. Verify FULLY_AUTHENTICATED and recovery-only behavior. Run existing unit tests and baseline assemble. Stop if AuthLevel is missing.
 
-### Phase 5 — Verification and acceptance
-1. Run existing unit and Compose tests.
-2. Run all FP02 tests.
-3. Verify error text, freshness and Connect truth table.
-4. Verify account-switch/sign-out cache clearing.
-5. Run TalkBack/font scaling checks on a supported device/emulator.
-6. Review the source diff, dependency changes, logs and static data exposure.
-7. Update PROGRESS.md with source SHA, tests, device and dependencies.
+**Phase 1 — contracts:** Freeze FP-03 typed result/label/tag, FP-04 request-fresh status/tag/429/Retry-After/no-selector DTO, FP-05 no-argument callback, approved HTTPS broker URL source. Stop on guessed fields or hard-coded endpoints.
 
-## 4. Proposed source change map
+**Phase 2 — repository:** Add FP-02 Android StatusRepository, fake server, 8s deadline, cancellation, 2s local debounce and Retry-After tests. Prove bearer/no selector/no private fields.
 
-Reconfirm exact paths on latest main before editing.
+**Phase 3 — state:** Parallelize workspace/status after AuthLevel. Ignore late old-session responses. Pair by assignmentTag; reload both once on mismatch; second mismatch = ASSIGN-02. Implement monotonic freshness and pure predicates.
 
-| File / area | FP-02 change |
-|---|---|
-| `app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt` or a narrowly scoped workspace ViewModel | Compose FP-01, FP-03 and FP-04 state into a student workspace state; no direct assignment logic |
-| `app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt` or small focused repository files | Consume FP-03 WorkspaceRepository contract; consume FP-04 StatusRepository contract; keep API adapters in their owning feature where possible |
-| `app/src/main/java/com/mobidesk/android/ui/MobiDeskApp.kt` or focused workspace composables | Update S-02 and add S-03 status detail; exact parent copy |
-| `app/src/test/...` | Pure eligibility, enum mapping, state and repository contract tests |
-| `app/src/androidTest/...` | Compose state, no multiple cards, disabled Connect, refresh/error/accessibility tests |
+**Phase 4 — Compose:** Add complete S-02/S-03 states/copy. Apply only PRD.md §6 Connect rule. Dock stays inert and account actions delegate to FP-01.
 
-Do not move files or create a broad package hierarchy solely to make FP-02 look architecturally larger.
+**Phase 5 — verification:** Run unit/Compose/contract/negative tests; timeout/429/stale/tag mismatch/account-switch tests; privacy scan; TalkBack/font-scale. Record SHA, exact Gradle tasks, reports and device.
 
-## 5. Verification A / Verification B
+## 6. Two independent verifications
 
-For every phase:
+For each phase require A: direct test/contract, and B: independent diff/code review of adjacent negative states and data boundaries. Examples: 15s test + wall-clock jump; assignmentTag mismatch test + DTO scan; 429 fake-server test + no-auto-retry review; Connect truth-table test + single callback assertion.
 
-- **Verification A — direct proof:** run the test or inspect the contract that demonstrates the phase exit condition.
-- **Verification B — independent check:** inspect the diff and test neighboring states/security boundaries to verify the change did not introduce a bypass.
+## 7. Definition of Done
 
-Examples:
-- Connect eligibility unit test + independent exhaustive truth-table check.
-- RLS/assignment contract test + independent source scan confirming no user/VM selector entered from Compose.
-- Status enum UI test + independent check that TCP_REACHABLE cannot enable Connect.
-- Account-switch UI test + independent ViewModel inspection that prior student's cached values are cleared.
-
-## 6. Definition of Done
-
-FP-02 is complete only when:
-- FP-01 fully-authenticated gate is proven.
-- FP-03 delivers exactly-one assignment semantics and user-safe display data.
-- FP-04 provides authoritative fresh readiness state.
-- Every FP02-FR requirement has test evidence.
-- Assignment ambiguity, status error, staleness and session changes all fail closed.
-- Connect only hands off after a fresh eligible status result.
-- Exact PRD messages and accessibility requirements are met.
-- The Dock remains a disabled/informational R2 placeholder.
-- No admin, power control, assignment write, grant, guest credential, broker or RDP ownership has leaked into FP-02.
-- PROGRESS.md contains evidence; unavailable external tests remain BLOCKED/NOT RUN and prevent a DONE claim.
-
-## 7. External dependencies are not FP-02 coding tasks
-
-- The SSH server becoming reachable is an operational prerequisite for later integration but does not prove an authenticated broker status endpoint.
-- Broker DNS/TLS/base URL, host adapter, VM4 approval, status-probe behavior and RDP negotiation remain FP-04/server/OI dependencies.
-- Live Supabase schema/RLS and safe display-field verification belong to FP-03.
-- Physical RDP/NLA testing belongs to later connection/device FPs.
+FR-001..018 implemented and tested; AuthLevel and FP-03/04/05 contracts integrated; applicable CORE tests pass; no stale/mismatched status can hand off; exact copy and accessibility/privacy review pass; no unrelated FreeRDP/broker/Supabase/VM code; PROGRESS.md contains reproducible evidence. A debug APK or mock Ready is not acceptance.
