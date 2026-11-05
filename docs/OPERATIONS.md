@@ -332,3 +332,39 @@ Do not roll back to an insecure configuration, disable TLS/certificate checks, e
 - [Google Play App Signing](https://support.google.com/googleplay/android-developer/answer/9842756?rd=1) — distinguishes publisher-held upload key from Google-managed app-signing key.
 
 These sources must be rechecked at actual release submission time. This document does not provide legal or institution-specific compliance approval.
+
+
+## 12. MobiLab host and remote-access context (owner-reported; re-verify before operations)
+
+This section preserves operational context from the Project Owner's prior troubleshooting. It is not proof that each service is currently running. Do not place hostnames, private IPs, secrets or guest credentials here.
+
+### 12.1 Ubuntu/libvirt host
+
+- Most recent owner-reported host: HP PC running Ubuntu Server 24.04 LTS, Intel i7-class CPU, 16 GB RAM and approximately 500 GB storage.
+- KVM/QEMU/libvirt is the intended VM runtime. The user previously reported five Windows test VMs named `win-01` through `win-05` and one Linux test VM named `linux-01`. Their current power, network, storage and assignment state are UNKNOWN until checked on the host.
+- This inventory is test context only. It does not establish that the four R1 production student mappings are approved or that VM4 can be used. The PRD's VM4 exclusion remains in force.
+- The host is the persistent runtime for libvirt VMs and any approved broker/relay/Guacamole services. GitHub Codespaces is the build/development environment; it does not replace the host or own its VM lifecycle.
+
+### 12.2 Tailscale access
+
+- The Owner previously configured Tailscale tags `tag:mobidesk-manus` and `tag:mobilab-server`.
+- The recorded SSH ACL permits source `tag:mobidesk-manus` to destination `tag:mobilab-server`, user `administrator`, action `accept`.
+- The Owner reported a successful end-to-end Tailscale SSH session from the tagged Manus sandbox to the tagged server, authenticated as `administrator`.
+- The preferred human-readable connection name is `mobilab-server`. Verify MagicDNS/SSH client configuration from the actual client before assuming `ssh mobilab-server` works; that short alias is not established by the ACL alone.
+- Never commit Tailscale auth keys, SSH private keys, ACL secrets, host addresses or terminal credentials.
+
+### 12.3 Guacamole and Cloudflare
+
+- Last reported Guacamole listener: loopback `127.0.0.1:8090`; a local curl previously returned HTTP 200.
+- The Owner previously created `cloudflared-guac-quick.service` to run a Cloudflare Quick Tunnel to the local Guacamole listener.
+- A Quick Tunnel URL is temporary and must not be treated as a stable production WSS hostname, certificate identity or RDP broker route. Recheck the systemd service, cloudflared process, current tunnel URL and externally reachable health response on the host before using it.
+- Guacamole being reachable does not prove the MobiDesk broker grant/relay API, WSS data path, certificate pinning or FreeRDP bridge is implemented.
+
+### 12.4 Network history
+
+- The Owner reported that a prior low Ethernet link/speed problem was caused by the network cable and was resolved after replacing/reseating the cable and restarting the server.
+- Treat this as a historical resolution, not a current throughput measurement. Re-run link-speed and throughput checks if build downloads, VM traffic or relay performance regress.
+
+### 12.5 Operational change boundary
+
+No server SSH, libvirt command, Tailscale policy mutation, Guacamole restart, Cloudflare tunnel change or network test was performed while preparing FP-02 v0.2/Codespaces. All such actions remain separate, explicitly authorized host operations. Never run them inside the Codespace as though its filesystem/network were the Ubuntu host.
