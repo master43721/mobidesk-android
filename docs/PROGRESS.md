@@ -79,7 +79,7 @@ Copy this row for each meaningful engineering/test event. Do not record secrets,
 
 ## 8. FP-02 v0.2 and Codespaces update — 5 Nov 2026
 
-- **[VERIFIED: GitHub compare]** Canonical repository remains `master43721/mobidesk-android`, native Kotlin + Jetpack Compose. The final FP-02 review branch is `docs/fp-02-v0.2-final`, based directly on `main@34b8f0012209d7c2a745435b943198aa8229203b`; compare reported 22 commits ahead, zero behind, and a 22-file-only diff.
+- **[VERIFIED: GitHub compare]** Canonical repository remains `master43721/mobidesk-android`, native Kotlin + Jetpack Compose. The final FP-02 review branch is `docs/fp-02-v0.2-final`, based directly on `main@34b8f0012209d7c2a745435b943198aa8229203b`; compare reported 31 commits ahead, zero behind, and a 27-file-only diff.
 - **[VERIFIED: FP-02 review branch]** The FP-02 v0.2 package corrects the stale-Connect contradiction, defines monotonic freshness and assignmentTag consistency, adds full lifecycle/transport copy, timeout/cancellation/429 handling, parallel initial reads, FR-to-CORE mapping and a corrected 17–27 focused-hour estimate.
 - **[PROPOSED — OWNER APPROVAL PENDING]** Parent amendment AMD-01 and API_CONTRACT v1.1 define Connect-on-stale fresh checking, request-fresh status samples, assignmentTag and status HTTP 429/Retry-After. Parent PRD v1.2 has not been silently changed; no endpoint deployment is claimed.
 - **[VERIFIED: GitHub Codespaces API]** Existing `didactic-giggle` workspace for this repository is in Central India. Machine update to 4 cores / 16 GB / 32 GB was accepted; it takes effect at next start. The existing worktree has uncommitted and unpushed changes on `main`.
