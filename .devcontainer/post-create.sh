@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mkdir -p /workspaces/.cache/gradle /workspaces/.cache/android /workspaces/.cache/ccache
-mkdir -p "$GRADLE_USER_HOME"
-touch "$GRADLE_USER_HOME/gradle.properties"
+mkdir -p "$GRADLE_USER_HOME" /workspaces/.cache/android /workspaces/.cache/ccache
+properties="$GRADLE_USER_HOME/gradle.properties"
+touch "$properties"
 
-# Keep repository build artifacts and caches outside the tracked source tree.
-grep -q '^org.gradle.caching=true$' $GRADLE_USER_HOME/gradle.properties || \
-  printf '\norg.gradle.caching=true\n' >> "$HOME/.gradle/gradle.properties"
-grep -q '^org.gradle.parallel=true$' "$HOME/.gradle/gradle.properties" || \
-  printf 'org.gradle.parallel=true\n' >> "$HOME/.gradle/gradle.properties"
-grep -q '^org.gradle.workers.max=3$' "$HOME/.gradle/gradle.properties" || \
-  printf 'org.gradle.workers.max=3\n' >> "$HOME/.gradle/gradle.properties"
+ensure_property() {
+  local property="$1"
+  grep -qxF "$property" "$properties" || printf '%s\n' "$property" >> "$properties"
+}
+
+# These settings enable Gradle's build cache and bounded parallelism on the
+# selected 4-core Codespace; project-specific configuration remains in Git.
+ensure_property "org.gradle.caching=true"
+ensure_property "org.gradle.parallel=true"
+ensure_property "org.gradle.workers.max=3"
 
 sdkmanager --list_installed
 adb version
