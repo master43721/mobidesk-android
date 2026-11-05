@@ -4,18 +4,22 @@
 
 ## Changes from v0.1
 
-1. Resolved the Connect contradiction: stale/missing/unknown is still actionable as a fresh-check action; known-negative, in-flight, invalid auth/assignment and cooldown gates disable. Every tap refreshes before handoff.
-2. Defined freshness with Android elapsedRealtime request/receipt timing and a conservative round-trip age bound. Phone wall time is not used for the gate.
-3. Added opaque assignmentTag equality between FP-03 workspace and FP-04 status; mismatch discards/reloads the pair once.
-4. Added all lifecycle/transport enum copy and freshness labels; source locale en-IN; reviewed Telugu remains follow-up.
-5. Moved Android StatusRepository/client contract tests to FP-02; FP-04 retains endpoint/probe.
-6. Added 8s timeout, cancellation, HTTP 429/Retry-After and 2s debounce.
-7. Parallelized profile/assignment and status calls after AuthLevel.
-8. Corrected FR-VM-01 split: FP-02 owns exactly-one card presentation; FP-03 owns resolution/authorization.
-9. Mapped CORE-25/27/29 and added CORE-31..40.
-10. Corrected estimate to 17–27h and added dependency effort and dates.\n11. Added stale-formerly-negative semantics: once expired, every status is indeterminate and Connect can request a fresh observation.\n12. Added CORE-41 for a grant-level ASSIGN-03: clear old card/status and reload the assignment/status pair once.
-13. Filed formal parent PRD/API change proposal; parent PRD v1.2 remains owner-review draft.
-14. Moved tool prompts out of the product spec folder into tools/prompts/fp-02/.
-15. Added pinned Android devcontainer with Java 21, Android SDK 37, NDK/CMake matching checked-in CI, NASM, submodule setup and persistent build caches.
+1. Resolved the Connect contradiction. Stale/missing/unknown status remains actionable for a fresh-check action; a fresh known-negative state disables Connect; once any state becomes stale it is indeterminate again. Every tap refreshes before handoff.
+2. Defined freshness with Android `elapsedRealtime()` request/receipt timing and a conservative request round-trip upper bound. Phone wall time is not used for the gate.
+3. Added opaque `assignmentTag` equality between FP-03 workspace and FP-04 status; mismatch discards/reloads the pair once.
+4. Added lifecycle/transport copy for every enum and all freshness labels. Source locale is en-IN; reviewed Telugu remains a follow-up.
+5. Moved Android `StatusRepository` and its fake-server contract tests to FP-02; FP-04 retains endpoint/probe ownership.
+6. Added an 8-second timeout, coroutine cancellation, HTTP 429/Retry-After handling and 2-second debounce.
+7. Parallelized profile/assignment and broker status calls after FP-01 AuthLevel.
+8. Corrected FR-VM-01 split: FP-02 owns exactly-one card presentation; FP-03 owns authoritative resolution and assignment authorization.
+9. Corrected traceability for CORE-25, CORE-27 and CORE-29; added CORE-31..41, including grant-level ASSIGN-03 invalidation.
+10. Corrected implementation estimate to 17–27 focused hours and added external dependency estimates and a dated execution sequence.
+11. Filed parent PRD amendment AMD-01 and API_CONTRACT v1.1 proposal. Parent PRD v1.2 remains the normative source until the Owner approves a successor/amendment.
+12. Moved agent implementation/review prompts out of the product spec folder into `tools/prompts/fp-02/`.
+13. Added project-level continuity entries in DECISIONS, PROGRESS and TASKS; added GLOSSARY and TOOL_CALLS.
+14. Added pinned Android Codespaces devcontainer with Java 21, Android SDK 37.0, build-tools 37.0.0, NDK/CMake, NASM, recursive submodule setup and persistent caches.
+15. Corrected the SDK package name after PR CI proved `platforms;android-37` was unavailable. CI and the devcontainer now request `platforms;android-37.0` using channel 3 and verify `android.jar`/apksigner before building.
 
-This branch changes FP-02 documentation and Codespaces configuration only. No app code, Supabase, broker or VM implementation is claimed; tests remain NOT RUN.
+## Scope and no-change statement
+
+This review branch changes FP-02 documentation, parent/API proposals, CI SDK provisioning and Codespaces configuration only. It does not implement FP-02 application behavior, modify Supabase, deploy the broker, change VM state or alter the FreeRDP gitlink. CI run 42024067666 failed before Gradle due to the old SDK package name. The corrected run was pending at the last recorded check; no build/test/device/RDP pass is claimed.
