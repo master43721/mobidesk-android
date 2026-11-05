@@ -41,7 +41,7 @@ FR-VM-01 is a presentation requirement for FP-02 and a data authorization requir
 | FP02-FR-017 | CORE-21/22/30/32/35/41 | Cancellation/cache clearing |
 | FP02-FR-018 | Accessibility review §6 | TalkBack/scaling |
 
-## 3. Previously unmapped tests
+CORE-41 additionally maps to FP02-FR-012 and FP02-FR-017: grant-level ASSIGN-03 clears previous workspace/status and runs one paired reload.\n\n## 3. Previously unmapped tests
 
 - CORE-25 → FR-005/FR-010/FR-012 (status API/no selector).
 - CORE-27 → FR-001/FR-013/FR-017 (AUTH-01 and clearing state).
