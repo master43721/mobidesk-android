@@ -48,6 +48,6 @@ If a later broker grant returns ASSIGN-03 or another definitive assignment-inval
 
 ## Required tests
 
-Implement all CORE-01..40 in FP-02 TEST_PLAN.md plus current baseline regression tests. Add a test for post-grant ASSIGN-03 clearing/reload before final review. Verify fake-server request method/path/headers/no-body/no-selector and exact DTO allowlist. Test timeout, cancellation, 429 with and without Retry-After, mismatch recovery, wall-clock jump, stale boundary, duplicate taps and single FP-05 callback.
+Implement all CORE-01..41 in FP-02 TEST_PLAN.md plus current baseline regression tests. Add a test for post-grant ASSIGN-03 clearing/reload before final review. Verify fake-server request method/path/headers/no-body/no-selector and exact DTO allowlist. Test timeout, cancellation, 429 with and without Retry-After, mismatch recovery, wall-clock jump, stale boundary, duplicate taps and single FP-05 callback.
 
 Report exact source SHA, changed files, Gradle tasks, reports, device/API, CI URL, privacy scan, TalkBack/font scale and unresolved dependencies. No NOT RUN test may be labeled PASS.
