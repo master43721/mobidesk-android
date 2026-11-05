@@ -41,3 +41,6 @@ Never put PATs, Supabase service-role keys, JWTs, passwords, Windows credentials
 
 - GitHub Actions run 42024067666 was inspected. It failed before Gradle because `platforms;android-37` is not a published package. Updated CI + devcontainer to `platforms;android-37.0`, `--channel=3`, and explicit SDK jar/apksigner checks.
 - Corrected CI run 42024768048 was pending at the last check; no test/build pass is claimed.
+
+- Extended `docs/OPERATIONS.md §12` with prior owner-reported MobiLab host/VM, Tailscale, Guacamole, Cloudflare Quick Tunnel and Ethernet history; each is explicitly labelled historical and requires revalidation before operations.
+- Updated project decision records to keep GitHub Codespaces as the Android development environment and the Ubuntu Server as the persistent libvirt/runtime host. Dirty Codespace worktree preservation remains mandatory.
