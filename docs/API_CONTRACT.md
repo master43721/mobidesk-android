@@ -1,7 +1,7 @@
 # MobiDesk — Broker API Contract
 
 **Document:** API contract (R1)  
-**Version:** 1.0 · **Date:** 3 November 2026  
+**Version:** 1.1 · **Date:** 5 November 2026  
 **Normative source:** MobiDesk PRD v1.2, §§5.2–5.3, 6.2–6.7, 9 and 12.  
 **Status:** Updated G1 contract proposal. The assignmentTag, request-fresh sample and status rate-limit rules are proposed changes; no endpoint is claimed deployed.
 
