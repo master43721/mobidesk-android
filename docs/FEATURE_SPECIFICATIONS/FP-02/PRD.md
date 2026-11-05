@@ -86,7 +86,7 @@ The Connect button is a fresh-check action, not an authorization stored by a pre
 6. Call FP-05 exactly once, with no VM ID, selector, endpoint, credential or grant argument, only when AuthLevel remains FULLY_AUTHENTICATED, assignment is valid, tag matches, status is fresh, lifecycle RUNNING and transport RDP_NEGOTIATION_OK.
 7. Otherwise remain on workspace and render safe state/error copy.
 
-No cached sample directly authorizes handoff. FP-06/broker independently revalidates assignment and readiness at grant issuance. The UI is not a security boundary.
+No cached sample directly authorizes handoff. FP-06/broker independently revalidates assignment and readiness at grant issuance. The UI is not a security boundary. If FP-06 or the broker later returns ASSIGN-03 or another definitive assignment-invalid result, FP-02 MUST immediately clear the Cloud PC card and paired status, cancel outstanding status/workspace requests, suppress Connect, and reload the assignment/status pair once. It MUST NOT retry a grant or continue using the previous assignment. A repeated invalid result remains in the safe assignment-review state.
 
 ## 7. Parent error catalogue (unchanged)
 
