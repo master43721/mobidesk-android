@@ -1,280 +1,168 @@
 # FP-02 Technical Design — Student Dashboard and Workspace
 
-**Version:** 0.1 — source-grounded Owner review draft  
-**Date:** 4 November 2026  
-**Status:** Target design; no application code changed by this document.
+**Version:** 0.2 · **Date:** 5 November 2026  
+**Status:** Target design; no application source change is claimed by this document.
 
-## 1. Design approach
+## 1. Design boundaries
 
-Extend the existing student dashboard rather than replacing the app shell. Keep Compose, the current ViewModel-oriented style, the existing Supabase client and the feature boundaries already documented by the parent design.
+Preserve the native Kotlin + Jetpack Compose app and its ViewModel/repository pattern. Composables render state and emit user intents; they do not call Supabase or Ktor directly.
 
-FP-02 composes three already-owned inputs:
-1. Fully authenticated student identity from FP-01.
-2. Typed student profile/assignment outcome from FP-03.
-3. VM lifecycle/RDP transport status from FP-04.
+| Responsibility | Owner |
+|---|---|
+| AuthLevel and current session lifecycle | FP-01 |
+| Student profile, exactly-one assignment resolution, safe Cloud PC label and assignmentTag | FP-03 |
+| Android StatusRepository, freshness, response composition, refresh and Connect orchestration | FP-02 |
+| Broker status endpoint, assignment derivation, status probe, assignmentTag and rate limiting | FP-04 |
+| Windows credentials and NLA prompt | FP-05 |
+| Grant, WSS, local bridge, FreeRDP and session lifecycle | FP-06+ |
 
-The screen must not query or calculate assignment authority itself, and it must not implement the status probe. The Connect button is a user-interface gate only; the broker must make the final authorization decision.
+FP-02 owns the client StatusRepository because its contract, cancellation, timeout, UI state and fake-server tests are part of the dashboard. FP-04 owns the server implementation. The two must be independently testable against one frozen contract.
 
-## 2. Verified current-main source baseline
+## 2. Current source baseline and verification gap
 
-Source snapshot inspected after documentation PR #5 was merged into `main` (4 Nov 2026). Re-fetch latest main before implementation.
+The inspected main snapshot has MobiDeskViewModel.kt, MobiDeskRepositories.kt and MobiDeskApp.kt. The current ViewModel shown in main still reacts to Supabase SessionStatus.Authenticated and loads the workspace; no FULLY_AUTHENTICATED AuthLevel state was found in that file. The current workspace repository returns a list of VM summaries, and the dashboard code historically iterated those rows. A live Android StatusRepository was not found in the inspected main snapshot.
 
-| File | Current observed behavior | FP-02 consequence |
-|---|---|---|
-| `app/src/main/java/com/mobidesk/android/MobiDeskViewModel.kt` | Constructs `SupabaseAuthRepository` and `StudentWorkspaceRepository`; loads the workspace after a Supabase Authenticated event; stores profile/assignment result in `MobiDeskUiState`. | Keep network and state orchestration in ViewModel/repository, not Composables. Do not assume the Auth event alone is the final FP-01 gate; require the completed AuthLevel contract. |
-| `app/src/main/java/com/mobidesk/android/data/MobiDeskRepositories.kt` | `StudentWorkspaceRepository.loadFor(userId)` selects `students(id,name,college)`, then selects RLS-filtered `vms(id,name)`; returns an account-not-provisioned result or a ready result containing a list. | Current data result is not yet the strong FP-03 exactly-one assignment contract. FP-02 must consume a typed safe result and never iterate arbitrary returned VM rows. |
-| `app/src/main/java/com/mobidesk/android/ui/MobiDeskApp.kt` | Existing `DashboardScreen` shows welcome/name/college and a Cloud PC card; empty assignment message; a disabled "Remote session not configured" button; static "Remote desktop is not ready" notice; "Refresh assignment"; Settings and Sign out. | Evolve this screen to live status and real conditional Connect. Remove static/mock-like readiness copy only when the authoritative status adapter exists. |
-| `MobiDeskApplication.kt` | Owns one configured Supabase client with Auth/PostgREST. | Continue using the same client and the caller's user session; never add a privileged key. |
-| `docs/DESIGN.md` | S-02 Workspace, S-03 Cloud PC status detail, S-07 Error/recovery and S-09 Dock placeholder are already defined. | Implement the existing screen inventory and visual status vocabulary; do not invent a different flow. |
-| `docs/API_CONTRACT.md` | Defines `GET /v1/vm-status`; bearer Supabase JWT; no body/query/target selector; separate lifecycle and transport enums; 1,500 ms probe budget; sample stale after 15 s. | FP-02 consumes the current contract; FP-04/server own the endpoint and probe. |
+The Owner reports FP-01 implementation complete. Before implementation, identify and verify its exact source commit or merge it into main; do not substitute the raw SDK Authenticated state for AuthLevel.
 
-### 2.1 Current source gaps relevant to FP-02
+## 3. Component flow
 
-- Current `StudentWorkspaceResult.Ready` carries a `List<VmSummary>`; the screen loops over every returned row. This does not enforce the product's exactly-one assignment rule. FP-03 must provide a typed result and tests; FP-02 must not choose the first row or display all rows.
-- Current dashboard status content is static and remote session is permanently disabled. No live `StatusRepository`/broker status integration was observed in the Android path inspected.
-- Current API contract requires the response not to expose VM ID/name/endpoint/hostname/port. Therefore the display label must arrive separately through a safe FP-03 presentation model.
-- The checked-in code must be rechecked because the Project Owner reports FP-01 has been completed. The current GitHub main snapshot inspected here does not yet show those FP-01 source changes; see PROGRESS.md and OPEN_QUESTIONS.md.
+~~~text
+FP-01 FULLY_AUTHENTICATED
+      |
+      v
+WorkspaceViewModel (FP-02 composition)
+      |-- WorkspaceRepository (FP-03 implementation)
+      |     |-- StudentHeader
+      |     |-- AssignmentPresentation.Assigned(label, assignmentTag)
+      |
+      |-- StatusRepository (FP-02 Android client)
+            |-- GET /v1/vm-status (FP-04 server)
+            |-- StatusSample(..., assignmentTag)
+      |
+      v
+PairedWorkspaceSnapshot
+      |-- tags equal: render one card + status
+      |-- tags differ: discard and paired reload once
+      |-- repeated mismatch: ASSIGN-02, no Connect
+      |
+      v
+S-02 / S-03 Compose UI
+      |
+      |-- Connect action -> fresh status -> matching tag -> FP-05 callback
+      |-- FP-06/broker rechecks during grant
+~~~
 
-## 3. Target component boundaries
+## 4. Minimal screen-facing models
 
-```text
-FP-01 Auth state
-  └─ FULLY_AUTHENTICATED student session
-       │
-       ▼
-StudentWorkspaceViewModel (FP-02 composition)
-  ├─ WorkspaceRepository contract (data semantics implemented/owned by FP-03)
-  │    ├─ Student display profile
-  │    └─ AssignmentResolution (exactly zero/one/invalid)
-  └─ StatusRepository contract (implementation/endpoint owned by FP-04)
-       └─ GET /v1/vm-status (no target selector)
-             │
-             ▼
-WorkspaceUiState
-  ├─ Student header
-  ├─ One Cloud PC card
-  ├─ Lifecycle status
-  ├─ RDP transport status
-  ├─ sampledAt / freshness
-  ├─ safe errors
-  └─ Connect eligibility
-       │
-       └─ fresh eligible Connect → FP-05 Windows Credential Prompt
-                                 → FP-06 grant/session authorization
-```
+Use existing project model conventions where practical; do not create a broad new hierarchy.
 
-No Compose component calls Supabase PostgREST or Ktor directly. No UI component holds a VM route, endpoint or secret.
-
-## 4. Screen composition
-
-### S-02 Workspace
-
-Retain the existing brand/header and greeting structure:
-- MobiDesk branding and "Student workspace".
-- Settings icon/button.
-- Welcome plus approved student display name.
-- College label only when available.
-- One Cloud PC card.
-- Lifecycle and RDP transport summaries, sample age/freshness.
-- Connect or disabled/not-ready action.
-- Refresh status.
-- Informational Dock placeholder.
-- Sign out.
-
-Do not show an assignment list or selection control. Do not display infrastructure fields.
-
-### S-03 Cloud PC status detail
-
-Use the existing parent screen definition:
-- Separate lifecycle label and RDP transport label.
-- Last sampled time or age.
-- Fresh/stale indication.
-- Refresh status action.
-- Exact PRD error message where a code is returned.
-- Explicit explanation that TCP reachability is not a completed Windows sign-in.
-
-S-03 can be a dedicated Compose destination or a focused detail panel consistent with the existing navigation style. Choose the smallest pattern that matches the current codebase; do not introduce a new navigation library just for FP-02.
-
-### S-07 Error/recovery
-
-Use the exact PRD §12 English messages from `docs/DESIGN.md §8`. Error states include no assignment, assignment review needed, assignment verification failure, powered off, starting/not ready and unreachable. Retry behavior must match the parent contract.
-
-### S-09 Dock placeholder
-
-Display the existing R2 informational text only. No button, route or pairing control.
-
-## 5. Domain presentation contracts
-
-These are screen-facing contracts, not a mandate to create an elaborate new package hierarchy.
-
-### 5.1 Workspace profile
-
-```kotlin
-data class StudentHeader(
-    val displayName: String,
-    val collegeLabel: String?
+~~~kotlin
+data class AssignedWorkspace(
+    val displayLabel: String,
+    val assignmentTag: String
 )
-```
 
-The authenticated subject is passed from FP-01 to the repository; it is not shown or chosen by the screen.
+data class VmStatusSample(
+    val lifecycle: VmLifecycle,
+    val rdpTransport: RdpTransport,
+    val sampledAt: Instant,
+    val probeDurationMs: Long,
+    val staleAfterSeconds: Long,
+    val requestId: String,
+    val assignmentTag: String
+)
+~~~
 
-### 5.2 Assignment presentation
+The assignmentTag is opaque, equality-only, non-secret and not user-visible. It is not a VM ID, target selector, credential or authorization token. Do not persist it to logs or analytics. FP-03 and FP-04 must obtain the same value from the same canonical server-side assignment resolver and active assignment revision.
 
-FP-02 consumes a typed outcome from FP-03. Suggested shape for review:
+## 5. Initial load: parallel, session-scoped
 
-```kotlin
-sealed interface AssignmentPresentation {
-    data object ProfileUnavailable : AssignmentPresentation
-    data object NoAssignment : AssignmentPresentation
-    data class Assigned(val cloudPcLabel: String) : AssignmentPresentation
-    data object NeedsAdministratorReview : AssignmentPresentation
-    data object VerificationUnavailable : AssignmentPresentation
-}
-```
+After FP-01 emits FULLY_AUTHENTICATED:
+1. Capture immutable Auth subject/session generation and current access token provider.
+2. Start FP-03 workspace/profile read and FP-04 status request concurrently. The broker derives assignment itself; the status request has no selector.
+3. Cancel both if the screen is left, the session generation changes, or a newer paired load supersedes them.
+4. Ignore any completion from an obsolete session generation.
+5. Require exactly one valid FP-03 assignment before rendering a Cloud PC card.
+6. Compare workspace assignmentTag and status assignmentTag. If equal, publish one coherent snapshot.
+7. On mismatch, discard both snapshots and repeat the paired load once. A second mismatch maps to ASSIGN-02; never render label A with status B.
+8. If no valid assignment is returned, render the exact assignment result and do not expose a Connect action.
 
-The real FP-03 model may use the project's existing sealed-result style. Requirements:
-- Exactly one `Assigned` value at most.
-- No raw VM ID, VM UUID, hostname, IP, port or Guacamole fields.
-- Zero assignments maps to the PRD's ASSIGN-01 state.
-- Ambiguous/inactive/unmapped state maps to ASSIGN-03 or the exact FP-03 contract error.
-- Verification/transient read failure maps to ASSIGN-02.
-- FP-02 does not implement the assignment query, uniqueness constraint or server authorization.
+No sequential assignment-then-status dependency exists: the broker independently resolves the caller assignment, and the shared tag is the join check. Parallel loading removes one full network round trip.
 
-### 5.3 Status presentation
+## 6. Monotonic freshness
 
-Use the exact status enums from `API_CONTRACT.md §4`:
+Do not compare sampledAt against System.currentTimeMillis(), LocalDateTime.now() or the phone wall clock.
 
-```kotlin
-enum class VmLifecycle {
-    STOPPED, STARTING, RUNNING, STOPPING, ERROR, UNKNOWN
-}
+For each HTTP status request capture:
+- requestStartedElapsedMs = Android SystemClock.elapsedRealtime() immediately before dispatch;
+- responseReceivedElapsedMs = elapsedRealtime() when the response headers/body are received;
+- nowElapsedMs = elapsedRealtime() when rendering or deciding the handoff.
 
-enum class RdpTransport {
-    NOT_CHECKED, TCP_UNREACHABLE, TCP_REACHABLE,
-    RDP_NEGOTIATION_OK, UNKNOWN
-}
-```
+Compute a conservative age upper-bound:
 
-The actual transport DTO/repository belongs to FP-04. Do not duplicate enum definitions if shared parent domain models already exist.
+ageUpperBoundMs = (responseReceivedElapsedMs - requestStartedElapsedMs)
+                  + (nowElapsedMs - responseReceivedElapsedMs)
 
-The response also supplies `sampledAt`, `probeDurationMs`, `staleAfterSeconds` and `requestId`. Treat requestId as opaque internal diagnostic metadata, not a user-facing VM identifier.
+The first term is the full request round-trip duration and safely overestimates the age accrued between server sampling and client receipt, assuming FP-04 does not serve a sample from before this HTTP request. The second term is elapsed time on the monotonic device clock. Mark stale when ageUpperBoundMs >= staleAfterSeconds * 1000.
 
-### 5.4 Workspace UI state
+FP-04 MUST return a newly sampled observation for each successful status request; it MUST NOT reuse a prior request's cached sample. This is necessary because no server sample-age field or trusted device wall clock is present. sampledAt is formatted for display only. If the monotonic source is unavailable or the timing values are invalid, freshness is unknown and the handoff gate fails closed.
 
-Suggested small, deterministic state:
-- session/loading state;
-- profile/assignment presentation;
-- optional readiness response;
-- status refresh in progress;
-- stale flag/sample age;
+The sample lifetime remains the parent contract value of 15 seconds. Network latency can make the client expire a sample slightly early, but it cannot make an old sample appear younger because the device clock is wrong.
+
+## 7. Android StatusRepository mechanics
+
+- FP-02 implementation location: app/src/main/java/com/mobidesk/android/data/StatusRepository.kt or the existing equivalent data package.
+- Obtain the current Supabase access JWT from the authenticated session provider for every request; do not cache it in UI state.
+- Use HTTPS and GET /v1/vm-status with no body, query, subject ID or target selector.
+- End-to-end client deadline: 8,000 ms, including network wait. This is deliberately above the 1,500 ms server probe budget to leave room for mobile RTT.
+- Use cancellable coroutine/HTTP calls. Cancel on screen exit, sign-out, Auth subject change, replacement by a newer request or explicit cancellation. Cancellation is not an error toast.
+- On timeout/network/5xx, replace any prior Ready status with indeterminate/unavailable state; never retain an actionable old success.
+- On HTTP 429, parse Retry-After as a non-negative delta-seconds value and also parse retryAfterSeconds from the safe response body. Use the larger valid value. Do not schedule an automatic retry. Set a monotonic nextAllowedRequestAt and show the existing ASSIGN-02 user copy with a countdown or retry instruction.
+- If a 429 omits usable retry metadata, use bounded user-driven exponential cooldowns of 2, 4, 8, 16 and at most 30 seconds. Reset after a successful status response.
+- Apply a 2,000 ms local minimum interval to explicit refresh/Connect-triggered status requests. Serialize simultaneous refresh/Connect actions so one in-flight request is shared or later taps are ignored.
+- Treat unknown HTTP status, malformed JSON and unknown enum values as indeterminate; never map them to RUNNING or RDP_NEGOTIATION_OK.
+
+## 8. Status, assignment and UI state composition
+
+Workspace UI state contains only:
+- current session generation and FULLY_AUTHENTICATED gate;
+- safe profile/header and typed assignment presentation;
+- optional paired status sample;
+- request in-flight state and last safe result;
+- monotonic receipt timing and freshness;
+- retry cooldown deadline;
 - safe PRD error code/message;
-- derived `canConnect`.
+- Connect action availability.
 
-Do not store credentials, JWT, grant, VM endpoint or raw server exception in UI state.
+Do not keep JWT, guest credentials, grant, private endpoint, hostname, IP, port, VM UUID or raw server body in Compose state or SavedStateHandle.
 
-## 6. Data flow
+## 9. Connect policy
 
-### Initial workspace entry
+PRD.md §9 is the single normative Connect rule. This section defines its technical implementation; it must not be independently reworded in another document.
 
-1. Confirm FP-01 `FULLY_AUTHENTICATED` student session.
-2. Clear any data associated with a prior subject/session.
-3. Load profile and assignment through the FP-03 repository contract, using the current authenticated user context and RLS.
-4. If profile/assignment is not a single valid assignment, render the typed error/empty state and do not request Connect.
-5. If exactly one approved assignment is returned, obtain current status through FP-04's StatusRepository, whose broker request uses the current user's Supabase access JWT and no target selector.
-6. Compose S-02 from the student-safe profile, assignment label and status response.
+Separate two concepts:
+- **Connect button availability** is an affordance that lets a valid student request a fresh check. It is not proof that a session is authorized.
+- **Handoff eligibility** is evaluated only after a successful fresh status response and matching assignmentTag.
 
-### Manual status refresh
+A stale/missing/UNKNOWN/NOT_CHECKED result remains actionable so the student can tap Connect to initiate the required fresh status check. A known STOPPED/STARTING/STOPPING/ERROR lifecycle or TCP_UNREACHABLE/TCP_REACHABLE transport is a definitive negative and disables Connect; manual Refresh remains possible. While a request or server cooldown is active, Connect is temporarily disabled.
 
-1. Set refresh-in-progress.
-2. Disable Connect while refresh is running.
-3. Request new status through StatusRepository.
-4. On success replace the previous status and freshness baseline.
-5. On failure never reuse a prior positive status as current; mark stale/unavailable and keep Connect disabled.
-6. Keep profile/assignment information only if the current Auth subject/session remains the same.
+A handoff is permitted only after all predicates in PRD.md §9 are rechecked. The FP-05 callback has no VM or credential arguments and is invoked at most once per successful tap. FP-06/broker authorization is authoritative.
 
-### Connect tap
+## 10. State copy and localisation
 
-1. Debounce/serialize repeated taps.
-2. Request fresh status.
-3. Re-evaluate full Connect eligibility.
-4. If eligible, hand off without a VM selector to FP-05.
-5. Otherwise remain in dashboard and display the current exact parent status/error.
-6. Broker/FP-06 revalidates authorization and readiness; no client-side flag is trusted by the server.
+Use Android string resources, not literals inside Composables. R1 English India (en-IN) strings are the source of truth and must match PRD.md §6 and the unchanged parent error catalogue. Telugu te-IN translation is a follow-up; add it only after review by a fluent reviewer. Never mix languages in one sentence or silently transliterate technical statuses.
 
-## 7. Freshness and polling
+Lifecycle labels include STOPPED, STARTING, RUNNING, STOPPING, ERROR and UNKNOWN. Transport labels include NOT_CHECKED, TCP_UNREACHABLE, TCP_REACHABLE, RDP_NEGOTIATION_OK and UNKNOWN. Freshness strings distinguish no sample, current, seconds-old and stale.
 
-- The current contract sets `staleAfterSeconds = 15`.
-- A sample at/after its stale boundary must not permit Connect.
-- A failed refresh cannot leave the old green/Ready state actionable.
-- Proposed R1 behavior: load status on workspace entry, refresh when the student asks, and always refresh before Connect.
-- No periodic background polling is specified by the existing documents. Do not add it without an Owner decision.
-- Use a testable clock abstraction for freshness boundary tests. If device/server clock skew prevents reliable interpretation of `sampledAt`, keep Connect disabled and surface the issue; record a follow-up with FP-04 rather than inventing a new API field inside FP-02.
+## 11. Security and lifecycle
 
-## 8. Connect eligibility function
+- Clear workspace/status on sign-out, AUTH-01, Auth subject/session generation change and invalidation.
+- Never issue a status request outside FULLY_AUTHENTICATED.
+- Never display a VM identifier or route.
+- No R1 student power/assignment controls.
+- Status and assignment are read-only; broker and FP-06 revalidate at grant time.
+- RDP negotiation does not imply Windows NLA success.
 
-```kotlin
-fun canConnect(
-    isFullyAuthenticated: Boolean,
-    assignment: AssignmentPresentation,
-    lifecycle: VmLifecycle?,
-    transport: RdpTransport?,
-    isStatusFresh: Boolean,
-    isRefreshing: Boolean
-): Boolean =
-    isFullyAuthenticated &&
-    assignment is AssignmentPresentation.Assigned &&
-    lifecycle == VmLifecycle.RUNNING &&
-    transport == RdpTransport.RDP_NEGOTIATION_OK &&
-    isStatusFresh &&
-    !isRefreshing
-```
+## 12. Non-goals
 
-This function is UI gating only. The broker remains the final authorization authority.
-
-## 9. Error mapping
-
-Use exact English PRD v1.2 strings:
-- ASSIGN-01: "No Cloud PC is assigned to your account. Contact the lab administrator."
-- ASSIGN-02: "We could not verify your assigned Cloud PC. Try again."
-- ASSIGN-03: "Your Cloud PC assignment needs administrator review."
-- VM-01: "Your Cloud PC is powered off. Contact the lab administrator."
-- VM-02: "Your Cloud PC is starting or is not ready yet."
-- VM-03: "Your Cloud PC cannot be reached right now."
-- AUTH-01: "Your sign-in session expired. Sign in again."
-
-Never synthesize a new PRD code, change the exact English copy, or show low-level backend exception content. Use returned contract code where available; do not guess between ASSIGN-02 and VM-03.
-
-## 10. Security and data handling
-
-- Profile and assignment reads use the current student's user JWT/RLS path; no service-role key.
-- Do not pass caller-selected `userId`, `vmId`, hostname or endpoint from UI events.
-- Broker status call carries the Supabase access JWT and no selector/query/body.
-- Only approved profile/label fields enter Compose.
-- Do not map or retain Guacamole URL/connection ID, endpoint, hostname, IP or port.
-- Do not log student identifiers, JWTs, response bodies, request headers or raw exception details.
-- Clear workspace/status state on sign-out, Auth subject change and session invalidation.
-- Use opaque IDs only in safe diagnostics; do not render internal broker request ID as a VM or assignment identity.
-- Student screens have no VM start/stop/restart, assignment change or arbitrary network action.
-- Server-side checks remain authoritative even when Connect is enabled.
-
-## 11. UI accessibility
-
-- Give lifecycle and transport labels meaningful text, not icon/color-only indicators.
-- Announce loading/refresh completion and errors once.
-- Provide meaningful labels for Refresh, Connect and Settings.
-- Preserve predictable TalkBack focus order.
-- Support 1.3x and 1.5x font scaling without hiding the Cloud PC state or primary action.
-- Do not show tiny timestamp-only freshness; pair it with a text state such as "Updated just now" / "Status needs refreshing", with wording approved during UX review.
-
-## 12. Dependencies and unresolved technical questions
-
-- FP-01 current-main implementation and exact AuthLevel handoff needs verification.
-- FP-03 must supply typed one-assignment result and student-safe display label.
-- FP-04 must supply StatusRepository and working `GET /v1/vm-status`.
-- Current `vms.name` label safety is not verified.
-- `sampledAt` clock-skew semantics need agreement with FP-04.
-- No broker base URL is selected in the checked-in API/operations docs; configuration must come from an approved build/environment config, not a literal private endpoint in source.
-
-## 13. Not part of FP-02
-
-No schema migrations, RLS policy modifications, broker endpoint implementation, libvirt/VM action, assignment mutation, grant, guest credential, FreeRDP or session-lifecycle code. Those changes must be planned and reviewed under their owning FPs.
+No database migration or assignment resolver implementation, broker process, VM probe, session grant, WSS, FreeRDP or Dock implementation is included. Any required API/server change is assigned to the parent amendment and FP-04.
