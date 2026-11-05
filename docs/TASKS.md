@@ -111,3 +111,30 @@ These tasks implement the Owner-confirmed two-role prototype model. They are add
 | MD-ADM-12 | Configure and verify SMTP invitation delivery | 3–6 h engineering + provider/DNS lead time | Owner sender/domain choice | Project Owner | Provider verification, sender, templates, invite/resend delivery; DNS propagation and approval tracked separately |
 
 **Critical ordering:** MD-ADM-01 before any admin screen/action; MD-ADM-03 before student activation; MD-ADM-04 before disabling any existing signup/provisioning route; MD-ADM-08 only after host action allowlist and rollback are approved. No service-role/secret key is added to the Android app.
+
+
+## 7. FP-02 Student Dashboard and Workspace — v0.2 reforecast (5 Nov 2026)
+
+The critique-corrected FP-02 implementation package is maintained in `docs/FEATURE_SPECIFICATIONS/FP-02/`. Detailed work breakdown, date sequence and acceptance evidence are in `IMPLEMENTATION_PLAN.md`; this section records the cross-feature critical path.
+
+**FP-02 implementation estimate: 17–27 focused hours**, excluding external dependency work and infrastructure deployment.
+
+| Sequence | Task | Estimate | Dependency / exit evidence |
+|---|---|---:|---|
+| FP02-001 | Reconcile FP-01 FULLY_AUTHENTICATED source and baseline | 1–1.5h | Exact AuthLevel commit; recovery-only tests |
+| FP02-002 | Freeze FP-03 assignment + safe label + assignmentTag and FP-04 status DTO | 1.5–2.5h | Parent/API amendment approved; shared tag contract frozen |
+| FP02-003 | Android StatusRepository, bearer GET, 8s timeout/cancellation, 429 Retry-After | 3–4.5h | Fake-server contract tests |
+| FP02-004 | Parallel workspace/status load and tag matching/reload | 2–3h | Session-generation and mismatch tests |
+| FP02-005 | Monotonic freshness, stale/negative priority and Connect predicates | 1.5–2.5h | 15s boundary and wall-clock-jump tests |
+| FP02-006 | Compose dashboard/status/detail/refresh/connect | 2.5–4h | UI state snapshots |
+| FP02-007 | Assignment/error/Settings/sign-out/Dock states | 1–1.5h | Exact copy and FP-01 delegation |
+| FP02-008 | en-IN strings and accessibility | 0.5–1.5h | TalkBack/font-scale checks |
+| FP02-009 | CORE-01..41, contract, timeout/rate-limit/race/security tests | 3–4h | Reproducible reports |
+| FP02-010 | Security/diff review, traceability and Owner acceptance | 1–2h | Evidence ledger and accepted scope |
+
+**Separate upstream estimates:** FP-01 source integration 0.5–1.5h; FP-03 typed singleton/safe label/shared tag 4–6h; FP-04 API/tag/request-fresh sample/429 endpoint 6–10h; FP-05 no-argument handoff confirmation 1–2h; FP-06 grant-time revalidation remains separate scope. These estimates are planning only, not evidence of completion.
+
+**Critical path:** Parent amendment/API approval → FP-01 AuthLevel integration → FP-03/FP-04 tag/API freeze → FP-02 repository and paired UI → FP-05 handoff → FP-06 grant-time revalidation → full contract/device acceptance. FP-03 and FP-04 can implement their server contracts in parallel once the assignmentTag source is agreed.
+
+**Dated forecast:** 5 Nov spec/Codespaces; 6 Nov G1 source/API contract freeze; 7 Nov StatusRepository; 8 Nov parallel loader/freshness/tag pairing; 9 Nov Compose/copy/accessibility; 10 Nov test/security/regression; 11 Nov independent review and Owner acceptance. Reforecast on dependency slip; never remove a safety gate to meet a date.
+
