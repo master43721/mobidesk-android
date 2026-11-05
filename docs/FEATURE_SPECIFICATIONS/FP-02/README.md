@@ -24,7 +24,7 @@ This package corrects the v0.1 review findings. It does not claim that FP-03 ass
 9. PROGRESS.md — verified repository evidence and current blockers.
 10. REVISION_NOTES.md — what changed from v0.1.
 
-Parent amendment proposal: docs/PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md
+Parent amendment proposal: [AMD-01](../../PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md).\n\nDevelopment environment: [GitHub Codespaces workflow](../../CODESPACES_WORKFLOW.md).
 
 ## Ownership
 
