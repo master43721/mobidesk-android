@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mobidesk.android.MobiDeskUiState
 import com.mobidesk.android.MobiDeskViewModel
+import com.mobidesk.android.data.AuthLevel
 import com.mobidesk.android.data.StudentWorkspaceResult
 
 private enum class SignedOutRoute { SIGN_IN, RESET_REQUEST }
@@ -78,9 +79,10 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
         if (state.isAuthenticated) password = ""
     }
 
-    BackHandler(enabled = state.isPasswordRecovery || route != SignedOutRoute.SIGN_IN.name || showSettings) {
+    BackHandler(enabled = state.isPasswordRecovery || state.isRecoveryInterrupted || route != SignedOutRoute.SIGN_IN.name || showSettings) {
         when {
             state.isPasswordRecovery -> viewModel.cancelPasswordRecovery()
+            state.isRecoveryInterrupted -> viewModel.retryRecoveryAfterInterruption()
             showSettings -> showSettings = false
             else -> route = SignedOutRoute.SIGN_IN.name
         }
@@ -92,6 +94,17 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
     ) {
         when {
             state.isRestoringSession -> LoadingScreen("Restoring your secure session")
+            state.isRecoveryInterrupted -> RecoveryInterruptedScreen(
+                state = state,
+                onRequestNewLink = {
+                    viewModel.retryRecoveryAfterInterruption()
+                    route = SignedOutRoute.RESET_REQUEST.name
+                },
+                onBackToSignIn = {
+                    viewModel.retryRecoveryAfterInterruption()
+                    route = SignedOutRoute.SIGN_IN.name
+                }
+            )
             state.isPasswordRecovery -> PasswordRecoveryScreen(
                 state = state,
                 onSave = viewModel::updateRecoveredPassword,
@@ -121,27 +134,52 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
                 state = state,
                 onBack = { showSettings = false },
                 onSignOut = {
-                    showSettings = false
                     password = ""
                     viewModel.signOut()
+                },
+                onSignOutDeviceOnly = {
+                    showSettings = false
+                    password = ""
+                    viewModel.signOutDeviceOnly()
                 }
             )
-            state.isLoadingWorkspace -> LoadingScreen("Loading your assigned workspace")
-            state.workspace == StudentWorkspaceResult.AccountNotProvisioned -> AccountNotProvisionedScreen(
+            state.authLevel == AuthLevel.RECOVERY_ONLY -> {
+                // Safeguard: recovery session in flight, never expose workspace UI
+                LoadingScreen("Verifying recovery link...")
+            }
+            state.authLevel == AuthLevel.FULLY_AUTHENTICATED -> {
+                when {
+                    state.isLoadingWorkspace -> LoadingScreen("Loading your assigned workspace")
+                    state.workspace == StudentWorkspaceResult.AccountNotProvisioned -> AccountNotProvisionedScreen(
+                        state = state,
+                        onSignOut = viewModel::signOut
+                    )
+                    state.workspace is StudentWorkspaceResult.Ready -> DashboardScreen(
+                        state = state,
+                        workspace = state.workspace as StudentWorkspaceResult.Ready,
+                        onSettings = { showSettings = true },
+                        onRetry = viewModel::retryWorkspaceLoad,
+                        onSignOut = viewModel::signOut,
+                        onSignOutDeviceOnly = viewModel::signOutDeviceOnly
+                    )
+                    else -> WorkspaceErrorScreen(
+                        state = state,
+                        onRetry = viewModel::retryWorkspaceLoad,
+                        onSignOut = viewModel::signOut
+                    )
+                }
+            }
+            else -> SignInScreen(
                 state = state,
-                onSignOut = viewModel::signOut
-            )
-            state.workspace is StudentWorkspaceResult.Ready -> DashboardScreen(
-                state = state,
-                workspace = state.workspace as StudentWorkspaceResult.Ready,
-                onSettings = { showSettings = true },
-                onRetry = viewModel::retryWorkspaceLoad,
-                onSignOut = viewModel::signOut
-            )
-            else -> WorkspaceErrorScreen(
-                state = state,
-                onRetry = viewModel::retryWorkspaceLoad,
-                onSignOut = viewModel::signOut
+                email = email,
+                onEmailChange = { email = it },
+                password = password,
+                onPasswordChange = { password = it },
+                onSignIn = { viewModel.signIn(email, password) },
+                onForgotPassword = {
+                    viewModel.clearMessages()
+                    route = SignedOutRoute.RESET_REQUEST.name
+                }
             )
         }
     }
@@ -369,7 +407,8 @@ private fun DashboardScreen(
     workspace: StudentWorkspaceResult.Ready,
     onSettings: () -> Unit,
     onRetry: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onSignOutDeviceOnly: () -> Unit = {}
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
@@ -452,6 +491,14 @@ private fun DashboardScreen(
             Text("Refresh assignment")
         }
         TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
+        if (state.signOutFailed) {
+            Button(
+                onClick = onSignOutDeviceOnly,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+            ) { Text("Sign out on this device") }
+        }
     }
 }
 
@@ -507,7 +554,12 @@ private fun WorkspaceErrorScreen(state: MobiDeskUiState, onRetry: () -> Unit, on
 }
 
 @Composable
-private fun SettingsScreen(state: MobiDeskUiState, onBack: () -> Unit, onSignOut: () -> Unit) {
+private fun SettingsScreen(
+    state: MobiDeskUiState,
+    onBack: () -> Unit,
+    onSignOut: () -> Unit,
+    onSignOutDeviceOnly: () -> Unit = {}
+) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -516,6 +568,8 @@ private fun SettingsScreen(state: MobiDeskUiState, onBack: () -> Unit, onSignOut
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
             Text("Account settings", style = MaterialTheme.typography.headlineSmall)
         }
+        state.infoMessage?.let { InlineNotice(it, isError = false) }
+        state.errorMessage?.let { InlineNotice(it, isError = true) }
         ServiceNotice(
             icon = Icons.Outlined.Shield,
             title = "School account",
@@ -536,6 +590,63 @@ private fun SettingsScreen(state: MobiDeskUiState, onBack: () -> Unit, onSignOut
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
         ) { Text("Sign out") }
+        if (state.signOutFailed) {
+            Button(
+                onClick = onSignOutDeviceOnly,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
+            ) { Text("Sign out on this device") }
+        }
+    }
+}
+
+@Composable
+private fun RecoveryInterruptedScreen(
+    state: MobiDeskUiState,
+    onRequestNewLink: () -> Unit,
+    onBackToSignIn: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            BrandLockup()
+            Spacer(Modifier.height(16.dp))
+            Text("Recovery link interrupted", style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "Your password recovery flow was interrupted before completion. For security, incomplete recovery sessions cannot be resumed automatically. Please request a new recovery link.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            state.errorMessage?.let { InlineNotice(it, isError = true) }
+            state.infoMessage?.let { InlineNotice(it, isError = false) }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onRequestNewLink,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Request new recovery link")
+            }
+            TextButton(
+                onClick = onBackToSignIn,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Back to sign in")
+            }
+        }
     }
 }
 
