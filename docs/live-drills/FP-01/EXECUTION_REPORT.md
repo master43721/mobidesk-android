@@ -68,7 +68,7 @@ Command executed:
 ./gradlew --no-daemon --max-workers=3 :app:testDebugUnitTest
 ```
 
-### Result: BUILD SUCCESSFUL (39 passed, 0 failed, 0 skipped)
+### Result: BUILD SUCCESSFUL (40 passed, 0 failed, 0 skipped)
 
 - `com.mobidesk.android.AuthErrorMessagesTest`: 10 passed, 0 failed
 - `com.mobidesk.android.MobiDeskViewModelTest`: 23 passed, 0 failed
