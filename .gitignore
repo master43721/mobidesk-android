@@ -24,3 +24,6 @@ release.properties.local
 # OS/editor
 .DS_Store
 Thumbs.db
+.vscode/
+android-sdk/
+.android/
