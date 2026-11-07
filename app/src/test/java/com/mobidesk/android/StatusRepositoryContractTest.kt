@@ -218,7 +218,37 @@ class StatusRepositoryContractTest {
 
         assertTrue(result is StatusResult.Error)
         assertEquals(
-            "We couldn't reach the Cloud PC service. Check your connection and try again.",
+            "We could not verify your assigned Cloud PC. Try again.",
+            (result as StatusResult.Error).message
+        )
+    }
+
+    @Test
+    fun getVmStatus_oversizedPayloadFailsClosed() = runBlocking {
+        val largePadding = "x".repeat(70000)
+        val payload = """{"lifecycle":"RUNNING","rdpTransport":"RDP_NEGOTIATION_OK","sampledAt":"2026-11-03T06:00:00Z","probeDurationMs":384,"staleAfterSeconds":15,"requestId":"req_1","assignmentTag":"asg_1","padding":"$largePadding"}"""
+        val response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${payload.toByteArray().size}\r\nConnection: close\r\n\r\n$payload"
+
+        val serverThread = thread {
+            try {
+                val client = serverSocket.accept()
+                client.getOutputStream().write(response.toByteArray(Charsets.UTF_8))
+                client.getOutputStream().flush()
+                client.close()
+            } catch (ignored: Exception) {}
+        }
+
+        val repository = DefaultStatusRepository(
+            baseUrl = "http://127.0.0.1:$serverPort",
+            clock = fakeClock
+        )
+
+        val result = repository.getVmStatus("token")
+        serverThread.join(2000)
+
+        assertTrue("Oversized stream must fail closed to StatusResult.Error", result is StatusResult.Error)
+        assertEquals(
+            "We could not verify your assigned Cloud PC. Try again.",
             (result as StatusResult.Error).message
         )
     }

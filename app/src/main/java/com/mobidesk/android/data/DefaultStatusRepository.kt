@@ -5,7 +5,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
@@ -52,7 +51,7 @@ class DefaultStatusRepository(
 
             when (responseCode) {
                 HttpURLConnection.HTTP_OK -> {
-                    val body = connection.inputStream.bufferedReader().use { readBounded(it) }
+                    val body = connection.inputStream.use { readBounded(it) }
                     try {
                         val responseDto = json.decodeFromString<VmStatusResponse>(body)
                         val assignmentTag = responseDto.assignmentTag
@@ -86,7 +85,7 @@ class DefaultStatusRepository(
                     val retryAfterHeader = connection.getHeaderField("Retry-After")?.toLongOrNull()
                     val errorBody = try {
                         val stream = connection.errorStream ?: connection.inputStream
-                        stream?.bufferedReader()?.use { readBounded(it) }
+                        stream?.use { readBounded(it) }
                     } catch (e: Exception) {
                         null
                     }
@@ -125,12 +124,12 @@ class DefaultStatusRepository(
             throw e
         } catch (e: SocketTimeoutException) {
             StatusResult.Error(
-                message = "We couldn't reach the Cloud PC service. Check your connection and try again.",
+                message = "We could not verify your assigned Cloud PC. Try again.",
                 isTransient = true
             )
         } catch (e: Exception) {
             StatusResult.Error(
-                message = "We couldn't reach the Cloud PC service. Check your connection and try again.",
+                message = "We could not verify your assigned Cloud PC. Try again.",
                 isTransient = true
             )
         } finally {
@@ -138,16 +137,19 @@ class DefaultStatusRepository(
         }
     }
 
-    private fun readBounded(reader: Reader, maxChars: Int = 65536): String {
-        val sb = StringBuilder()
-        val buffer = CharArray(4096)
-        var totalRead = 0
+    @Throws(java.io.IOException::class)
+    private fun readBounded(stream: java.io.InputStream, maxBytes: Int = 65536): String {
+        val buffer = ByteArray(4096)
+        val baos = java.io.ByteArrayOutputStream()
+        var totalBytes = 0
         var read: Int
-        while (reader.read(buffer).also { read = it } != -1) {
-            sb.append(buffer, 0, read)
-            totalRead += read
-            if (totalRead >= maxChars) break
+        while (stream.read(buffer).also { read = it } != -1) {
+            totalBytes += read
+            if (totalBytes > maxBytes) {
+                throw java.net.ProtocolException("Response body exceeded maximum allowed size of $maxBytes bytes")
+            }
+            baos.write(buffer, 0, read)
         }
-        return sb.toString()
+        return baos.toString(Charsets.UTF_8.name())
     }
 }
