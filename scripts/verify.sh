@@ -54,8 +54,8 @@ FAILED=0
 SKIPPED=0
 
 if command -v python3 >/dev/null 2>&1; then
-    SUMMARY=$(python3 -c '
-import os, glob, xml.etree.ElementTree as ET, json
+    eval "$(python3 -c '
+import glob, xml.etree.ElementTree as ET
 total, failed, skipped = 0, 0, 0
 for xml_file in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
     try:
@@ -67,12 +67,8 @@ for xml_file in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
     except Exception:
         pass
 passed = total - failed - skipped
-print(json.dumps({"total": total, "passed": passed, "failed": failed, "skipped": skipped}))
-')
-    TOTAL=$(echo "$SUMMARY" | jq -r .total)
-    PASSED_COUNT=$(echo "$SUMMARY" | jq -r .passed)
-    FAILED=$(echo "$SUMMARY" | jq -r .failed)
-    SKIPPED=$(echo "$SUMMARY" | jq -r .skipped)
+print(f"TOTAL={total}\nPASSED_COUNT={passed}\nFAILED={failed}\nSKIPPED={skipped}")
+')"
 else
     PASSED_COUNT=0
 fi
