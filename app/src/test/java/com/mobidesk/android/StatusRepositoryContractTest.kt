@@ -217,5 +217,9 @@ class StatusRepositoryContractTest {
         serverThread.join(2000)
 
         assertTrue(result is StatusResult.Error)
+        assertEquals(
+            "We couldn't reach the Cloud PC service. Check your connection and try again.",
+            (result as StatusResult.Error).message
+        )
     }
 }
