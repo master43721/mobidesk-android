@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/prune-remote-branches.sh             # Dry run (safe preview)
-#   ./scripts/prune-remote-branches.sh --execute   # Actually execute remote branch deletions
+#   ./scripts/prune-remote-branches.sh --execute   # Actually execute remote branch deletions (admin only)
 
 set -euo pipefail
 
@@ -33,7 +33,22 @@ echo "=== MobiDesk Remote Branch Prune Utility ==="
 if [ "$EXECUTE" = false ]; then
     echo "[MODE: DRY RUN] No changes will be made. Pass --execute to delete remote branches."
 else
-    echo "[MODE: EXECUTE] Deleting stale branches from remote 'origin'..."
+    echo "[MODE: EXECUTE] Repository Admin Execution Mode."
+    echo ""
+    echo "Creating safety archive bundle: mobidesk-all-branches-archive.bundle..."
+    git bundle create mobidesk-all-branches-archive.bundle --all
+    echo "Safety archive bundle created successfully."
+    echo ""
+    echo "Creating archive tags for branches before pruning..."
+    for branch in "${STALE_BRANCHES[@]}"; do
+        tag_branch="${branch//\//-}"
+        tag_name="archive/${tag_branch}"
+        if sha=$(git rev-parse "origin/$branch" 2>/dev/null); then
+            git tag -f "$tag_name" "origin/$branch"
+            echo "Created tag: $tag_name -> $sha"
+        fi
+    done
+    echo "Archive tags created."
 fi
 echo ""
 
@@ -58,7 +73,7 @@ done
 
 echo ""
 if [ "$EXECUTE" = false ]; then
-    echo "Dry run complete. To execute deletion, run:"
+    echo "Dry run complete. To execute deletion with admin rights, run:"
     echo "  ./scripts/prune-remote-branches.sh --execute"
 else
     echo "Pruning complete. Running remote prune..."

@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [main, 'fp-*']
+    branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
   pull_request:
-    branches: [main, 'fp-*']
+    branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
   workflow_dispatch:
     inputs:
       run_instrumentation:
@@ -97,6 +97,16 @@ jobs:
           name: mobidesk-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload JUnit test results and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobidesk-junit-reports-${{ github.sha }}
+          path: |
+            app/build/test-results/testDebugUnitTest/
+            app/build/reports/tests/testDebugUnitTest/
           retention-days: 14
 
       - name: Install API 36 emulator image for opt-in instrumentation
