@@ -85,3 +85,31 @@ Owner reviews OQ-01 through OQ-06 and the proposed recovery/AuthLevel behavior. 
 - A fresh handoff branch was based on current main; preparation SHA: `60b3152c84ec13a0f43ec59a983e968c0b5b3ff7`. Antigravity must re-fetch main before creating its own implementation branch.
 - No Android source, Gradle file, Supabase live setting, database, SMTP configuration or live account was changed by this documentation update.
 - No tests/build are claimed passed by this documentation update. SMTP delivery and physical-device recovery remain external release gates.
+
+---
+
+## 8. Development Loop Iteration 1 (2026-11-07)
+
+### Loop A — Review and Self-Critique
+- **Readiness:** BLOCKED
+- **Iterations used:** 1
+- **Findings & Severity:**
+  - `C1 / Test Evidence`: BLOCKER — Toolchain (JDK/Android SDK) unavailable on this Windows host. Automated tests cannot execute locally; must run in Codespaces or GitHub Actions. Reopened until raw CI test output is attached.
+  - `C2 / Legacy Main State (F1)`: NEGOTIABLE — PR #8 merged FP-01 code to `main` before live drill gate was established. Two options presented to Owner in `docs/dev-loop/NEGOTIABLE_REGISTER.md` (NEG-01): (a) staging trunk with owner sign-off; (b) clean `git revert` commits.
+  - `C3 / Line Endings`: MINOR — Resolved. `.gitattributes` added (`* text=auto eol=lf`, `*.ps1 text eol=crlf`) and renormalized in commit `876d090`.
+  - `C4 / CI Trigger & Reports`: MINOR — Resolved. `.github/workflows/android-ci.yml` extended to trigger on `fp-*` branches and upload JUnit reports in commit `a2e06a9`.
+  - `C6 / Branch Reconciliation`: MINOR — Reconciled mapping table generated between local and remote branch topologies.
+  - `C7 / Pruning Utility Safety`: MINOR — Resolved. `scripts/prune-remote-branches.ps1` and `.sh` updated to create archive bundle and `archive/<branch>` tags prior to deletion in commit `7365fb8`.
+  - `C8 / Documentation Hygiene`: MINOR — Resolved. Package handoff/review prompt links fixed; zero case-colliding files confirmed via `git ls-files` in commit `4b717ab`.
+- **Remaining NEGOTIABLE items:** NEG-01 (F1 trunk policy), NEG-03 (staging credentials), NEG-04 (prune execution), NEG-05 (branch protection).
+
+### Loop B — Automated Test & Output Mismatch Log
+- **Local Toolchain Check:** FAILED (`scripts/verify.ps1` output: `BLOCKED_MISSING_TOOLCHAIN`). JDK and Android SDK are not installed on this Windows host.
+- **Expected vs Actual Mismatches:**
+  - *Mismatch 1:* Expected local `./gradlew testDebugUnitTest` execution; Actual: `BLOCKED_MISSING_TOOLCHAIN`. Classification: `Environment`.
+  - *Mismatch 2:* Expected git push to CI; Actual: Blocked by interactive Git Credential Manager GUI in non-interactive terminal. Classification: `Environment`.
+- **Static Verification Scripts:**
+  - `scripts/scan-secrets-logs.ps1`: PASSED (0 leaks)
+  - `scripts/check-release-config.ps1`: PASSED (0 release risks)
+  - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
+  - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
