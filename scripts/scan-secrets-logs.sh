@@ -9,7 +9,7 @@ OUT_FILE="$OUTPUT_DIR/secrets-scan.json"
 FINDINGS_JSON="[]"
 PASSED=true
 
-if command -v python3 >/dev/null 2>&1; then
+if python3 -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
     FINDINGS_JSON=$(python3 -c '
 import os, re, json
 
