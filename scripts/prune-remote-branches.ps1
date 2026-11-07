@@ -6,6 +6,9 @@
 .DESCRIPTION
     By default, runs in -DryRun mode (preview only).
     Pass -Execute to perform actual git push origin --delete commands.
+    In accordance with AGENTS.md, deletions require repository admin rights.
+    Before execution, archive tags (archive/<branch>) and a full git bundle
+    (mobidesk-all-branches-archive.bundle) MUST be created.
 
 .EXAMPLE
     .\scripts\prune-remote-branches.ps1
@@ -13,7 +16,7 @@
 
 .EXAMPLE
     .\scripts\prune-remote-branches.ps1 -Execute
-    (Deletes stale remote branches on origin)
+    (Creates archive bundle, creates archive tags, and deletes stale remote branches on origin)
 #>
 
 [CmdletBinding()]
@@ -42,7 +45,7 @@ Write-Host "=== MobiDesk Remote Branch Prune Utility ===" -ForegroundColor Cyan
 if (-not $Execute) {
     Write-Host "[MODE: DRY RUN] No changes will be made. Pass -Execute to delete remote branches.`n" -ForegroundColor Yellow
 } else {
-    Write-Host "[MODE: EXECUTE] Deleting stale branches from remote 'origin'...`n" -ForegroundColor Red
+    Write-Host "[MODE: EXECUTE] Repository Admin Execution Mode.`n" -ForegroundColor Red
 }
 
 $gitPath = "C:\Program Files\Git\cmd\git.exe"
@@ -53,6 +56,30 @@ if (-not (Test-Path $gitPath)) {
     } else {
         Write-Error "Git executable not found in PATH or standard Git directories."
     }
+}
+
+# In execute mode, create git bundle and archive tags first
+if ($Execute) {
+    $bundleFile = "mobidesk-all-branches-archive.bundle"
+    Write-Host "Creating safety archive bundle: $bundleFile..." -ForegroundColor Cyan
+    & $gitPath bundle create $bundleFile --all
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to create git bundle. Aborting pruning."
+        exit 1
+    }
+    Write-Host "Safety archive bundle created successfully.`n" -ForegroundColor Green
+
+    Write-Host "Creating archive tags for branches before pruning..." -ForegroundColor Cyan
+    foreach ($branch in $staleBranches) {
+        $tagBranch = $branch -replace '/', '-'
+        $tagName = "archive/$tagBranch"
+        $sha = (& $gitPath rev-parse "origin/$branch" 2>$null)
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($sha)) {
+            & $gitPath tag -f $tagName "origin/$branch"
+            Write-Host "Created tag: $tagName -> $sha" -ForegroundColor Gray
+        }
+    }
+    Write-Host "Archive tags created.`n" -ForegroundColor Green
 }
 
 foreach ($branch in $staleBranches) {
@@ -71,7 +98,8 @@ foreach ($branch in $staleBranches) {
 
 Write-Host ""
 if (-not $Execute) {
-    Write-Host "Dry run complete. To execute deletion, run:" -ForegroundColor Green
+    Write-Host "Dry run complete. Stale branches are previewed above." -ForegroundColor Green
+    Write-Host "To execute deletion with admin rights (creates bundle + archive tags first):" -ForegroundColor Green
     Write-Host "  .\scripts\prune-remote-branches.ps1 -Execute" -ForegroundColor White
 } else {
     Write-Host "Pruning complete. Running remote prune..." -ForegroundColor Green
