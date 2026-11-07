@@ -53,7 +53,7 @@ TOTAL=0
 FAILED=0
 SKIPPED=0
 
-if command -v python3 >/dev/null 2>&1; then
+if python3 -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
     eval "$(python3 -c '
 import glob, xml.etree.ElementTree as ET
 total, failed, skipped = 0, 0, 0
