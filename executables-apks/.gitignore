@@ -1,0 +1,8 @@
+# Ignore all compiled Android binaries
+*.apk
+*.aab
+*.apks
+
+# Keep directory tracking files
+!.gitignore
+!README.md

@@ -2,7 +2,7 @@
 
 MobiDesk is a native Kotlin/Jetpack Compose Android application for one college. The product model has a College Administrator workspace for provisioning students and managing approved server/VM/student connections, and a Student workspace for accessing only the student's assigned Windows Cloud PC. The current app implementation still provides the student sign-in/workspace foundation; the administrator workspace and provisioning/control-plane capabilities are proposed and not yet implemented; **native RDP session integration is not complete and no final APK exists**.
 
-> **Current product target:** [`docs/MobiDesk_PRD_v1.2.pdf`](docs/MobiDesk_PRD_v1.2.pdf). It is an owner-review draft; approval is pending. Do not treat it as formally approved or claim a release gate has passed. See [`docs/PRD_TRACEABILITY.md`](docs/PRD_TRACEABILITY.md), [`docs/FREERDP_ANDROID_API_AUDIT.md`](docs/FREERDP_ANDROID_API_AUDIT.md), [`TEST_PLAN.md`](TEST_PLAN.md), [`OPEN_ITEMS.md`](OPEN_ITEMS.md), [`PROGRESS.md`](PROGRESS.md), and [`TODO.md`](TODO.md).
+> **Current product target:** [`docs/MobiDesk_PRD_v1.2.pdf`](docs/MobiDesk_PRD_v1.2.pdf). It is an owner-review draft; approval is pending. Do not treat it as formally approved or claim a release gate has passed. See [`docs/PRD_TRACEABILITY.md`](docs/PRD_TRACEABILITY.md), [`docs/FREERDP_ANDROID_API_AUDIT.md`](docs/FREERDP_ANDROID_API_AUDIT.md), [docs/TEST_PLAN.md](docs/TEST_PLAN.md), [docs/OPEN_ITEMS.md](docs/OPEN_ITEMS.md), [docs/PROGRESS.md](docs/PROGRESS.md), [AGENTS.md](AGENTS.md), and [docs/TASKS.md](docs/TASKS.md).
 
 ## Implemented
 

@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'fp-*']
   pull_request:
-    branches: [main]
+    branches: [main, 'fp-*']
   workflow_dispatch:
     inputs:
       run_instrumentation:
