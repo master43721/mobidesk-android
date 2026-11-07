@@ -76,3 +76,31 @@ Record each future result with exact branch/base SHA, source files, Gradle task,
   - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
   - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
   - `scripts/validate-fake-broker-contract.ps1`: PASSED (0 schema violations, 0 leaks)
+
+---
+
+## Development Loop Iteration 2 (2026-11-07)
+
+### Loop A — Review and Self-Critique
+- **Readiness:** BLOCKED
+- **Iterations used:** 2
+- **Findings & Severity:**
+  - `C5 / Untrusted 429 Server Copy Leakage`: MAJOR — `DefaultStatusRepository.kt` lines 99–101 extracted `errorDto.message` on HTTP 429 and overwrote `errorMsg`. This leaked untrusted server error text into the user interface, violating PRD v1.2 §12 and AMD-01 §2.4. Fixed: `errorMsg` is immutable and strictly bound to `ASSIGN-02` catalogue copy. Added contract test `getVmStatus_rateLimitedWithUntrustedServerMessage_preservesCatalogCopy()`.
+  - `C3 / Working Copy CR Corruption`: MAJOR — Working tree copies of `gradlew`, `.devcontainer/post-create.sh`, and `.devcontainer/update-content.sh` retained CRLF line endings due to Windows checkout behavior. Fixed by adding explicit `*.sh text eol=lf` and `gradlew text eol=lf` to `.gitattributes`, converting all script files to LF, and renormalizing.
+  - `Automation Script Integrity`: MAJOR — `scripts/validate-fake-broker-contract.sh` was a hollow fake that emitted hardcoded JSON with `"passed": true` without performing validation. Fixed by implementing complete payload schema and prohibited field checks in Python. Additionally eliminated brittle `jq` dependencies across `verify.sh` and `check-docs.sh`.
+  - `S0 Interface Freeze`: S0 frozen interface baseline across FP-01, FP-02, FP-03, FP-04, and FP-05 established in `docs/FEATURE_SPECIFICATIONS/FP-02/INTERFACE_FREEZE.md`.
+- **Remaining NEGOTIABLE items:** NEG-01 (main staging vs revert), NEG-02 (AMD-01 approval), NEG-03 (staging credentials), NEG-04 (prune execution), NEG-05 (branch protection), NEG-06 (Telugu localization review).
+
+### Loop B — Automated Test & Output Mismatch Log
+- **Local Toolchain Check:** FAILED (`scripts/verify.ps1` output: `BLOCKED_MISSING_TOOLCHAIN`). JDK and Android SDK are not installed on this host.
+- **Expected vs Actual Mismatches:**
+  - *Mismatch 1:* Expected local `./gradlew testDebugUnitTest` execution; Actual: `BLOCKED_MISSING_TOOLCHAIN`. Classification: `Environment`.
+  - *Mismatch 2:* Added contract tests `getVmStatus_oversizedPayloadFailsClosed` and `getVmStatus_rateLimitedWithUntrustedServerMessage_preservesCatalogCopy`, but JVM execution deferred to CI run. Classification: `Environment`.
+- **Static Verification Scripts:**
+  - `scripts/scan-secrets-logs.ps1`: PASSED (0 leaks)
+  - `scripts/check-release-config.ps1`: PASSED (0 release risks)
+  - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
+  - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
+  - `scripts/validate-fake-broker-contract.ps1`: PASSED (0 schema violations, 0 leaks)
+  - `scripts/validate-fake-broker-contract.sh`: PASSED (real Python verification, 0 violations)
+
