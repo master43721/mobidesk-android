@@ -23,6 +23,7 @@ This package corrects the v0.1 review findings. It does not claim that FP-03 ass
 8. TRACEABILITY.md — parent and FP02 requirement-to-test mapping.
 9. PROGRESS.md — verified repository evidence and current blockers.
 10. REVISION_NOTES.md — what changed from v0.1.
+11. INTERFACE_FREEZE.md — S0 frozen interface baseline across FP-01/02/03/04/05.
 
 Parent amendment proposal: [AMD-01](../../PRD_CHANGE_PROPOSALS/PRD-1.2-AMD-01-FP02-STATUS-CONSISTENCY.md).
 
