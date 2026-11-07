@@ -50,3 +50,29 @@ Record each future result with exact branch/base SHA, source files, Gradle task,
 ## Additional design hardening — 5 November 2026
 
 - Added a lifecycle-aware local monotonic age timer. It updates visible age text and transitions a fresh known-negative state to stale/Connect-available at the 15-second boundary without issuing a status request. CORE-42 covers the zero-network behavior. This preserves the no-network-polling policy while preventing a permanently disabled Connect affordance.
+
+---
+
+## Development Loop Iteration 1 (2026-11-07)
+
+### Loop A — Review and Self-Critique
+- **Readiness:** BLOCKED
+- **Iterations used:** 1
+- **Findings & Severity:**
+  - `C5 / Stream Bounded Reading`: MAJOR — `DefaultStatusRepository.readBounded` read characters via `Reader` and silently truncated on reaching limit. Resolved in commit `edc3c4a` by reading raw bytes from `InputStream`, bounding to 65,536 bytes, and failing closed with `ProtocolException` on overflow.
+  - `C5 / Parent Error Catalogue Mismatch (F6 defect class)`: MAJOR — Timeout and generic catch blocks returned `"We couldn't reach the Cloud PC service. Check your connection and try again."` which was an invented copy string. Resolved in commit `edc3c4a` by aligning strictly to PRD v1.2 §12 / `strings.xml` parent error catalogue `ASSIGN-02`: `"We could not verify your assigned Cloud PC. Try again."`.
+  - `AMD-01 / Connect Contradiction & Freshness`: NEGOTIABLE — Proposed PRD amendment AMD-01 resolves Connect gate contradiction and establishes monotonic age + shared `assignmentTag`. Logged in `docs/dev-loop/NEGOTIABLE_REGISTER.md` (NEG-02).
+  - `Fake Broker Contract`: UNKNOWN — Synthetic contract responses pass schema validation via `scripts/validate-fake-broker-contract.ps1`. Live broker remains UNKNOWN until external broker repo is integrated.
+- **Remaining NEGOTIABLE items:** NEG-02 (AMD-01 approval), NEG-06 (Telugu localization review).
+
+### Loop B — Automated Test & Output Mismatch Log
+- **Local Toolchain Check:** FAILED (`scripts/verify.ps1` output: `BLOCKED_MISSING_TOOLCHAIN`). JDK and Android SDK are not installed on this host.
+- **Expected vs Actual Mismatches:**
+  - *Mismatch 1:* Expected local `./gradlew testDebugUnitTest` execution; Actual: `BLOCKED_MISSING_TOOLCHAIN`. Classification: `Environment`.
+  - *Mismatch 2:* Contract test for oversized payload added (`StatusRepositoryContractTest.getVmStatus_oversizedPayloadFailsClosed`), but JVM execution deferred to CI run. Classification: `Environment`.
+- **Static Verification Scripts:**
+  - `scripts/scan-secrets-logs.ps1`: PASSED (0 leaks)
+  - `scripts/check-release-config.ps1`: PASSED (0 release risks)
+  - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
+  - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
+  - `scripts/validate-fake-broker-contract.ps1`: PASSED (0 schema violations, 0 leaks)
