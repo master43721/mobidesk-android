@@ -32,6 +32,11 @@
   - Tag historical bootstrap: `baseline-fp-00`.
   - Tag accepted feature points after merge: `fp-NN-accepted`.
 
+### Legacy Merge State Notice (FP-01)
+- **Historical Context**: PR #8 (`20d089c`) merged early FP-01 code into `main` before the formal Mandatory Live Drill Gate policy was established.
+- **Current Staging Role**: Commit `c414c73` on `main` serves as the staging candidate for FP-01 awaiting physical device demonstration. Branch `fp-01-auth-hardening` tracks this exact candidate commit.
+- **Gate Invariant Enforcement**: FP-01 remains formally `UNACCEPTED` until the physical live drill passes on target hardware. Once accepted, tag `fp-01-accepted` will be created. All subsequent feature points (beginning with FP-02) strictly enforce trunk isolation: no feature branch merges to `main` without completing all 6 criteria of the Terminal Acceptance Invariant.
+
 ---
 
 ## 3. Mandatory Terminal Acceptance Invariant (The Live Drill Gate)

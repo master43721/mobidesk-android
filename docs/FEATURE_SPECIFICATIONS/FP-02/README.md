@@ -15,7 +15,7 @@ This package corrects the v0.1 review findings. It does not claim that FP-03 ass
 
 1. PRD.md — normative FP-02 behavior and the single Connect policy.
 2. TECHNICAL_DESIGN.md — client/server boundaries, parallel loading, assignment consistency and monotonic freshness.
-3. IMPLEMENTATION_PLAN.md — tasks, estimates, dates, dependencies and stop gates.
+3. PLAN.md — tasks, estimates, dates, dependencies and stop gates.
 4. TEST_PLAN.md — test cases and release evidence.
 5. SECURITY_PRIVACY.md — privacy, authorization and failure behavior.
 6. DECISIONS.md — decisions made in v0.2.

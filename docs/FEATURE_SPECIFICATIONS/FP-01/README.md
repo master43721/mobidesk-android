@@ -15,7 +15,7 @@ Specify the existing MobiDesk authentication feature with focused fixes for the 
 |---|---|
 | PRD.md | Product requirements, AuthLevel, recovery behavior, functional requirements and acceptance criteria |
 | TECHNICAL_DESIGN.md | Source audit, minimal design, recovery marker, SDK 3.6.0 findings and AuthRepository seam |
-| IMPLEMENTATION_PLAN.md | Small implementation work packages, estimates and 4–13 November planning window |
+| PLAN.md | Scoped implementation work packages, estimates and 4–13 November planning window |
 | TEST_PLAN.md | Four existing baseline tests and 24 mandatory core pilot cases |
 | SECURITY_PRIVACY.md | Recovery-session boundary, sign-out fallback, email-delivery blocker and data handling |
 | SUPABASE_CONFIGURATION.md | Custom SMTP/Send Email Hook and project setting requirements |

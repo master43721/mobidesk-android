@@ -32,7 +32,7 @@ Do not start coding from an unreviewed v0.1 package unless the Owner explicitly 
 
 - [FP-02 PRD](FP-02/PRD.md)
 - [FP-02 technical design](FP-02/TECHNICAL_DESIGN.md)
-- [FP-02 implementation plan](FP-02/IMPLEMENTATION_PLAN.md)
+- [FP-02 implementation plan](FP-02/PLAN.md)
 - [FP-02 test plan](FP-02/TEST_PLAN.md)
 - [FP-02 security/privacy](FP-02/SECURITY_PRIVACY.md)
 - [FP-02 Antigravity implementation handoff](FP-02/ANTIGRAVITY_HANDOFF.md)

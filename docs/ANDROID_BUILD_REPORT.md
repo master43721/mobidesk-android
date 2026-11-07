@@ -1,6 +1,6 @@
 # MobiDesk Android — Build and Delivery Report
 
-> **Historical report (2026-10-27).** Its debug-build evidence remains valid for that source revision, but its statements about server access and stopped testing are no longer current. See [`PROGRESS.md`](PROGRESS.md), [`BASELINE_AUDIT.md`](BASELINE_AUDIT.md), and [`../TODO.md`](../TODO.md) for the latest state. It does not claim a working RDP session or final release.
+> **Historical report (2026-10-27).** Its debug-build evidence remains valid for that source revision, but its statements about server access and stopped testing are no longer current. See [`PROGRESS.md`](PROGRESS.md) and [`TASKS.md`](TASKS.md) for the latest state. It does not claim a working RDP session or final release.
 
 **Report date:** 2026-10-27
 
@@ -87,4 +87,4 @@ The APK does **not** yet provide end-to-end Cloud PC access:
 5. Verify actual sign-in, RLS isolation, password recovery, instrumentation, and session behavior on a controlled emulator/VM and a physical Android device, when testing is authorized.
 6. Build a release signed with an owner-controlled key only after server/security and device acceptance tests pass.
 
-The phased server checklist is in [`SERVER_IMPLEMENTATION_PLAN.md`](SERVER_IMPLEMENTATION_PLAN.md); remaining work is tracked in [`TODO.md`](../TODO.md).
+The phased server checklist is in [`SERVER_IMPLEMENTATION_PLAN.md`](SERVER_IMPLEMENTATION_PLAN.md); remaining work is tracked in [`TASKS.md`](TASKS.md).

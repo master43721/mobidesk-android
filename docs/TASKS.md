@@ -115,7 +115,7 @@ These tasks implement the Owner-confirmed two-role prototype model. They are add
 
 ## 7. FP-02 Student Dashboard and Workspace — v0.2 reforecast (5 Nov 2026)
 
-The critique-corrected FP-02 implementation package is maintained in `docs/FEATURE_SPECIFICATIONS/FP-02/`. Detailed work breakdown, date sequence and acceptance evidence are in `IMPLEMENTATION_PLAN.md`; this section records the cross-feature critical path.
+The critique-corrected FP-02 implementation package is maintained in `docs/FEATURE_SPECIFICATIONS/FP-02/`. Detailed work breakdown, date sequence and acceptance evidence are in `PLAN.md`; this section records the cross-feature critical path.
 
 **FP-02 implementation estimate: 17–27 focused hours**, excluding external dependency work and infrastructure deployment.
 
