@@ -169,6 +169,40 @@ class StatusRepositoryContractTest {
     }
 
     @Test
+    fun getVmStatus_rateLimitedWithUntrustedServerMessage_preservesCatalogCopy() = runBlocking {
+        val jsonResponse = """{"code":"RATE_LIMIT","message":"Custom internal gateway rate limit notice","retryable":true,"retryAfterSeconds":7}"""
+
+        val serverThread = thread {
+            try {
+                val client = serverSocket.accept()
+                val reader = BufferedReader(InputStreamReader(client.getInputStream()))
+                while (!reader.readLine().isNullOrBlank()) {}
+                val writer = OutputStreamWriter(client.getOutputStream())
+                writer.write("HTTP/1.1 429 Too Many Requests\r\n")
+                writer.write("Content-Type: application/json\r\n")
+                writer.write("Content-Length: ${jsonResponse.toByteArray().size}\r\n")
+                writer.write("\r\n")
+                writer.write(jsonResponse)
+                writer.flush()
+                client.close()
+            } catch (ignored: Exception) {}
+        }
+
+        val repository = DefaultStatusRepository(
+            baseUrl = "http://127.0.0.1:$serverPort",
+            clock = fakeClock
+        )
+
+        val result = repository.getVmStatus("token")
+        serverThread.join(2000)
+
+        assertTrue(result is StatusResult.RateLimited)
+        val rateLimited = result as StatusResult.RateLimited
+        assertEquals(7L, rateLimited.retryAfterSeconds)
+        assertEquals("We could not verify your assigned Cloud PC. Try again.", rateLimited.message)
+    }
+
+    @Test
     fun getVmStatus_unauthorizedReturnsAuthExpired() = runBlocking {
         val serverThread = thread {
             try {

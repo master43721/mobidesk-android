@@ -91,14 +91,11 @@ class DefaultStatusRepository(
                     }
 
                     var bodyRetryAfter: Long? = null
-                    var errorMsg = "We could not verify your assigned Cloud PC. Try again."
+                    val errorMsg = "We could not verify your assigned Cloud PC. Try again."
                     if (!errorBody.isNullOrBlank()) {
                         try {
                             val errorDto = json.decodeFromString<ApiErrorResponse>(errorBody)
                             bodyRetryAfter = errorDto.retryAfterSeconds
-                            if (!errorDto.message.isNullOrBlank()) {
-                                errorMsg = errorDto.message
-                            }
                         } catch (ignored: Exception) {}
                     }
 
