@@ -4,6 +4,10 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
+# Shell scripts and wrapper
+*.sh text eol=lf
+gradlew text eol=lf
+
 # Binary files
 *.png binary
 *.jpg binary
