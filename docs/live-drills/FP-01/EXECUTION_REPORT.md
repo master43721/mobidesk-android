@@ -3,8 +3,8 @@
 **Feature Package:** FP-01 — Authentication, Session State & Recovery
 **Application ID:** `com.mobidesk.android`
 **Target Repository:** `master43721/mobidesk-android`
-**Handoff Branch:** `feature/fp-01-auth-hardening`
-**Exact Source Commit (HEAD SHA):** `cf01c89deb7dd0b0cb4a272811d9b322f33a93e8`
+**Handoff Branch:** `fp-01-auth-hardening` (tracking staging candidate on `main`)
+**Exact Source Commit (HEAD SHA):** `c414c730aede69fa3e88b213aaa1b912d8c86db2` (short: `c414c73`)
 **Execution Date:** 2026-11-05
 **Current Live-Drill Status:** `LIVE_DRILL_STATUS: BLOCKED`
 **Owner Sign-off Status:** UNACCEPTED (Awaiting physical demonstration on Android phone)
@@ -13,7 +13,9 @@
 
 ## 1. Executive Summary
 
-FP-01 implementation has been reconciled against authoritative requirements in `docs/FEATURE_SPECIFICATIONS/FP-01/`. Automated unit verification confirms that the core authentication hardening, `AuthLevel` (`SIGNED_OUT`, `RECOVERY_ONLY`, `FULLY_AUTHENTICATED`) transitions, fail-closed recovery flow, and error mapping logic are complete and verified across 39 passing unit tests.
+FP-01 implementation has been reconciled against authoritative requirements in `docs/FEATURE_SPECIFICATIONS/FP-01/`. Automated unit verification confirms that the core authentication hardening, `AuthLevel` (`SIGNED_OUT`, `RECOVERY_ONLY`, `FULLY_AUTHENTICATED`) transitions, fail-closed recovery flow, and error mapping logic are complete and verified across 40 passing unit tests.
+
+> **Repository & Branch History Notice (Legacy Merge State):** Pull Request #8 (`20d089c`) merged early FP-01 code into `main` prior to the formal establishment of the Mandatory Live Drill Gate policy. The current HEAD commit `c414c73` on `main` (mirrored by branch `fp-01-auth-hardening`) serves as the staging candidate for physical live-drill execution. In accordance with `AGENTS.md` and `docs/MANDATORY_LIVE_DRILL_POLICY.md`, FP-01 remains `UNACCEPTED` and blocked until the physical Android device demonstration is executed and signed off by the Project Owner.
 
 The live demonstration on a physical Android phone is a mandatory acceptance gate. The application build and live drill are currently gated on resolving:
 1. Native CMake build memory exhaustion during `libavcodec.so.62` link (Defect DEF-001).

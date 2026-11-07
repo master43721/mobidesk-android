@@ -58,7 +58,7 @@ The last test only opens the reset screen. It does not prove email delivery.
 - README.md
 - PRD.md
 - TECHNICAL_DESIGN.md
-- IMPLEMENTATION_PLAN.md
+- PLAN.md
 - TEST_PLAN.md
 - SECURITY_PRIVACY.md
 - SUPABASE_CONFIGURATION.md
