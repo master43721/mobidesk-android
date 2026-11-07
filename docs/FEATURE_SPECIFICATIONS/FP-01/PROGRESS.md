@@ -113,3 +113,24 @@ Owner reviews OQ-01 through OQ-06 and the proposed recovery/AuthLevel behavior. 
   - `scripts/check-release-config.ps1`: PASSED (0 release risks)
   - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
   - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
+
+---
+
+## 9. Development Loop Iteration 2 (2026-11-07)
+
+### Loop A — Review and Self-Critique
+- **Readiness:** BLOCKED
+- **Iterations used:** 2
+- **Findings & Severity:**
+  - `C3 / CR Corruption in Working Tree`: MAJOR — `.devcontainer/post-create.sh`, `update-content.sh`, and `gradlew` retained CRLF line endings on Windows. Resolved by adding explicit `*.sh text eol=lf` and `gradlew text eol=lf` rules to `.gitattributes` and renormalizing working copy.
+  - `Bash Scripts Integrity`: MAJOR — `scripts/validate-fake-broker-contract.sh` previously lacked payload inspection; updated with Python-based JSON schema validation. Replaced fragile `jq` parsing in `scripts/verify.sh` and `check-docs.sh`.
+- **Remaining NEGOTIABLE items:** NEG-01 (F1 trunk policy), NEG-03 (staging credentials), NEG-04 (prune execution), NEG-05 (branch protection).
+
+### Loop B — Automated Test & Output Mismatch Log
+- **Local Toolchain Check:** FAILED (`scripts/verify.ps1` output: `BLOCKED_MISSING_TOOLCHAIN`). JDK and Android SDK are not installed on this Windows host.
+- **Static Verification Scripts:**
+  - `scripts/scan-secrets-logs.ps1`: PASSED (0 leaks)
+  - `scripts/check-release-config.ps1`: PASSED (0 release risks)
+  - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
+  - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
+
