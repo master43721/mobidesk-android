@@ -7,15 +7,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -24,13 +20,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Computer
+import androidx.compose.material.icons.outlined.Dock
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.SyncProblem
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
@@ -55,6 +57,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -62,13 +69,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mobidesk.android.MobiDeskUiState
 import com.mobidesk.android.MobiDeskViewModel
+import com.mobidesk.android.R
 import com.mobidesk.android.data.AuthLevel
+import com.mobidesk.android.data.RdpTransport
 import com.mobidesk.android.data.StudentWorkspaceResult
+import com.mobidesk.android.data.VmLifecycle
+import com.mobidesk.android.data.VmStatusSample
 
 private enum class SignedOutRoute { SIGN_IN, RESET_REQUEST }
 
 @Composable
-fun MobiDeskApp(viewModel: MobiDeskViewModel) {
+fun MobiDeskApp(
+    viewModel: MobiDeskViewModel,
+    onNavigateToConnect: () -> Unit = {}
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -77,6 +91,12 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
 
     LaunchedEffect(state.isAuthenticated) {
         if (state.isAuthenticated) password = ""
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigateToConnectEvent.collect {
+            onNavigateToConnect()
+        }
     }
 
     BackHandler(enabled = state.isPasswordRecovery || state.isRecoveryInterrupted || route != SignedOutRoute.SIGN_IN.name || showSettings) {
@@ -93,7 +113,7 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
         color = MaterialTheme.colorScheme.background
     ) {
         when {
-            state.isRestoringSession -> LoadingScreen("Restoring your secure session")
+            state.isRestoringSession -> LoadingScreen(stringResource(R.string.checking_status))
             state.isRecoveryInterrupted -> RecoveryInterruptedScreen(
                 state = state,
                 onRequestNewLink = {
@@ -144,24 +164,60 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
                 }
             )
             state.authLevel == AuthLevel.RECOVERY_ONLY -> {
-                // Safeguard: recovery session in flight, never expose workspace UI
-                LoadingScreen("Verifying recovery link...")
+                LoadingScreen("Verifying recovery link…")
             }
             state.authLevel == AuthLevel.FULLY_AUTHENTICATED -> {
                 when {
-                    state.isLoadingWorkspace -> LoadingScreen("Loading your assigned workspace")
+                    state.isLoadingWorkspace && state.workspace == null -> LoadingScreen("Loading your assigned workspace")
                     state.workspace == StudentWorkspaceResult.AccountNotProvisioned -> AccountNotProvisionedScreen(
                         state = state,
                         onSignOut = viewModel::signOut
                     )
-                    state.workspace is StudentWorkspaceResult.Ready -> DashboardScreen(
+                    state.workspace is StudentWorkspaceResult.NoAssignment -> NoAssignmentScreen(
                         state = state,
-                        workspace = state.workspace as StudentWorkspaceResult.Ready,
-                        onSettings = { showSettings = true },
                         onRetry = viewModel::retryWorkspaceLoad,
+                        onSignOut = viewModel::signOut
+                    )
+                    state.workspace is StudentWorkspaceResult.AssignmentInvalid -> AssignmentInvalidScreen(
+                        state = state,
+                        onRetry = viewModel::retryWorkspaceLoad,
+                        onSignOut = viewModel::signOut
+                    )
+                    state.workspace is StudentWorkspaceResult.Assigned -> DashboardScreen(
+                        state = state,
+                        assigned = state.workspace as StudentWorkspaceResult.Assigned,
+                        onSettings = { showSettings = true },
+                        onRefresh = viewModel::refreshStatus,
+                        onConnect = viewModel::connect,
                         onSignOut = viewModel::signOut,
                         onSignOutDeviceOnly = viewModel::signOutDeviceOnly
                     )
+                    state.workspace is StudentWorkspaceResult.Ready -> {
+                        val ready = state.workspace as StudentWorkspaceResult.Ready
+                        if (ready.assignedVms.isEmpty()) {
+                            NoAssignmentScreen(
+                                state = state,
+                                onRetry = viewModel::retryWorkspaceLoad,
+                                onSignOut = viewModel::signOut
+                            )
+                        } else {
+                            DashboardScreen(
+                                state = state,
+                                assigned = StudentWorkspaceResult.Assigned(
+                                    profile = ready.profile,
+                                    assignedWorkspace = com.mobidesk.android.data.AssignedWorkspace(
+                                        displayLabel = ready.assignedVms.first().name,
+                                        assignmentTag = "asg_tag_${ready.assignedVms.first().id}"
+                                    )
+                                ),
+                                onSettings = { showSettings = true },
+                                onRefresh = viewModel::refreshStatus,
+                                onConnect = viewModel::connect,
+                                onSignOut = viewModel::signOut,
+                                onSignOutDeviceOnly = viewModel::signOutDeviceOnly
+                            )
+                        }
+                    }
                     else -> WorkspaceErrorScreen(
                         state = state,
                         onRetry = viewModel::retryWorkspaceLoad,
@@ -181,6 +237,431 @@ fun MobiDeskApp(viewModel: MobiDeskViewModel) {
                     route = SignedOutRoute.RESET_REQUEST.name
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun DashboardScreen(
+    state: MobiDeskUiState,
+    assigned: StudentWorkspaceResult.Assigned,
+    onSettings: () -> Unit,
+    onRefresh: () -> Unit,
+    onConnect: () -> Unit,
+    onSignOut: () -> Unit,
+    onSignOutDeviceOnly: () -> Unit = {}
+) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BrandMark(size = 42.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.student_workspace), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(
+                onClick = onSettings,
+                modifier = Modifier.semantics { contentDescription = "Settings" }
+            ) {
+                Icon(Icons.Outlined.Settings, contentDescription = null)
+            }
+        }
+
+        state.infoMessage?.let { InlineNotice(it, isError = false) }
+        if (state.errorMessage != null) InlineNotice(state.errorMessage, isError = true)
+
+        Column {
+            Text(
+                stringResource(R.string.welcome_student, assigned.profile.name),
+                style = MaterialTheme.typography.headlineMedium
+            )
+            if (assigned.profile.college.isNotBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    assigned.profile.college,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        CloudPcCard(
+            displayLabel = assigned.assignedWorkspace.displayLabel,
+            sample = state.statusSample,
+            statusAgeText = state.statusAgeText,
+            isCheckingStatus = state.isCheckingStatus,
+            isConnectEnabled = state.isConnectEnabled,
+            onRefresh = onRefresh,
+            onConnect = onConnect
+        )
+
+        DockPlaceholderCard()
+
+        TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.sign_out))
+        }
+
+        if (state.signOutFailed) {
+            Button(
+                onClick = onSignOutDeviceOnly,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                Text(stringResource(R.string.sign_out_device_only))
+            }
+        }
+    }
+}
+
+@Composable
+private fun CloudPcCard(
+    displayLabel: String,
+    sample: VmStatusSample?,
+    statusAgeText: String?,
+    isCheckingStatus: Boolean,
+    isConnectEnabled: Boolean,
+    onRefresh: () -> Unit,
+    onConnect: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+    ) {
+        Column(
+            Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    Modifier.size(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Outlined.Computer,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(displayLabel, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        stringResource(R.string.assignment_verified),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
+
+            val (lifecycleLabel, lifecycleDesc) = getLifecycleCopy(sample?.lifecycle)
+            StatusRow(
+                heading = stringResource(R.string.lifecycle_heading),
+                label = lifecycleLabel,
+                description = lifecycleDesc,
+                icon = when (sample?.lifecycle) {
+                    VmLifecycle.RUNNING -> Icons.Outlined.CheckCircle
+                    VmLifecycle.STOPPED, VmLifecycle.STOPPING, VmLifecycle.ERROR -> Icons.Outlined.ErrorOutline
+                    VmLifecycle.STARTING -> Icons.Outlined.HourglassEmpty
+                    else -> Icons.Outlined.PowerSettingsNew
+                }
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+
+            val (transportLabel, transportDesc) = getTransportCopy(sample?.rdpTransport)
+            StatusRow(
+                heading = stringResource(R.string.transport_heading),
+                label = transportLabel,
+                description = transportDesc,
+                icon = when (sample?.rdpTransport) {
+                    RdpTransport.RDP_NEGOTIATION_OK -> Icons.Outlined.CheckCircle
+                    RdpTransport.TCP_UNREACHABLE -> Icons.Outlined.ErrorOutline
+                    RdpTransport.TCP_REACHABLE -> Icons.Outlined.SyncProblem
+                    else -> Icons.Outlined.Schedule
+                }
+            )
+
+            val ageDisplay = if (isCheckingStatus) {
+                stringResource(R.string.checking_status)
+            } else {
+                statusAgeText ?: stringResource(R.string.status_not_checked_yet)
+            }
+            Text(
+                text = ageDisplay,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.semantics {
+                    liveRegion = LiveRegionMode.Polite
+                }
+            )
+
+            Button(
+                onClick = onConnect,
+                enabled = isConnectEnabled && !isCheckingStatus,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .semantics {
+                        contentDescription = if (isConnectEnabled) "Connect to Cloud PC" else "Connect unavailable"
+                    },
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                if (isCheckingStatus) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(R.string.connect), style = MaterialTheme.typography.titleMedium)
+                }
+            }
+
+            Button(
+                onClick = onRefresh,
+                enabled = !isCheckingStatus,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                )
+            ) {
+                Icon(Icons.Outlined.Refresh, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.refresh_status))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusRow(
+    heading: String,
+    label: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = "$heading: $label",
+                style = MaterialTheme.typography.titleSmall
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun DockPlaceholderCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.Dock,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    stringResource(R.string.dock_placeholder_title),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    stringResource(R.string.dock_placeholder_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoAssignmentScreen(state: MobiDeskUiState, onRetry: () -> Unit, onSignOut: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
+            BrandLockup()
+            Spacer(Modifier.height(48.dp))
+            Text(stringResource(R.string.your_cloud_pc), style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.error_assign_01),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Text(stringResource(R.string.try_again))
+            }
+            TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.sign_out))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssignmentInvalidScreen(state: MobiDeskUiState, onRetry: () -> Unit, onSignOut: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
+            BrandLockup()
+            Spacer(Modifier.height(48.dp))
+            Text("Assignment review needed", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.error_assign_03),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Text(stringResource(R.string.try_again))
+            }
+            TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.sign_out))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountNotProvisionedScreen(state: MobiDeskUiState, onSignOut: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
+            BrandLockup()
+            Spacer(Modifier.height(48.dp))
+            Text("Account setup needed", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "This signed-in account does not have an active student profile. Ask your institution to verify its MobiDesk roster before trying again.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(20.dp))
+            state.email?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = onSignOut, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Text(stringResource(R.string.sign_out))
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceErrorScreen(state: MobiDeskUiState, onRetry: () -> Unit, onSignOut: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
+            BrandLockup()
+            Spacer(Modifier.height(42.dp))
+            Text("Workspace unavailable", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                state.errorMessage ?: stringResource(R.string.error_assign_02),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(22.dp))
+            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
+                Text(stringResource(R.string.try_again))
+            }
+            TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.sign_out))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    state: MobiDeskUiState,
+    onBack: () -> Unit,
+    onSignOut: () -> Unit,
+    onSignOutDeviceOnly: () -> Unit = {}
+) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+            Text(stringResource(R.string.account_settings), style = MaterialTheme.typography.headlineSmall)
+        }
+        state.infoMessage?.let { InlineNotice(it, isError = false) }
+        state.errorMessage?.let { InlineNotice(it, isError = true) }
+        ServiceNotice(
+            icon = Icons.Outlined.Shield,
+            title = "School account",
+            body = "Your signed-in identity is verified by Supabase Auth and scoped by database row-level security."
+        )
+        SettingRow("Signed-in account", state.email ?: "Verified school account")
+        SettingRow("Profile and VM assignment", "Loaded from the signed-in account's access policies")
+        SettingRow("Remote desktop", "Managed securely via MobiDesk control plane")
+        Button(
+            onClick = onSignOut,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        ) { Text(stringResource(R.string.sign_out)) }
+        if (state.signOutFailed) {
+            Button(
+                onClick = onSignOutDeviceOnly,
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) { Text(stringResource(R.string.sign_out_device_only)) }
         }
     }
 }
@@ -402,206 +883,6 @@ private fun PasswordRecoveryScreen(
 }
 
 @Composable
-private fun DashboardScreen(
-    state: MobiDeskUiState,
-    workspace: StudentWorkspaceResult.Ready,
-    onSettings: () -> Unit,
-    onRetry: () -> Unit,
-    onSignOut: () -> Unit,
-    onSignOutDeviceOnly: () -> Unit = {}
-) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            BrandMark(size = 42.dp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("MobiDesk", style = MaterialTheme.typography.titleLarge)
-                Text("Student workspace", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            IconButton(onClick = onSettings) { Icon(Icons.Outlined.Settings, contentDescription = "Settings") }
-        }
-        state.infoMessage?.let { InlineNotice(it, isError = false) }
-        if (state.errorMessage != null) InlineNotice(state.errorMessage, isError = true)
-
-        Column {
-            Text("Welcome, ${workspace.profile.name}", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(5.dp))
-            Text(workspace.profile.college, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
-        ) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Computer, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Your Cloud PC", style = MaterialTheme.typography.titleLarge)
-                        Text("Assignment from your school", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
-                if (workspace.assignedVms.isEmpty()) {
-                    Text("No Cloud PC is assigned to this account yet.", style = MaterialTheme.typography.bodyLarge)
-                    Text("Contact your MobiDesk administrator if you expected an assignment.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    workspace.assignedVms.forEach { vm ->
-                        Text(vm.name, style = MaterialTheme.typography.titleMedium)
-                        Text("Assignment verified", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                Button(
-                    onClick = {},
-                    enabled = false,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) { Text("Remote session not configured") }
-                Text(
-                    "A secure VM-control service and short-lived session ticket are required before remote access can be enabled.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        ServiceNotice(
-            icon = Icons.Outlined.CloudOff,
-            title = "Remote desktop is not ready",
-            body = "Your account and assignment are read from Supabase. This build does not start VMs or open RDP sessions."
-        )
-        Button(
-            onClick = onRetry,
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
-        ) {
-            Icon(Icons.Outlined.Refresh, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Refresh assignment")
-        }
-        TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
-        if (state.signOutFailed) {
-            Button(
-                onClick = onSignOutDeviceOnly,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
-            ) { Text("Sign out on this device") }
-        }
-    }
-}
-
-@Composable
-private fun AccountNotProvisionedScreen(state: MobiDeskUiState, onSignOut: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
-            BrandLockup()
-            Spacer(Modifier.height(48.dp))
-            Text("Account setup needed", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                "This signed-in account does not have an active student profile. Ask your institution to verify its MobiDesk roster before trying again.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(20.dp))
-            state.email?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onSignOut, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
-                Text("Sign out")
-            }
-        }
-    }
-}
-
-@Composable
-private fun WorkspaceErrorScreen(state: MobiDeskUiState, onRetry: () -> Unit, onSignOut: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
-            BrandLockup()
-            Spacer(Modifier.height(42.dp))
-            Text("Workspace unavailable", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.height(12.dp))
-            Text(
-                state.errorMessage ?: "We couldn't load your student workspace. Check your connection and retry.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(22.dp))
-            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
-                Text("Try again")
-            }
-            TextButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) { Text("Sign out") }
-        }
-    }
-}
-
-@Composable
-private fun SettingsScreen(
-    state: MobiDeskUiState,
-    onBack: () -> Unit,
-    onSignOut: () -> Unit,
-    onSignOutDeviceOnly: () -> Unit = {}
-) {
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-            Text("Account settings", style = MaterialTheme.typography.headlineSmall)
-        }
-        state.infoMessage?.let { InlineNotice(it, isError = false) }
-        state.errorMessage?.let { InlineNotice(it, isError = true) }
-        ServiceNotice(
-            icon = Icons.Outlined.Shield,
-            title = "School account",
-            body = "Your signed-in identity is verified by Supabase Auth and scoped by database row-level security."
-        )
-        SettingRow("Signed-in account", state.email ?: "Verified school account")
-        SettingRow("Profile and VM assignment", "Loaded from the signed-in account's access policies")
-        SettingRow("Remote desktop", "Not configured in this build")
-        SettingRow("VM start/stop controls", "Not configured in this build")
-        Text(
-            "MobiDesk does not store permanent Windows credentials. Remote access stays disabled until the secure session service is deployed.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Button(
-            onClick = onSignOut,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
-        ) { Text("Sign out") }
-        if (state.signOutFailed) {
-            Button(
-                onClick = onSignOutDeviceOnly,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
-            ) { Text("Sign out on this device") }
-        }
-    }
-}
-
-@Composable
 private fun RecoveryInterruptedScreen(
     state: MobiDeskUiState,
     onRequestNewLink: () -> Unit,
@@ -666,8 +947,8 @@ private fun BrandLockup() {
         BrandMark(size = 46.dp)
         Spacer(Modifier.width(12.dp))
         Column {
-            Text("MobiDesk", style = MaterialTheme.typography.titleLarge)
-            Text("CLOUD WORKSPACE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.app_tagline), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -746,5 +1027,28 @@ private fun SettingRow(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.titleMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HorizontalDivider(Modifier.padding(top = 7.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+    }
+}
+
+@Composable
+private fun getLifecycleCopy(lifecycle: VmLifecycle?): Pair<String, String> {
+    return when (lifecycle) {
+        VmLifecycle.STOPPED -> stringResource(R.string.lifecycle_stopped_label) to stringResource(R.string.lifecycle_stopped_desc)
+        VmLifecycle.STARTING -> stringResource(R.string.lifecycle_starting_label) to stringResource(R.string.lifecycle_starting_desc)
+        VmLifecycle.RUNNING -> stringResource(R.string.lifecycle_running_label) to stringResource(R.string.lifecycle_running_desc)
+        VmLifecycle.STOPPING -> stringResource(R.string.lifecycle_stopping_label) to stringResource(R.string.lifecycle_stopping_desc)
+        VmLifecycle.ERROR -> stringResource(R.string.lifecycle_error_label) to stringResource(R.string.lifecycle_error_desc)
+        VmLifecycle.UNKNOWN, null -> stringResource(R.string.lifecycle_unknown_label) to stringResource(R.string.lifecycle_unknown_desc)
+    }
+}
+
+@Composable
+private fun getTransportCopy(transport: RdpTransport?): Pair<String, String> {
+    return when (transport) {
+        RdpTransport.NOT_CHECKED -> stringResource(R.string.transport_not_checked_label) to stringResource(R.string.transport_not_checked_desc)
+        RdpTransport.TCP_UNREACHABLE -> stringResource(R.string.transport_tcp_unreachable_label) to stringResource(R.string.transport_tcp_unreachable_desc)
+        RdpTransport.TCP_REACHABLE -> stringResource(R.string.transport_tcp_reachable_label) to stringResource(R.string.transport_tcp_reachable_desc)
+        RdpTransport.RDP_NEGOTIATION_OK -> stringResource(R.string.transport_rdp_negotiation_ok_label) to stringResource(R.string.transport_rdp_negotiation_ok_desc)
+        RdpTransport.UNKNOWN, null -> stringResource(R.string.transport_unknown_label) to stringResource(R.string.transport_unknown_desc)
     }
 }

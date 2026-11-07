@@ -1,0 +1,74 @@
+<resources>
+    <!-- App & General -->
+    <string name="app_name">MobiDesk</string>
+    <string name="app_tagline">CLOUD WORKSPACE</string>
+    <string name="student_workspace">Student workspace</string>
+    <string name="welcome_student">Welcome, %1$s</string>
+    <string name="settings">Settings</string>
+    <string name="account_settings">Account settings</string>
+    <string name="sign_out">Sign out</string>
+    <string name="sign_out_device_only">Sign out on this device</string>
+    <string name="try_again">Try again</string>
+    <string name="refresh_status">Refresh status</string>
+    <string name="connect">Connect</string>
+    <string name="checking_status">Checking status…</string>
+    <string name="status_not_checked_yet">Status not checked yet</string>
+    <string name="status_needs_refreshing">Status needs refreshing</string>
+    <string name="updated_just_now">Updated just now</string>
+    <string name="updated_seconds_ago">Updated %1$d seconds ago</string>
+
+    <!-- Cloud PC card -->
+    <string name="your_cloud_pc">Your Cloud PC</string>
+    <string name="assignment_from_school">Assignment from your school</string>
+    <string name="assignment_verified">Assignment verified</string>
+    <string name="lifecycle_heading">Power</string>
+    <string name="transport_heading">Remote Desktop</string>
+
+    <!-- Parent error catalogue (PRD v1.2 §12 / FP-02 §7) -->
+    <string name="error_auth_01">Your sign-in session expired. Sign in again.</string>
+    <string name="error_assign_01">No Cloud PC is assigned to your account. Contact the lab administrator.</string>
+    <string name="error_assign_02">We could not verify your assigned Cloud PC. Try again.</string>
+    <string name="error_assign_03">Your Cloud PC assignment needs administrator review.</string>
+    <string name="error_vm_01">Your Cloud PC is powered off. Contact the lab administrator.</string>
+    <string name="error_vm_02">Your Cloud PC is starting or is not ready yet.</string>
+    <string name="error_vm_03">Your Cloud PC cannot be reached right now.</string>
+
+    <!-- VM Lifecycle enum copy (PRD v0.2 §4) -->
+    <string name="lifecycle_stopped_label">Powered off</string>
+    <string name="lifecycle_stopped_desc">Your Cloud PC is powered off. Contact the lab administrator.</string>
+
+    <string name="lifecycle_starting_label">Starting</string>
+    <string name="lifecycle_starting_desc">Your Cloud PC is starting or is not ready yet.</string>
+
+    <string name="lifecycle_running_label">Powered on</string>
+    <string name="lifecycle_running_desc">Power is on. Remote Desktop readiness is shown separately.</string>
+
+    <string name="lifecycle_stopping_label">Shutting down</string>
+    <string name="lifecycle_stopping_desc">Your Cloud PC is shutting down. Try again when it is ready.</string>
+
+    <string name="lifecycle_error_label">Needs attention</string>
+    <string name="lifecycle_error_desc">Your Cloud PC needs attention. Contact the lab administrator.</string>
+
+    <string name="lifecycle_unknown_label">Power status unavailable</string>
+    <string name="lifecycle_unknown_desc">We could not confirm your Cloud PC power state. Refresh status to try again.</string>
+
+    <!-- RDP Transport enum copy (PRD v0.2 §4) -->
+    <string name="transport_not_checked_label">Not checked yet</string>
+    <string name="transport_not_checked_desc">The remote desktop connection has not been checked yet.</string>
+
+    <string name="transport_tcp_unreachable_label">Cannot reach remote desktop service</string>
+    <string name="transport_tcp_unreachable_desc">Your Cloud PC cannot be reached right now.</string>
+
+    <string name="transport_tcp_reachable_label">Service responding</string>
+    <string name="transport_tcp_reachable_desc">The service responded, but RDP negotiation is not ready.</string>
+
+    <string name="transport_rdp_negotiation_ok_label">Ready for Windows sign-in</string>
+    <string name="transport_rdp_negotiation_ok_desc">RDP negotiation succeeded. Your Windows credentials are still required.</string>
+
+    <string name="transport_unknown_label">Connection status unavailable</string>
+    <string name="transport_unknown_desc">We could not verify the remote desktop service. Refresh status to try again.</string>
+
+    <!-- Dock Placeholder (PRD v0.2 §3) -->
+    <string name="dock_placeholder_title">MobiDesk Dock (R2)</string>
+    <string name="dock_placeholder_desc">Connect an external display, mouse and keyboard when docked at your lab station. Coming in release 2.</string>
+</resources>
