@@ -1,0 +1,10 @@
+{
+  "grant": "bXJ0U0Q3ZkJ2ZkR6WjFZQ0h1d2pTNGt4YWE=",
+  "expiresAt": "2026-11-03T06:01:00Z",
+  "relayPath": "/v1/rdp",
+  "rdpCertificate": {
+    "mode": "LEAF_X509_DER_SHA256",
+    "fingerprintSha256": "7f4a2c9e1d6b8035a7c4e2f90123456789abcdef0123456789abcdef01234567"
+  },
+  "requestId": "req_70d6ad416fe94b32"
+}

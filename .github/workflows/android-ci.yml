@@ -77,6 +77,11 @@ jobs:
           test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
 
+      - name: Verify Live Drill Acceptance Gate Policy
+        shell: bash
+        run: |
+          python3 scripts/verify_live_drill_gate.py
+
       - name: Run JVM unit tests and assemble debug APK
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
 

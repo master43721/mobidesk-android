@@ -1,0 +1,9 @@
+{
+  "lifecycle": "RUNNING",
+  "rdpTransport": "RDP_NEGOTIATION_OK",
+  "sampledAt": "2026-11-03T06:00:00Z",
+  "probeDurationMs": 384,
+  "staleAfterSeconds": 15,
+  "requestId": "req_7f1b24a890d643d8",
+  "assignmentTag": "asg_tag_7f1b24a890d643d8"
+}
