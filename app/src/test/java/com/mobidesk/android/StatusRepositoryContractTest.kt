@@ -286,4 +286,42 @@ class StatusRepositoryContractTest {
             (result as StatusResult.Error).message
         )
     }
+
+    @Test
+    fun getVmStatus_blankAccessToken_failsImmediatelyAsAuthExpired() = runBlocking {
+        val repository = DefaultStatusRepository(
+            baseUrl = "http://127.0.0.1:$serverPort",
+            clock = fakeClock
+        )
+
+        val result = repository.getVmStatus("   ")
+        assertTrue("Blank token must return AuthExpired immediately", result is StatusResult.AuthExpired)
+    }
+
+    @Test
+    fun getVmStatus_forbidden403_returnsAuthExpired() = runBlocking {
+        val serverThread = thread {
+            try {
+                val client = serverSocket.accept()
+                val reader = BufferedReader(InputStreamReader(client.getInputStream()))
+                while (!reader.readLine().isNullOrBlank()) {}
+                val writer = OutputStreamWriter(client.getOutputStream())
+                writer.write("HTTP/1.1 403 Forbidden\r\n")
+                writer.write("Content-Length: 0\r\n")
+                writer.write("\r\n")
+                writer.flush()
+                client.close()
+            } catch (ignored: Exception) {}
+        }
+
+        val repository = DefaultStatusRepository(
+            baseUrl = "http://127.0.0.1:$serverPort",
+            clock = fakeClock
+        )
+
+        val result = repository.getVmStatus("forbidden-token")
+        serverThread.join(2000)
+
+        assertTrue("403 Forbidden must return AuthExpired", result is StatusResult.AuthExpired)
+    }
 }

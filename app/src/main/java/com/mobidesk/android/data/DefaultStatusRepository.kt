@@ -30,6 +30,9 @@ class DefaultStatusRepository(
     }
 
     override suspend fun getVmStatus(accessToken: String): StatusResult = withContext(Dispatchers.IO) {
+        if (accessToken.isBlank()) {
+            return@withContext StatusResult.AuthExpired("Your sign-in session expired. Sign in again.")
+        }
         val requestUrl = if (baseUrl.endsWith("/")) "${baseUrl}v1/vm-status" else "$baseUrl/v1/vm-status"
         var connection: HttpURLConnection? = null
         val startElapsed = clock.elapsedRealtime()
@@ -107,7 +110,8 @@ class DefaultStatusRepository(
                         message = errorMsg
                     )
                 }
-                HttpURLConnection.HTTP_UNAUTHORIZED -> {
+                HttpURLConnection.HTTP_UNAUTHORIZED,
+                HttpURLConnection.HTTP_FORBIDDEN -> {
                     StatusResult.AuthExpired("Your sign-in session expired. Sign in again.")
                 }
                 else -> {
