@@ -373,13 +373,58 @@ def verify_live_drills_on_disk(repo_root: str) -> int:
     return 0
 
 
+def test_real_kit_parser() -> int:
+    """
+    Validates that verify_live_drills_on_disk correctly parses a real kit structure,
+    properly rejecting a blank sign-off block even if PASS or ACCEPTED is claimed.
+    """
+    import tempfile
+    import shutil
+    print("\n" + "=" * 70)
+    print("Testing parser on real EXECUTION_REPORT copy with blank sign-off...")
+    print("=" * 70)
+
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    real_fp01 = os.path.join(repo_root, "docs", "live-drills", "FP-01")
+    if not os.path.isdir(real_fp01):
+        print("Notice: FP-01 live drill directory not found for parser test, skipping.")
+        return 0
+
+    with tempfile.TemporaryDirectory() as td:
+        fake_drills = os.path.join(td, "docs", "live-drills", "FP-01")
+        shutil.copytree(real_fp01, fake_drills)
+
+        report_file = os.path.join(fake_drills, "EXECUTION_REPORT.md")
+        with open(report_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Injected premature PASS and ACCEPTED claims with unmodified blank sign-off
+        tampered = re.sub(r"LIVE_DRILL_STATUS:\s*[A-Z_ ]+", "LIVE_DRILL_STATUS: PASS", content)
+        tampered = re.sub(r"Owner\s*Sign-off\s*Status\s*:\s*[A-Z]+", "Owner Sign-off Status: ACCEPTED", tampered)
+        with open(report_file, "w", encoding="utf-8") as f:
+            f.write(tampered)
+
+        rc = verify_live_drills_on_disk(td)
+        if rc != 0:
+            print("  --> PASS: Gate correctly rejected real kit copy claiming PASS with blank sign-off block.")
+            return 0
+        else:
+            print("  --> FAIL: Gate failed to reject real kit copy with blank sign-off!")
+            return 1
+
+
 def main() -> int:
     # 1. Run mandatory test suite (including negative tests)
     test_rc = run_tests()
     if test_rc != 0:
         return test_rc
 
-    # 2. Verify repository on-disk live drill documents
+    # 2. Run real kit parser tests
+    parser_rc = test_real_kit_parser()
+    if parser_rc != 0:
+        return parser_rc
+
+    # 3. Verify repository on-disk live drill documents
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     disk_rc = verify_live_drills_on_disk(repo_root)
     return disk_rc
