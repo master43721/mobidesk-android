@@ -8,6 +8,8 @@ local.properties
 .cxx/
 .externalNativeBuild/
 captures/
+.freerdp-deps-cache/
+executables-apks/
 
 # Local signing/configuration
 *.jks
