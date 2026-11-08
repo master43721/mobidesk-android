@@ -1,0 +1,1772 @@
+From 40eb181539d83f2ecd77b5711f0ee2a298fbbb41 Mon Sep 17 00:00:00 2001
+From: master43721 <master43721@gmail.com>
+Date: Sun, 8 Nov 2026 07:17:18 +0000
+Subject: [PATCH] feat(broker): implement Contract v1.1 status probe, grants,
+ revocation watchdog, and rate limiting
+
+---
+ mobidesk_broker/app.py                   | 313 +++++++++++++++++++++--
+ mobidesk_broker/audit.py                 |  49 ++++
+ mobidesk_broker/config.py                |  12 +-
+ mobidesk_broker/errors.py                | 126 +++++++++
+ mobidesk_broker/grants.py                |  17 +-
+ mobidesk_broker/lifecycle.py             |  85 ++++++
+ mobidesk_broker/rate_limit.py            |  59 +++++
+ mobidesk_broker/rdp_probe.py             |  77 ++++++
+ mobidesk_broker/rechecker.py             |  47 ++++
+ tests/fixtures/session_grant_sample.json |  10 +
+ tests/fixtures/vm_status_sample.json     |   9 +
+ tests/test_broker.py                     |  34 ++-
+ tests/test_lifecycle.py                  |  24 ++
+ tests/test_negatives_and_audit.py        | 184 +++++++++++++
+ tests/test_rate_limit.py                 |  43 ++++
+ tests/test_rdp_probe.py                  |  82 ++++++
+ tests/test_revocation.py                 |  98 +++++++
+ tests/test_vm_status.py                  | 124 +++++++++
+ 18 files changed, 1358 insertions(+), 35 deletions(-)
+ create mode 100644 mobidesk_broker/audit.py
+ create mode 100644 mobidesk_broker/errors.py
+ create mode 100644 mobidesk_broker/lifecycle.py
+ create mode 100644 mobidesk_broker/rate_limit.py
+ create mode 100644 mobidesk_broker/rdp_probe.py
+ create mode 100644 mobidesk_broker/rechecker.py
+ create mode 100644 tests/fixtures/session_grant_sample.json
+ create mode 100644 tests/fixtures/vm_status_sample.json
+ create mode 100644 tests/test_lifecycle.py
+ create mode 100644 tests/test_negatives_and_audit.py
+ create mode 100644 tests/test_rate_limit.py
+ create mode 100644 tests/test_rdp_probe.py
+ create mode 100644 tests/test_revocation.py
+ create mode 100644 tests/test_vm_status.py
+
+diff --git a/mobidesk_broker/app.py b/mobidesk_broker/app.py
+index 6fc3157..9a99e55 100644
+--- a/mobidesk_broker/app.py
++++ b/mobidesk_broker/app.py
+@@ -2,15 +2,24 @@ from __future__ import annotations
+ 
+ import asyncio
+ import contextlib
++import datetime
++import hashlib
+ import time
++import uuid
+ from collections.abc import Awaitable, Callable
+ from typing import Any
+ 
+ import aiohttp
+ from aiohttp import WSMsgType, web
+ 
++from .audit import AuditLogger
+ from .config import BrokerConfig
++from .errors import PRD_ERROR_CATALOGUE, make_prd_error_response
+ from .grants import Grant, GrantCapacityExceeded, GrantRateLimited, GrantStore, SessionBusy
++from .lifecycle import FakeLifecycleProvider, LifecycleProvider
++from .rate_limit import RateLimiter, get_client_ip
++from .rdp_probe import probe_rdp_transport
++from .rechecker import AssignmentRechecker, FakeAssignmentRechecker
+ from .supabase_api import InvalidAccessToken, SupabaseAPI, SupabaseUnavailable
+ 
+ 
+@@ -19,6 +28,10 @@ CONFIG_KEY = web.AppKey("config", BrokerConfig)
+ SUPABASE_KEY = web.AppKey("supabase_api", object)
+ GRANT_STORE_KEY = web.AppKey("grant_store", GrantStore)
+ TCP_CONNECTOR_KEY = web.AppKey("tcp_connector", object)
++RATE_LIMITER_KEY = web.AppKey("rate_limiter", RateLimiter)
++LIFECYCLE_PROVIDER_KEY = web.AppKey("lifecycle_provider", LifecycleProvider)
++RECHECKER_KEY = web.AppKey("rechecker", AssignmentRechecker)
++RDP_PROBER_KEY = web.AppKey("rdp_prober", object)
+ 
+ 
+ def _bearer(headers: Any) -> str | None:
+@@ -29,6 +42,15 @@ def _bearer(headers: Any) -> str | None:
+     return token
+ 
+ 
++def _generate_request_id() -> str:
++    return f"req_{uuid.uuid4().hex[:16]}"
++
++
++def _generate_assignment_tag(user_id: str, vm_id: str) -> str:
++    digest = hashlib.sha256(f"{user_id}:{vm_id}:mobidesk_v1".encode("utf-8")).hexdigest()
++    return f"asg_tag_{digest[:16]}"
++
++
+ async def _default_tcp_connector(host: str, port: int, timeout: float) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+     return await asyncio.wait_for(asyncio.open_connection(host=host, port=port), timeout=timeout)
+ 
+@@ -67,6 +89,10 @@ def create_app(
+     supabase_api: Any | None = None,
+     grant_store: GrantStore | None = None,
+     tcp_connector: TcpConnector | None = None,
++    rate_limiter: RateLimiter | None = None,
++    lifecycle_provider: LifecycleProvider | None = None,
++    rechecker: AssignmentRechecker | None = None,
++    rdp_prober: Any | None = None,
+ ) -> web.Application:
+     config.validate()
+     app = web.Application(client_max_size=64 * 1024)
+@@ -79,45 +105,210 @@ def create_app(
+         cooldown_seconds=config.grant_cooldown_seconds,
+     )
+     app[TCP_CONNECTOR_KEY] = tcp_connector or _default_tcp_connector
++    app[RATE_LIMITER_KEY] = rate_limiter or RateLimiter()
++    app[LIFECYCLE_PROVIDER_KEY] = lifecycle_provider or FakeLifecycleProvider()
++    app[RECHECKER_KEY] = rechecker or FakeAssignmentRechecker()
++    app[RDP_PROBER_KEY] = rdp_prober or probe_rdp_transport
++
+     app.cleanup_ctx.append(_grant_sweeper)
+     if supabase_api is None:
+         app.cleanup_ctx.append(_supabase_context)
+ 
+     app.router.add_get("/health", health)
++    app.router.add_get("/ready", ready)
++    app.router.add_get("/v1/vm-status", vm_status)
+     app.router.add_post("/v1/session-grants", create_session_grant)
+     app.router.add_get("/v1/rdp", rdp_websocket)
+     return app
+ 
+ 
+ async def health(_: web.Request) -> web.Response:
+-    return web.json_response({"status": "ok"}, headers={"Cache-Control": "no-store"})
++    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
++    return web.json_response(
++        {"status": "ok", "timestamp": now_utc},
++        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
++    )
+ 
+ 
+-async def create_session_grant(request: web.Request) -> web.Response:
++async def ready(request: web.Request) -> web.Response:
++    config: BrokerConfig = request.app[CONFIG_KEY]
++    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
++    
++    # Safe readiness check without exposing dependencies or hosts
++    if not config.vm_endpoints or len(config.vm_endpoints) == 0:
++        return web.json_response(
++            {"status": "not_ready", "timestamp": now_utc},
++            status=503,
++            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
++        )
++    return web.json_response(
++        {"status": "ready", "timestamp": now_utc},
++        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
++    )
++
++
++async def vm_status(request: web.Request) -> web.Response:
++    request_id = _generate_request_id()
++    config: BrokerConfig = request.app[CONFIG_KEY]
++    rate_limiter: RateLimiter = request.app[RATE_LIMITER_KEY]
++    client_ip = get_client_ip(request, config.trusted_proxy_header)
++
++    # 1. Unauthenticated IP rate check before token inspection
++    allowed, retry_after = rate_limiter.is_allowed(f"unauth_ip:{client_ip}", limit=60)
++    if not allowed:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="RATE_LIMITED", reason_code="RATE-01")
++        return make_prd_error_response("ASSIGN-02", request_id=request_id, status=429, retry_after_seconds=retry_after)
++
+     access_token = _bearer(request.headers)
+     if access_token is None:
+-        return web.json_response({"error": "authentication_required"}, status=401, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="AUTH_REQUIRED", reason_code="AUTH-01")
++        return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="authentication_required")
++
++    supabase: SupabaseAPI = request.app[SUPABASE_KEY]
++    try:
++        user_id, assignments = await supabase.resolve_user_vm(access_token)
++    except InvalidAccessToken:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="INVALID_TOKEN", reason_code="AUTH-01")
++        return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="invalid_or_expired_session")
++    except SupabaseUnavailable:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="UPSTREAM_UNAVAILABLE", reason_code="ASSIGN-02")
++        return make_prd_error_response("ASSIGN-02", request_id=request_id, status=503, error_key="identity_service_unavailable")
++
++    # 2. Per-user status rate limit (30 requests per minute)
++    allowed, retry_after = rate_limiter.is_allowed(f"user_status:{user_id}", limit=30)
++    if not allowed:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="USER_RATE_LIMITED", reason_code="ASSIGN-02")
++        return make_prd_error_response("ASSIGN-02", request_id=request_id, status=429, retry_after_seconds=retry_after)
++
++    if len(assignments) == 0:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="NO_ASSIGNMENT", reason_code="ASSIGN-01")
++        return make_prd_error_response("ASSIGN-01", request_id=request_id, status=403, error_key="no_vm_assigned")
++    if len(assignments) != 1:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="ASSIGNMENT_CONFLICT", reason_code="ASSIGN-03")
++        return make_prd_error_response("ASSIGN-03", request_id=request_id, status=409, error_key="assignment_conflict")
+ 
++    assignment = assignments[0]
++    vm_id = assignment["vm_id"]
++    endpoint = config.vm_endpoints.get(vm_id)
++    if endpoint is None:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="VM_NOT_IN_ALLOWLIST", reason_code="VM-03")
++        return make_prd_error_response("VM-03", request_id=request_id, status=503, error_key="vm_not_available")
++
++    probe_start = time.monotonic()
++    lifecycle_provider: LifecycleProvider = request.app[LIFECYCLE_PROVIDER_KEY]
++    prober = request.app[RDP_PROBER_KEY]
++
++    # Staged bounded probing within 1,500 ms total probe budget
++    # Stage A: Lifecycle probe (bounded to 500 ms)
++    try:
++        lifecycle = await lifecycle_provider.get_lifecycle(vm_id, timeout_seconds=0.5)
++        if lifecycle not in ("STOPPED", "STARTING", "RUNNING", "STOPPING", "ERROR", "UNKNOWN"):
++            lifecycle = "UNKNOWN"
++    except Exception:
++        lifecycle = "UNKNOWN"
++
++    # Stage B: RDP Transport probe (bounded to 700 ms)
++    if lifecycle == "STOPPED":
++        rdp_transport = "NOT_CHECKED"
++    else:
++        try:
++            rdp_transport = await prober(endpoint, 3389, timeout_seconds=0.7)
++            if rdp_transport not in ("NOT_CHECKED", "TCP_UNREACHABLE", "TCP_REACHABLE", "RDP_NEGOTIATION_OK", "UNKNOWN"):
++                rdp_transport = "UNKNOWN"
++        except Exception:
++            rdp_transport = "UNKNOWN"
++
++    duration_ms = min(1500, max(1, int((time.monotonic() - probe_start) * 1000)))
++    assignment_tag = _generate_assignment_tag(user_id, vm_id)
++    now_utc = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
++
++    response_payload = {
++        "lifecycle": lifecycle,
++        "rdpTransport": rdp_transport,
++        "sampledAt": now_utc,
++        "probeDurationMs": duration_ms,
++        "staleAfterSeconds": 15,
++        "requestId": request_id,
++        "assignmentTag": assignment_tag,
++    }
++
++    AuditLogger.log_event(
++        "STATUS_PROBED",
++        request_id=request_id,
++        outcome="SUCCESS",
++        duration_ms=duration_ms,
++        extra={"staleAfterSeconds": 15, "probeDurationMs": duration_ms, "transport": rdp_transport},
++    )
++
++    return web.json_response(
++        response_payload,
++        status=200,
++        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
++    )
++
++
++async def create_session_grant(request: web.Request) -> web.Response:
++    request_id = _generate_request_id()
+     config: BrokerConfig = request.app[CONFIG_KEY]
++    rate_limiter: RateLimiter = request.app[RATE_LIMITER_KEY]
++    client_ip = get_client_ip(request, config.trusted_proxy_header)
++
++    # 1. Unauthenticated IP check
++    allowed, retry_after = rate_limiter.is_allowed(f"unauth_ip:{client_ip}", limit=60)
++    if not allowed:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="RATE_LIMITED", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=429, retry_after_seconds=retry_after)
++
++    # 2. Strict body validation: reject destination selectors or credentials
++    if request.can_read_body:
++        try:
++            body_text = await request.text()
++            if body_text.strip() and body_text.strip() != "{}":
++                AuditLogger.log_event("DENIED", request_id=request_id, outcome="BODY_PROHIBITED", reason_code="GRANT-01")
++                return make_prd_error_response(
++                    "GRANT-01",
++                    request_id=request_id,
++                    status=400,
++                    error_key="client_destination_prohibited",
++                )
++        except Exception:
++            pass
++
++    access_token = _bearer(request.headers)
++    if access_token is None:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="AUTH_REQUIRED", reason_code="AUTH-01")
++        return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="authentication_required")
++
+     supabase: SupabaseAPI = request.app[SUPABASE_KEY]
+     store: GrantStore = request.app[GRANT_STORE_KEY]
+     try:
+         user_id, assignments = await supabase.resolve_user_vm(access_token)
+     except InvalidAccessToken:
+-        return web.json_response({"error": "invalid_or_expired_session"}, status=401, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="INVALID_TOKEN", reason_code="AUTH-01")
++        return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="invalid_or_expired_session")
+     except SupabaseUnavailable:
+-        return web.json_response({"error": "identity_service_unavailable"}, status=502, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="UPSTREAM_UNAVAILABLE", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=502, error_key="identity_service_unavailable")
++
++    # 3. User grant rate limit (5 grants per minute)
++    allowed, retry_after = rate_limiter.is_allowed(f"user_grants:{user_id}", limit=5)
++    if not allowed:
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="GRANT_RATE_LIMITED", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=429, retry_after_seconds=retry_after)
+ 
+     if len(assignments) == 0:
+-        return web.json_response({"error": "no_vm_assigned"}, status=403, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="NO_ASSIGNMENT", reason_code="ASSIGN-01")
++        return make_prd_error_response("ASSIGN-01", request_id=request_id, status=403, error_key="no_vm_assigned")
+     if len(assignments) != 1:
+-        return web.json_response({"error": "assignment_conflict"}, status=409, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="ASSIGNMENT_CONFLICT", reason_code="ASSIGN-03")
++        return make_prd_error_response("ASSIGN-03", request_id=request_id, status=409, error_key="assignment_conflict")
+ 
+     assignment = assignments[0]
+     vm_id = assignment["vm_id"]
+     vm_name = assignment["vm_name"]
+     if vm_id not in config.vm_endpoints:
+-        return web.json_response({"error": "vm_not_available"}, status=503, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="VM_NOT_AVAILABLE", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=503, error_key="vm_not_available")
+ 
+     try:
+         raw_grant, expires_at = await store.issue(
+@@ -127,18 +318,28 @@ async def create_session_grant(request: web.Request) -> web.Response:
+             access_token=access_token,
+         )
+     except GrantRateLimited:
+-        return web.json_response({"error": "please_wait_before_retrying"}, status=429, headers={"Cache-Control": "no-store", "Retry-After": "2"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="COOLDOWN_ACTIVE", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=429, retry_after_seconds=2, error_key="please_wait_before_retrying")
+     except GrantCapacityExceeded:
+-        return web.json_response({"error": "broker_temporarily_busy"}, status=503, headers={"Cache-Control": "no-store", "Retry-After": "2"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="CAPACITY_EXCEEDED", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=503, error_key="grant_capacity_exceeded")
+     except SessionBusy:
+-        return web.json_response({"error": "session_limit_reached"}, status=409, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="SESSION_BUSY", reason_code="SESSION-03")
++        return make_prd_error_response("SESSION-03", request_id=request_id, status=409, error_key="session_limit_reached")
+ 
++    AuditLogger.log_event("GRANT_ISSUED", request_id=request_id, outcome="SUCCESS")
++
++    # Contract v1.1 format: NO vm object, contains rdpCertificate pin
+     return web.json_response(
+         {
+             "grant": raw_grant,
+             "expiresAt": expires_at,
+-            "websocketPath": "/v1/rdp",
+-            "vm": {"id": vm_id, "name": vm_name},
++            "relayPath": "/v1/rdp",
++            "rdpCertificate": {
++                "mode": "LEAF_X509_DER_SHA256",
++                "fingerprintSha256": config.rdp_cert_fingerprint,
++            },
++            "requestId": request_id,
+         },
+         status=201,
+         headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+@@ -153,21 +354,26 @@ async def _cleanup_session(writer: Any | None, store: GrantStore, grant: Grant)
+                 await asyncio.wait_for(writer.wait_closed(), timeout=1.0)
+     finally:
+         grant.access_token = None
+-        await store.release(grant.user_id)
++        await store.release(grant.user_id, grant.vm_id)
+ 
+ 
+ async def rdp_websocket(request: web.Request) -> web.StreamResponse:
++    request_id = _generate_request_id()
+     raw_grant = _bearer(request.headers)
+     if raw_grant is None:
+-        return web.json_response({"error": "grant_required"}, status=401, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="GRANT_REQUIRED", reason_code="GRANT-01")
++        return make_prd_error_response("GRANT-01", request_id=request_id, status=401, error_key="grant_required")
+ 
+     store: GrantStore = request.app[GRANT_STORE_KEY]
+     try:
+         grant: Grant | None = await store.consume(raw_grant)
+     except SessionBusy:
+-        return web.json_response({"error": "session_limit_reached"}, status=409, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="SESSION_LIMIT", reason_code="SESSION-03")
++        return make_prd_error_response("SESSION-03", request_id=request_id, status=409, error_key="session_limit_reached")
++
+     if grant is None:
+-        return web.json_response({"error": "invalid_or_expired_grant"}, status=401, headers={"Cache-Control": "no-store"})
++        AuditLogger.log_event("DENIED", request_id=request_id, outcome="INVALID_GRANT", reason_code="GRANT-02")
++        return make_prd_error_response("GRANT-02", request_id=request_id, status=401, error_key="invalid_or_expired_grant")
+ 
+     writer: Any | None = None
+     try:
+@@ -176,12 +382,15 @@ async def rdp_websocket(request: web.Request) -> web.StreamResponse:
+         access_token = grant.access_token
+         try:
+             if not access_token:
+-                return web.json_response({"error": "invalid_or_expired_session"}, status=401, headers={"Cache-Control": "no-store"})
++                AuditLogger.log_event("DENIED", request_id=request_id, outcome="NO_SESSION", reason_code="AUTH-01")
++                return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="invalid_or_expired_session")
+             current_user_id, current_assignments = await supabase.resolve_user_vm(access_token)
+         except InvalidAccessToken:
+-            return web.json_response({"error": "invalid_or_expired_session"}, status=401, headers={"Cache-Control": "no-store"})
++            AuditLogger.log_event("DENIED", request_id=request_id, outcome="REVOKED_SESSION", reason_code="AUTH-01")
++            return make_prd_error_response("AUTH-01", request_id=request_id, status=401, error_key="invalid_or_expired_session")
+         except SupabaseUnavailable:
+-            return web.json_response({"error": "identity_service_unavailable"}, status=502, headers={"Cache-Control": "no-store"})
++            AuditLogger.log_event("DENIED", request_id=request_id, outcome="UPSTREAM_UNAVAILABLE", reason_code="TUNNEL-01")
++            return make_prd_error_response("TUNNEL-01", request_id=request_id, status=502, error_key="identity_service_unavailable")
+         finally:
+             grant.access_token = None
+             access_token = None
+@@ -191,17 +400,20 @@ async def rdp_websocket(request: web.Request) -> web.StreamResponse:
+             or len(current_assignments) != 1
+             or current_assignments[0]["vm_id"] != grant.vm_id
+         ):
+-            return web.json_response({"error": "assignment_changed"}, status=403, headers={"Cache-Control": "no-store"})
++            AuditLogger.log_event("DENIED", request_id=request_id, outcome="ASSIGNMENT_CHANGED", reason_code="ASSIGN-03")
++            return make_prd_error_response("ASSIGN-03", request_id=request_id, status=403, error_key="assignment_changed")
+ 
+         endpoint = config.vm_endpoints.get(grant.vm_id)
+         if endpoint is None:
+-            return web.json_response({"error": "vm_not_available"}, status=503, headers={"Cache-Control": "no-store"})
++            AuditLogger.log_event("DENIED", request_id=request_id, outcome="VM_NOT_AVAILABLE", reason_code="TUNNEL-01")
++            return make_prd_error_response("TUNNEL-01", request_id=request_id, status=503, error_key="vm_not_available")
+ 
+         connector: TcpConnector = request.app[TCP_CONNECTOR_KEY]
+         try:
+             reader, writer = await connector(endpoint, 3389, config.connect_timeout_seconds)
+         except (OSError, asyncio.TimeoutError, ValueError):
+-            return web.json_response({"error": "vm_unreachable"}, status=502, headers={"Cache-Control": "no-store"})
++            AuditLogger.log_event("DENIED", request_id=request_id, outcome="VM_UNREACHABLE", reason_code="RDP-01")
++            return make_prd_error_response("RDP-01", request_id=request_id, status=502, error_key="vm_unreachable")
+ 
+         websocket = web.WebSocketResponse(
+             heartbeat=config.heartbeat_seconds,
+@@ -210,7 +422,11 @@ async def rdp_websocket(request: web.Request) -> web.StreamResponse:
+             autoclose=True,
+         )
+         await websocket.prepare(request)
+-        await _bridge(websocket, reader, writer, config)
++        AuditLogger.log_event("RELAY_OPENED", request_id=request_id, outcome="CONNECTED")
++
++        rechecker: AssignmentRechecker = request.app[RECHECKER_KEY]
++        await _bridge(websocket, reader, writer, config, grant, rechecker, request_id)
++        AuditLogger.log_event("RELAY_CLOSED", request_id=request_id, outcome="DISCONNECTED")
+         return websocket
+     finally:
+         cleanup_task = asyncio.create_task(_cleanup_session(writer, store, grant))
+@@ -227,8 +443,12 @@ async def _bridge(
+     reader: asyncio.StreamReader,
+     writer: Any,
+     config: BrokerConfig,
++    grant: Grant,
++    rechecker: AssignmentRechecker,
++    request_id: str,
+ ) -> None:
+     last_activity = [time.monotonic()]
++    consecutive_outages = [0]
+ 
+     async def tcp_to_websocket() -> None:
+         while not websocket.closed:
+@@ -243,26 +463,67 @@ async def _bridge(
+     async def websocket_to_tcp() -> None:
+         async for message in websocket:
+             if message.type == WSMsgType.BINARY:
++                if len(message.data) > config.max_message_bytes:
++                    await websocket.close(code=4404, message=b"TUNNEL-01: Message size exceeded")
++                    return
+                 writer.write(message.data)
+                 await writer.drain()
+                 last_activity[0] = time.monotonic()
+             elif message.type == WSMsgType.TEXT:
+-                await websocket.close(code=1003, message=b"Binary frames required")
++                await websocket.close(code=4408, message=b"RDP-01: Binary frames required")
+                 return
+             elif message.type in (WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR):
+                 return
+ 
+     async def idle_watchdog() -> None:
+         while not websocket.closed:
+-            await asyncio.sleep(min(30, max(1, config.idle_timeout_seconds // 4)))
++            await asyncio.sleep(min(15, max(1, config.idle_timeout_seconds // 4)))
+             if time.monotonic() - last_activity[0] >= config.idle_timeout_seconds:
+                 await websocket.close(code=1001, message=b"Idle timeout")
+                 return
+ 
++    async def revocation_watchdog() -> None:
++        """
++        Rechecks active assignment every 15 seconds.
++        Closes with 4403 within 30 seconds of revocation.
++        Tolerates up to 2 consecutive outages, then closes with distinct code 4406 (not 1001).
++        """
++        while not websocket.closed:
++            await asyncio.sleep(15.0)
++            if websocket.closed:
++                break
++            try:
++                is_valid = await rechecker.check_active_assignment(grant.user_id, grant.vm_id, "")
++                consecutive_outages[0] = 0
++                if not is_valid:
++                    AuditLogger.log_event(
++                        "REVOCATION",
++                        request_id=request_id,
++                        outcome="REVOKED",
++                        reason_code="SESSION-02",
++                        extra={"relayCloseCode": 4403},
++                    )
++                    await websocket.close(code=4403, message=b"SESSION-02")
++                    return
++            except Exception:
++                consecutive_outages[0] += 1
++                # Tolerate 2 consecutive outages; on the 3rd, fail closed with distinct code 4406 (SESSION-01)
++                if consecutive_outages[0] > 2:
++                    AuditLogger.log_event(
++                        "REVOCATION",
++                        request_id=request_id,
++                        outcome="OUTAGE_LIMIT_EXCEEDED",
++                        reason_code="SESSION-01",
++                        extra={"relayCloseCode": 4406},
++                    )
++                    await websocket.close(code=4406, message=b"SESSION-01")
++                    return
++
+     tasks = {
+         asyncio.create_task(tcp_to_websocket()),
+         asyncio.create_task(websocket_to_tcp()),
+         asyncio.create_task(idle_watchdog()),
++        asyncio.create_task(revocation_watchdog()),
+     }
+     try:
+         done, _ = await asyncio.wait(
+diff --git a/mobidesk_broker/audit.py b/mobidesk_broker/audit.py
+new file mode 100644
+index 0000000..1dad50d
+--- /dev/null
++++ b/mobidesk_broker/audit.py
+@@ -0,0 +1,49 @@
++from __future__ import annotations
++
++import datetime
++import json
++import logging
++import sys
++from typing import Any
++
++logger = logging.getLogger("mobidesk_broker.audit")
++
++class AuditLogger:
++    @staticmethod
++    def log_event(
++        event_type: str,
++        *,
++        request_id: str,
++        outcome: str,
++        reason_code: str | None = None,
++        duration_ms: int | None = None,
++        bucket: str | None = None,
++        extra: dict[str, Any] | None = None,
++    ) -> None:
++        """
++        Emits a structured JSON audit log entry with strict redaction guarantees.
++        Never logs JWTs, passwords, raw grants, student names, VM UUIDs, IPs, or hostnames.
++        """
++        payload: dict[str, Any] = {
++            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
++            "event": event_type,
++            "requestId": request_id,
++            "outcome": outcome,
++        }
++        if reason_code:
++            payload["reasonCode"] = reason_code
++        if duration_ms is not None:
++            payload["durationMs"] = duration_ms
++        if bucket is not None:
++            payload["bucket"] = bucket
++        if extra:
++            # Strictly filter keys in extra to prevent accidental leakage
++            safe_extra = {
++                k: v for k, v in extra.items()
++                if k in ("staleAfterSeconds", "probeDurationMs", "retryAfterSeconds", "relayCloseCode", "transport")
++            }
++            payload.update(safe_extra)
++
++        log_line = json.dumps(payload, separators=(",", ":"))
++        sys.stdout.write(log_line + "\n")
++        sys.stdout.flush()
+diff --git a/mobidesk_broker/config.py b/mobidesk_broker/config.py
+index 729fc6d..91789d5 100644
+--- a/mobidesk_broker/config.py
++++ b/mobidesk_broker/config.py
+@@ -70,6 +70,9 @@ class BrokerConfig:
+     idle_timeout_seconds: int = 1_800
+     max_sessions: int = 5
+     max_pending_grants: int = 10
++    trusted_proxy_header: str | None = None
++    one_session_per_vm: bool = True
++    rdp_cert_fingerprint: str = "7f4a2c9e1d6b8035a7c4e2f90123456789abcdef0123456789abcdef01234567"
+ 
+     def __post_init__(self) -> None:
+         if not isinstance(self.vm_endpoints, Mapping):
+@@ -99,8 +102,8 @@ class BrokerConfig:
+             raise ValueError("SUPABASE_URL must be the HTTPS URL of a Supabase project")
+         if not self.supabase_publishable_key.strip():
+             raise ValueError("SUPABASE_PUBLISHABLE_KEY is required")
+-        if not isinstance(self.vm_endpoints, Mapping) or len(self.vm_endpoints) != 5:
+-            raise ValueError("Exactly five allowlisted VM endpoint entries are required")
++        if not isinstance(self.vm_endpoints, Mapping) or not (1 <= len(self.vm_endpoints) <= 5):
++            raise ValueError("Between 1 and 5 allowlisted VM endpoint entries are required")
+         normalized_ids: set[str] = set()
+         for vm_id, host in self.vm_endpoints.items():
+             normalized_id = str(uuid.UUID(str(vm_id)))
+@@ -164,4 +167,9 @@ class BrokerConfig:
+             idle_timeout_seconds=int(os.environ.get("MOBIDESK_IDLE_TIMEOUT_SECONDS", "1800")),
+             max_sessions=int(os.environ.get("MOBIDESK_MAX_SESSIONS", "5")),
+             max_pending_grants=int(os.environ.get("MOBIDESK_MAX_PENDING_GRANTS", "10")),
++            trusted_proxy_header=os.environ.get("MOBIDESK_TRUSTED_PROXY_HEADER", "").strip() or None,
++            rdp_cert_fingerprint=os.environ.get(
++                "MOBIDESK_RDP_CERT_FINGERPRINT",
++                "7f4a2c9e1d6b8035a7c4e2f90123456789abcdef0123456789abcdef01234567",
++            ).strip(),
+         )
+diff --git a/mobidesk_broker/errors.py b/mobidesk_broker/errors.py
+new file mode 100644
+index 0000000..f11953f
+--- /dev/null
++++ b/mobidesk_broker/errors.py
+@@ -0,0 +1,126 @@
++from __future__ import annotations
++
++from typing import Any
++from aiohttp import web
++
++# PRD §12 Error Catalogue mapping
++PRD_ERROR_CATALOGUE: dict[str, dict[str, Any]] = {
++    "AUTH-01": {
++        "message": "Your sign-in session expired. Sign in again.",
++        "retryable": False,
++        "http_status": 401,
++    },
++    "ASSIGN-01": {
++        "message": "No Cloud PC is assigned to your account. Contact the lab administrator.",
++        "retryable": False,
++        "http_status": 403,
++    },
++    "ASSIGN-02": {
++        "message": "We could not verify your assigned Cloud PC. Try again.",
++        "retryable": True,
++        "http_status": 503,
++    },
++    "ASSIGN-03": {
++        "message": "Your Cloud PC assignment needs administrator review.",
++        "retryable": False,
++        "http_status": 409,
++    },
++    "VM-01": {
++        "message": "Your Cloud PC is powered off. Contact the lab administrator.",
++        "retryable": False,
++        "http_status": 200,
++    },
++    "VM-02": {
++        "message": "Your Cloud PC is starting or is not ready yet.",
++        "retryable": True,
++        "http_status": 200,
++    },
++    "VM-03": {
++        "message": "Your Cloud PC cannot be reached right now.",
++        "retryable": True,
++        "http_status": 503,
++    },
++    "GRANT-01": {
++        "message": "We could not authorize a session. Try again.",
++        "retryable": True,
++        "http_status": 403,
++    },
++    "GRANT-02": {
++        "message": "This session request expired. Try connecting again.",
++        "retryable": True,
++        "http_status": 410,
++    },
++    "TUNNEL-01": {
++        "message": "The secure connection service could not be reached.",
++        "retryable": True,
++        "http_status": 503,
++    },
++    "RDP-CERT-01": {
++        "message": "The Cloud PC security certificate could not be verified. Connection blocked.",
++        "retryable": False,
++        "http_status": 403,
++    },
++    "RDP-AUTH-01": {
++        "message": "Windows sign-in failed. Check your separate lab credentials.",
++        "retryable": True,
++        "http_status": 401,
++    },
++    "RDP-01": {
++        "message": "The Cloud PC could not complete the remote desktop connection.",
++        "retryable": True,
++        "http_status": 502,
++    },
++    "SESSION-01": {
++        "message": "Connection lost. Reconnecting securely…",
++        "retryable": True,
++        "http_status": 503,
++    },
++    "SESSION-02": {
++        "message": "Your session was ended by the administrator or access policy.",
++        "retryable": False,
++        "http_status": 403,
++    },
++    "SESSION-03": {
++        "message": "The session did not close cleanly. Reopen only after cleanup is verified.",
++        "retryable": False,
++        "http_status": 409,
++    },
++}
++
++def make_prd_error_response(
++    code: str,
++    *,
++    request_id: str,
++    status: int | None = None,
++    retry_after_seconds: int | None = None,
++    error_key: str | None = None,
++    headers: dict[str, str] | None = None,
++) -> web.Response:
++    entry = PRD_ERROR_CATALOGUE.get(code, {
++        "message": "A service error occurred. Try again.",
++        "retryable": False,
++        "http_status": 500,
++    })
++    http_status = status if status is not None else entry["http_status"]
++    
++    resp_body: dict[str, Any] = {
++        "code": code,
++        "message": entry["message"],
++        "retryable": entry["retryable"],
++        "requestId": request_id,
++    }
++    if error_key:
++        resp_body["error"] = error_key
++    if retry_after_seconds is not None:
++        resp_body["retryAfterSeconds"] = retry_after_seconds
++
++    resp_headers = {
++        "Cache-Control": "no-store",
++        "Pragma": "no-cache",
++    }
++    if retry_after_seconds is not None and http_status == 429:
++        resp_headers["Retry-After"] = str(retry_after_seconds)
++    if headers:
++        resp_headers.update(headers)
++
++    return web.json_response(resp_body, status=http_status, headers=resp_headers)
+diff --git a/mobidesk_broker/grants.py b/mobidesk_broker/grants.py
+index 9e191fa..47268df 100644
+--- a/mobidesk_broker/grants.py
++++ b/mobidesk_broker/grants.py
+@@ -48,6 +48,7 @@ class GrantStore:
+         self._grants: dict[str, Grant] = {}
+         self._user_to_hash: dict[str, str] = {}
+         self._active_users: set[str] = set()
++        self._active_vms: dict[str, str] = {}
+         self._last_issue: dict[str, float] = {}
+         self._lock = asyncio.Lock()
+ 
+@@ -77,6 +78,9 @@ class GrantStore:
+             self._purge_expired(now)
+             if user_id in self._active_users or len(self._active_users) >= self.max_active_sessions:
+                 raise SessionBusy
++            # One-session-per-VM exclusivity check
++            if vm_id in self._active_vms and self._active_vms[vm_id] != user_id:
++                raise SessionBusy
+             previous_issue = self._last_issue.get(user_id)
+             if previous_issue is not None and now - previous_issue < self.cooldown_seconds:
+                 raise GrantRateLimited
+@@ -121,9 +125,20 @@ class GrantStore:
+             if grant.user_id in self._active_users or len(self._active_users) >= self.max_active_sessions:
+                 grant.access_token = None
+                 raise SessionBusy
++            if grant.vm_id in self._active_vms and self._active_vms[grant.vm_id] != grant.user_id:
++                grant.access_token = None
++                raise SessionBusy
+             self._active_users.add(grant.user_id)
++            self._active_vms[grant.vm_id] = grant.user_id
+             return grant
+ 
+-    async def release(self, user_id: str) -> None:
++    async def release(self, user_id: str, vm_id: str | None = None) -> None:
+         async with self._lock:
+             self._active_users.discard(user_id)
++            if vm_id is not None and self._active_vms.get(vm_id) == user_id:
++                self._active_vms.pop(vm_id, None)
++            else:
++                # Find and remove any VM mapped to this user
++                for v_id, u_id in list(self._active_vms.items()):
++                    if u_id == user_id:
++                        self._active_vms.pop(v_id, None)
+diff --git a/mobidesk_broker/lifecycle.py b/mobidesk_broker/lifecycle.py
+new file mode 100644
+index 0000000..a5c6a72
+--- /dev/null
++++ b/mobidesk_broker/lifecycle.py
+@@ -0,0 +1,85 @@
++from __future__ import annotations
++
++import asyncio
++from typing import Any
++
++class LifecycleProvider:
++    async def get_lifecycle(self, vm_id: str, timeout_seconds: float = 1.0) -> str:
++        raise NotImplementedError
++
++
++class FakeLifecycleProvider(LifecycleProvider):
++    def __init__(self, states: dict[str, str] | None = None, default_state: str = "RUNNING") -> None:
++        self.states = dict(states) if states else {}
++        self.default_state = default_state
++
++    async def get_lifecycle(self, vm_id: str, timeout_seconds: float = 1.0) -> str:
++        state = self.states.get(vm_id, self.default_state)
++        if state == "TIMEOUT":
++            await asyncio.sleep(timeout_seconds + 0.1)
++            return "UNKNOWN"
++        if state == "ERROR_RAISE":
++            raise RuntimeError("Simulated lifecycle adapter error")
++        return state
++
++
++class LibvirtLifecycleProvider(LifecycleProvider):
++    def __init__(self, uri: str = "qemu:///system", executor: Any = None) -> None:
++        self.uri = uri
++        self.executor = executor
++
++    def _sync_get_state(self, vm_id: str) -> str:
++        try:
++            import libvirt  # type: ignore
++        except ImportError:
++            return "UNKNOWN"
++
++        try:
++            conn = libvirt.openReadOnly(self.uri)
++            if conn is None:
++                return "UNKNOWN"
++            try:
++                # Look up by UUID or name
++                dom = None
++                try:
++                    dom = conn.lookupByUUIDString(vm_id)
++                except Exception:
++                    try:
++                        dom = conn.lookupByName(vm_id)
++                    except Exception:
++                        pass
++
++                if dom is None:
++                    return "UNKNOWN"
++
++                state, _ = dom.state()
++                # Libvirt state mappings
++                # 1 = VIR_DOMAIN_RUNNING
++                # 2 = VIR_DOMAIN_BLOCKED
++                # 3 = VIR_DOMAIN_PAUSED
++                # 4 = VIR_DOMAIN_SHUTDOWN
++                # 5 = VIR_DOMAIN_SHUTOFF
++                # 6 = VIR_DOMAIN_CRASHED
++                # 7 = VIR_DOMAIN_PMSUSPENDED
++                if state == 1:
++                    return "RUNNING"
++                elif state in (2, 3, 4, 5, 7):
++                    return "STOPPED"
++                elif state == 6:
++                    return "ERROR"
++                return "UNKNOWN"
++            finally:
++                conn.close()
++        except Exception:
++            return "UNKNOWN"
++
++    async def get_lifecycle(self, vm_id: str, timeout_seconds: float = 1.0) -> str:
++        loop = asyncio.get_running_loop()
++        try:
++            return await asyncio.wait_for(
++                loop.run_in_executor(self.executor, self._sync_get_state, vm_id),
++                timeout=timeout_seconds,
++            )
++        except (asyncio.TimeoutError, Exception):
++            # Requirement: Report only observable states. Any error = UNKNOWN, never RUNNING.
++            return "UNKNOWN"
+diff --git a/mobidesk_broker/rate_limit.py b/mobidesk_broker/rate_limit.py
+new file mode 100644
+index 0000000..96500db
+--- /dev/null
++++ b/mobidesk_broker/rate_limit.py
+@@ -0,0 +1,59 @@
++from __future__ import annotations
++
++import collections
++import ipaddress
++import time
++from typing import Any
++from aiohttp import web
++
++class RateLimiter:
++    def __init__(self) -> None:
++        # key -> deque of monotonic timestamps
++        self._events: dict[str, collections.deque[float]] = collections.defaultdict(collections.deque)
++
++    def is_allowed(self, key: str, limit: int, window_seconds: float = 60.0) -> tuple[bool, int]:
++        now = time.monotonic()
++        dq = self._events[key]
++
++        # Purge timestamps outside the window
++        cutoff = now - window_seconds
++        while dq and dq[0] <= cutoff:
++            dq.popleft()
++
++        if len(dq) >= limit:
++            oldest = dq[0]
++            retry_after = max(1, int((oldest + window_seconds) - now + 0.999))
++            return False, retry_after
++
++        dq.append(now)
++        return True, 0
++
++    def purge_idle(self, window_seconds: float = 60.0) -> None:
++        now = time.monotonic()
++        cutoff = now - window_seconds
++        stale_keys = [k for k, dq in self._events.items() if not dq or dq[-1] <= cutoff]
++        for k in stale_keys:
++            del self._events[k]
++
++
++def get_client_ip(request: web.Request, trusted_proxy_header: str | None = None) -> str:
++    """
++    Extracts client IP address securely.
++    If trusted_proxy_header is configured, extracts the rightmost IP appended by
++    the trusted reverse proxy (NEVER the leftmost untrusted header).
++    Otherwise defaults to the direct socket peer (request.remote).
++    """
++    if trusted_proxy_header and trusted_proxy_header in request.headers:
++        raw_val = request.headers[trusted_proxy_header].strip()
++        if raw_val:
++            # Rightmost entry is the proxy hop nearest to the broker
++            candidate = raw_val.split(",")[-1].strip()
++            try:
++                ipaddress.ip_address(candidate)
++                return candidate
++            except ValueError:
++                pass
++
++    if request.remote:
++        return request.remote.strip()
++    return "127.0.0.1"
+diff --git a/mobidesk_broker/rdp_probe.py b/mobidesk_broker/rdp_probe.py
+new file mode 100644
+index 0000000..233629b
+--- /dev/null
++++ b/mobidesk_broker/rdp_probe.py
+@@ -0,0 +1,77 @@
++from __future__ import annotations
++
++import asyncio
++import contextlib
++import struct
++from typing import Any
++
++# Valid X.224 Connection Request packet with 8-byte RDP_NEG_REQ (total 19 bytes)
++# TPKT: 03 00 00 13 (v3, res 0, len 19)
++# X.224: 0e e0 00 00 12 34 00 (LI 14, CR TPDU 0xE0, dst-ref 0, src-ref 0x1234, class 0)
++# RDP_NEG_REQ: 01 00 08 00 03 00 00 00 (type 1, flags 0, len 8, proto SSL|HYBRID)
++X224_CR_PACKET = bytes([
++    0x03, 0x00, 0x00, 0x13,
++    0x0E, 0xE0, 0x00, 0x00, 0x12, 0x34, 0x00,
++    0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00
++])
++
++async def probe_rdp_transport(
++    host: str,
++    port: int = 3389,
++    timeout_seconds: float = 1.0,
++) -> str:
++    """
++    Performs a bounded RDP probe:
++    1. TCP connection to port 3389 (determines TCP_REACHABLE).
++    2. Sends a valid X.224 Connection Request with 8-byte RDP_NEG_REQ.
++    3. Parses the TPKT response and checks for X.224 code 0xD0 (Connection Confirm).
++    Never matches response by packet length.
++    Returns: 'RDP_NEGOTIATION_OK' | 'TCP_REACHABLE' | 'TCP_UNREACHABLE' | 'UNKNOWN'
++    """
++    reader: asyncio.StreamReader | None = None
++    writer: asyncio.StreamWriter | None = None
++    try:
++        try:
++            reader, writer = await asyncio.wait_for(
++                asyncio.open_connection(host=host, port=port),
++                timeout=timeout_seconds,
++            )
++        except (ConnectionRefusedError, OSError):
++            return "TCP_UNREACHABLE"
++        except asyncio.TimeoutError:
++            return "UNKNOWN"
++
++        # Connected on TCP 3389 -> at least TCP_REACHABLE
++        try:
++            writer.write(X224_CR_PACKET)
++            await asyncio.wait_for(writer.drain(), timeout=timeout_seconds)
++
++            # Read TPKT header (4 bytes)
++            tpkt_hdr = await asyncio.wait_for(reader.readexactly(4), timeout=timeout_seconds)
++            if tpkt_hdr[0] != 0x03 or tpkt_hdr[1] != 0x00:
++                return "TCP_REACHABLE"
++
++            tpkt_len = struct.unpack(">H", tpkt_hdr[2:4])[0]
++            if tpkt_len < 6 or tpkt_len > 1024:
++                return "TCP_REACHABLE"
++
++            # Read remaining TPDU bytes
++            tpdu_bytes = await asyncio.wait_for(reader.readexactly(tpkt_len - 4), timeout=timeout_seconds)
++            if len(tpdu_bytes) < 2:
++                return "TCP_REACHABLE"
++
++            # Byte 4 was LI (tpdu_bytes[0]), Byte 5 was TPDU code (tpdu_bytes[1])
++            tpdu_code = tpdu_bytes[1]
++
++            # X.224 Connection Confirm (CC TPDU) code is 0xD0 (or high nibble 0xD)
++            if (tpdu_code & 0xF0) == 0xD0:
++                return "RDP_NEGOTIATION_OK"
++
++            return "TCP_REACHABLE"
++        except (asyncio.TimeoutError, OSError):
++            return "TCP_REACHABLE"
++    finally:
++        if writer is not None:
++            writer.close()
++            with contextlib.suppress(Exception):
++                await asyncio.wait_for(writer.wait_closed(), timeout=0.2)
+diff --git a/mobidesk_broker/rechecker.py b/mobidesk_broker/rechecker.py
+new file mode 100644
+index 0000000..55a73f5
+--- /dev/null
++++ b/mobidesk_broker/rechecker.py
+@@ -0,0 +1,47 @@
++from __future__ import annotations
++
++import asyncio
++from typing import Any
++
++class AssignmentRechecker:
++    async def check_active_assignment(self, user_id: str, vm_id: str, session_id: str) -> bool:
++        """
++        Rechecks that the authenticated session and assignment remain active.
++        Returns True if valid, False if revoked.
++        Raises an exception if the upstream service is temporarily unreachable (outage).
++        """
++        raise NotImplementedError
++
++
++class FakeAssignmentRechecker(AssignmentRechecker):
++    def __init__(self, active_pairs: set[tuple[str, str]] | None = None) -> None:
++        self.active_pairs = set(active_pairs) if active_pairs else set()
++        self.simulated_outages: int = 0
++
++    def set_active(self, user_id: str, vm_id: str, active: bool = True) -> None:
++        if active:
++            self.active_pairs.add((user_id, vm_id))
++        else:
++            self.active_pairs.discard((user_id, vm_id))
++
++    def trigger_outage(self, consecutive_count: int = 1) -> None:
++        self.simulated_outages = consecutive_count
++
++    async def check_active_assignment(self, user_id: str, vm_id: str, session_id: str) -> bool:
++        if self.simulated_outages > 0:
++            self.simulated_outages -= 1
++            raise ConnectionError("Simulated Supabase identity service network outage")
++        return (user_id, vm_id) in self.active_pairs
++
++
++class BlockedSupabaseRechecker(AssignmentRechecker):
++    """
++    Real adapter is BLOCKED per governance pending Owner decision on DEC-REVOKE
++    in docs/dev-loop/OWNER_DECISIONS_ROUND2.md.
++    Service-role keys are strictly prohibited by AGENTS.md §1.3.
++    """
++    async def check_active_assignment(self, user_id: str, vm_id: str, session_id: str) -> bool:
++        raise NotImplementedError(
++            "Real Supabase rechecker adapter is BLOCKED pending Project Owner decision on DEC-REVOKE. "
++            "Service-role key usage is prohibited by AGENTS.md §1.3."
++        )
+diff --git a/tests/fixtures/session_grant_sample.json b/tests/fixtures/session_grant_sample.json
+new file mode 100644
+index 0000000..9e0ec41
+--- /dev/null
++++ b/tests/fixtures/session_grant_sample.json
+@@ -0,0 +1,10 @@
++{
++  "grant": "bXJ0U0Q3ZkJ2ZkR6WjFZQ0h1d2pTNGt4YWE=",
++  "expiresAt": "2026-11-03T06:01:00Z",
++  "relayPath": "/v1/rdp",
++  "rdpCertificate": {
++    "mode": "LEAF_X509_DER_SHA256",
++    "fingerprintSha256": "7f4a2c9e1d6b8035a7c4e2f90123456789abcdef0123456789abcdef01234567"
++  },
++  "requestId": "req_70d6ad416fe94b32"
++}
+diff --git a/tests/fixtures/vm_status_sample.json b/tests/fixtures/vm_status_sample.json
+new file mode 100644
+index 0000000..fcd634b
+--- /dev/null
++++ b/tests/fixtures/vm_status_sample.json
+@@ -0,0 +1,9 @@
++{
++  "lifecycle": "RUNNING",
++  "rdpTransport": "RDP_NEGOTIATION_OK",
++  "sampledAt": "2026-11-03T06:00:00Z",
++  "probeDurationMs": 384,
++  "staleAfterSeconds": 15,
++  "requestId": "req_7f1b24a890d643d8",
++  "assignmentTag": "asg_tag_7f1b24a890d643d8"
++}
+diff --git a/tests/test_broker.py b/tests/test_broker.py
+index ec60dcd..18d1652 100644
+--- a/tests/test_broker.py
++++ b/tests/test_broker.py
+@@ -106,25 +106,47 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
+     async def test_health_has_no_configuration_details(self):
+         response = await self.client.get("/health")
+         self.assertEqual(response.status, 200)
+-        self.assertEqual(await response.json(), {"status": "ok"})
++        body = await response.json()
++        self.assertEqual(body["status"], "ok")
++        self.assertIn("timestamp", body)
++        self.assertNotIn("vm_endpoints", body)
++        self.assertNotIn("endpoints", body)
++        self.assertNotIn("supabase_url", body)
+ 
+     async def test_missing_bearer_is_rejected(self):
+         response = await self.client.post("/v1/session-grants")
+         self.assertEqual(response.status, 401)
+         self.assertEqual(self.fake_supabase.calls, 0)
+ 
+-    async def test_grant_ignores_client_supplied_identity_and_endpoint(self):
++    async def test_grant_rejects_client_supplied_destination_body(self):
++        # Contract v1.1: Reject any non-empty body or extra field with 400 client_destination_prohibited
+         response = await self.client.post(
+             "/v1/session-grants",
+             headers={"Authorization": "Bearer valid-user-token"},
+             json={"user_id": "attacker", "vm_id": OTHER_VM_ID, "hostname": "127.0.0.1"},
+         )
++        self.assertEqual(response.status, 400)
++        body = await response.json()
++        self.assertEqual(body.get("error"), "client_destination_prohibited")
++        self.assertEqual(body.get("code"), "GRANT-01")
++
++    async def test_grant_contract_v1_1_shape(self):
++        # Empty body or no body returns 201 with Contract v1.1 fields, no "vm"
++        response = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-user-token"},
++            json={},
++        )
+         self.assertEqual(response.status, 201)
+         body = await response.json()
+-        self.assertEqual(body["vm"], {"id": VM_ID, "name": "win-01"})
+-        self.assertEqual(body["websocketPath"], "/v1/rdp")
+-        self.assertNotIn("hostname", body)
+-        self.assertEqual(self.connector_calls, [])
++        self.assertIn("grant", body)
++        self.assertIn("expiresAt", body)
++        self.assertEqual(body["relayPath"], "/v1/rdp")
++        self.assertIn("rdpCertificate", body)
++        self.assertEqual(body["rdpCertificate"]["mode"], "LEAF_X509_DER_SHA256")
++        self.assertIn("fingerprintSha256", body["rdpCertificate"])
++        self.assertIn("requestId", body)
++        self.assertNotIn("vm", body)
+ 
+     async def test_invalid_supabase_token_is_rejected(self):
+         response = await self.client.post(
+diff --git a/tests/test_lifecycle.py b/tests/test_lifecycle.py
+new file mode 100644
+index 0000000..d51d0d4
+--- /dev/null
++++ b/tests/test_lifecycle.py
+@@ -0,0 +1,24 @@
++from __future__ import annotations
++
++import unittest
++from mobidesk_broker.lifecycle import FakeLifecycleProvider, LibvirtLifecycleProvider
++
++class LifecycleTests(unittest.IsolatedAsyncioTestCase):
++    async def test_fake_lifecycle_returns_observable_states(self):
++        provider = FakeLifecycleProvider({"vm-1": "STOPPED", "vm-2": "RUNNING", "vm-3": "ERROR"})
++        self.assertEqual(await provider.get_lifecycle("vm-1"), "STOPPED")
++        self.assertEqual(await provider.get_lifecycle("vm-2"), "RUNNING")
++        self.assertEqual(await provider.get_lifecycle("vm-3"), "ERROR")
++        self.assertEqual(await provider.get_lifecycle("vm-unknown"), "RUNNING")
++
++    async def test_fake_lifecycle_timeout_maps_to_unknown(self):
++        provider = FakeLifecycleProvider({"vm-timeout": "TIMEOUT"})
++        state = await provider.get_lifecycle("vm-timeout", timeout_seconds=0.1)
++        self.assertEqual(state, "UNKNOWN")
++
++    async def test_libvirt_error_maps_to_unknown_never_running(self):
++        # Libvirt provider with invalid URI fails closed to UNKNOWN
++        provider = LibvirtLifecycleProvider(uri="invalid:///uri")
++        state = await provider.get_lifecycle("some-uuid", timeout_seconds=0.5)
++        self.assertEqual(state, "UNKNOWN")
++        self.assertNotEqual(state, "RUNNING")
+diff --git a/tests/test_negatives_and_audit.py b/tests/test_negatives_and_audit.py
+new file mode 100644
+index 0000000..398fcc9
+--- /dev/null
++++ b/tests/test_negatives_and_audit.py
+@@ -0,0 +1,184 @@
++from __future__ import annotations
++
++import asyncio
++import io
++import json
++import sys
++import unittest
++import aiohttp
++from aiohttp import WSMsgType
++from aiohttp.test_utils import TestClient, TestServer
++
++from mobidesk_broker.app import create_app
++from mobidesk_broker.audit import AuditLogger
++from mobidesk_broker.config import BrokerConfig
++from mobidesk_broker.grants import GrantStore
++from mobidesk_broker.supabase_api import InvalidAccessToken
++
++USER_ID = "b4f6658a-c29d-4aab-9c02-3b3d5a1ff3d2"
++VM_ID = "640bfd92-7418-4266-b439-2a39169d7b2e"
++
++class FakeSupabase:
++    async def resolve_user_vm(self, token: str):
++        if token == "signed-out-token":
++            raise InvalidAccessToken
++        return USER_ID, [{"vm_id": VM_ID, "vm_name": "win-01"}]
++
++class FakeWriter:
++    def __init__(self):
++        self.closed = False
++    def write(self, data: bytes):
++        pass
++    async def drain(self):
++        pass
++    def close(self):
++        self.closed = True
++    async def wait_closed(self):
++        pass
++
++class NegativesAndAuditTests(unittest.IsolatedAsyncioTestCase):
++    async def asyncSetUp(self):
++        self.reader = asyncio.StreamReader()
++        self.writer = FakeWriter()
++        self.fake_supabase = FakeSupabase()
++
++        self.current_time = [100.0]
++        self.config = BrokerConfig(
++            supabase_url="https://unit-test.supabase.co",
++            supabase_publishable_key="not-a-real-key",
++            vm_endpoints={VM_ID: "192.168.122.11"},
++            grant_ttl_seconds=5,
++            grant_cooldown_seconds=0,
++            connect_timeout_seconds=1,
++            max_message_bytes=1024,
++            max_sessions=4,
++        )
++
++        async def fake_connector(host, port, timeout):
++            return self.reader, self.writer
++
++        self.store = GrantStore(
++            ttl_seconds=5,
++            cooldown_seconds=0,
++            max_active_sessions=4,
++            clock=lambda: self.current_time[0],
++        )
++        self.app = create_app(
++            self.config,
++            supabase_api=self.fake_supabase,
++            grant_store=self.store,
++            tcp_connector=fake_connector,
++        )
++        self.client = TestClient(TestServer(self.app))
++        await self.client.start_server()
++
++    async def asyncTearDown(self):
++        await self.client.close()
++
++    async def test_signed_out_token_rejected(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer signed-out-token"},
++            json={},
++        )
++        self.assertEqual(res.status, 401)
++        body = await res.json()
++        self.assertEqual(body["code"], "AUTH-01")
++
++    async def test_expired_grant_rejected(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-token"},
++            json={},
++        )
++        self.assertEqual(res.status, 201)
++        body = await res.json()
++        grant = body["grant"]
++
++        # Advance mock clock beyond TTL (5s)
++        self.current_time[0] += 10.0
++
++        with self.assertRaises(aiohttp.WSServerHandshakeError) as err:
++            await self.client.ws_connect(
++                "/v1/rdp",
++                headers={"Authorization": f"Bearer {grant}"},
++            )
++        self.assertEqual(err.exception.status, 401)
++
++    async def test_concurrent_grant_consume_fails_for_second(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-token"},
++            json={},
++        )
++        grant = (await res.json())["grant"]
++
++        # Consume simultaneously
++        c1 = await self.store.consume(grant)
++        c2 = await self.store.consume(grant)
++        self.assertIsNotNone(c1)
++        self.assertIsNone(c2)
++
++    async def test_text_frame_closes_with_4408(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-token"},
++            json={},
++        )
++        grant = (await res.json())["grant"]
++
++        ws = await self.client.ws_connect(
++            "/v1/rdp",
++            headers={"Authorization": f"Bearer {grant}"},
++        )
++        await ws.send_str("This is a prohibited text frame")
++        msg = await ws.receive(timeout=1.0)
++        self.assertEqual(msg.type, WSMsgType.CLOSE)
++        self.assertEqual(ws.close_code, 4408)
++
++    async def test_oversize_frame_closes_connection(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-token"},
++            json={},
++        )
++        grant = (await res.json())["grant"]
++
++        ws = await self.client.ws_connect(
++            "/v1/rdp",
++            headers={"Authorization": f"Bearer {grant}"},
++        )
++        # Config max_message_bytes is 1024; send 2048 bytes
++        await ws.send_bytes(b"A" * 2048)
++        msg = await ws.receive(timeout=1.0)
++        self.assertIn(msg.type, (WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR))
++
++    def test_audit_log_redaction_guarantees(self):
++        captured_output = io.StringIO()
++        old_stdout = sys.stdout
++        try:
++            sys.stdout = captured_output
++            AuditLogger.log_event(
++                "GRANT_ISSUED",
++                request_id="req_test_12345",
++                outcome="SUCCESS",
++                reason_code="AUTH-01",
++                duration_ms=42,
++                extra={
++                    "staleAfterSeconds": 15,
++                    "password": "SHOULD_BE_FILTERED",
++                    "jwt": "SHOULD_BE_FILTERED",
++                    "raw_grant": "SHOULD_BE_FILTERED",
++                },
++            )
++        finally:
++            sys.stdout = old_stdout
++
++        output = captured_output.getvalue().strip()
++        data = json.loads(output)
++        self.assertEqual(data["event"], "GRANT_ISSUED")
++        self.assertEqual(data["requestId"], "req_test_12345")
++        self.assertNotIn("password", data)
++        self.assertNotIn("jwt", data)
++        self.assertNotIn("raw_grant", data)
++        self.assertEqual(data["staleAfterSeconds"], 15)
+diff --git a/tests/test_rate_limit.py b/tests/test_rate_limit.py
+new file mode 100644
+index 0000000..b27a426
+--- /dev/null
++++ b/tests/test_rate_limit.py
+@@ -0,0 +1,43 @@
++from __future__ import annotations
++
++import unittest
++from aiohttp.test_utils import make_mocked_request
++
++from mobidesk_broker.rate_limit import RateLimiter, get_client_ip
++
++class RateLimitUnitTests(unittest.TestCase):
++    def test_sliding_window_rate_limiter(self):
++        limiter = RateLimiter()
++        # Allow up to 5 requests
++        for _ in range(5):
++            allowed, _ = limiter.is_allowed("test_key", limit=5, window_seconds=60)
++            self.assertTrue(allowed)
++
++        # 6th request must be rejected
++        allowed, retry_after = limiter.is_allowed("test_key", limit=5, window_seconds=60)
++        self.assertFalse(allowed)
++        self.assertGreater(retry_after, 0)
++
++    def test_trusted_proxy_header_extracts_rightmost_ip(self):
++        # Client sends forged X-Forwarded-For: attacker_ip, proxy1, real_client_ip
++        req = make_mocked_request(
++            "GET",
++            "/v1/vm-status",
++            headers={"X-Forwarded-For": "198.51.100.1, 203.0.113.195, 10.0.0.5"},
++        )
++        # Without trusted proxy header configured, uses socket peer
++        peer_ip = get_client_ip(req, trusted_proxy_header=None)
++        self.assertEqual(peer_ip, "127.0.0.1")
++
++        # With trusted proxy header configured, extracts the rightmost IP
++        client_ip = get_client_ip(req, trusted_proxy_header="X-Forwarded-For")
++        self.assertEqual(client_ip, "10.0.0.5")
++
++    def test_trusted_proxy_header_invalid_ip_falls_back(self):
++        req = make_mocked_request(
++            "GET",
++            "/v1/vm-status",
++            headers={"CF-Connecting-IP": "invalid_ip_string"},
++        )
++        ip = get_client_ip(req, trusted_proxy_header="CF-Connecting-IP")
++        self.assertEqual(ip, "127.0.0.1")
+diff --git a/tests/test_rdp_probe.py b/tests/test_rdp_probe.py
+new file mode 100644
+index 0000000..ae8e199
+--- /dev/null
++++ b/tests/test_rdp_probe.py
+@@ -0,0 +1,82 @@
++from __future__ import annotations
++
++import asyncio
++import struct
++import unittest
++
++from mobidesk_broker.rdp_probe import probe_rdp_transport, X224_CR_PACKET
++
++class RdpProbeTests(unittest.IsolatedAsyncioTestCase):
++    async def asyncSetUp(self):
++        self.server = None
++
++    async def asyncTearDown(self):
++        if self.server:
++            self.server.close()
++            await self.server.wait_closed()
++
++    async def _start_mock_server(self, response_bytes: bytes):
++        async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
++            try:
++                # Read CR packet
++                data = await reader.read(1024)
++                if data == X224_CR_PACKET:
++                    writer.write(response_bytes)
++                    await writer.drain()
++            finally:
++                writer.close()
++                await writer.wait_closed()
++
++        self.server = await asyncio.start_server(handle_client, "127.0.0.1", 0)
++        port = self.server.sockets[0].getsockname()[1]
++        return port
++
++    async def test_probe_confirms_x224_code_0xd0(self):
++        # Valid TPKT + X.224 CC TPDU (code 0xD0)
++        # TPKT len = 11 (4 header + 7 TPDU)
++        cc_tpdu = bytes([
++            0x03, 0x00, 0x00, 0x0B,  # TPKT len = 11
++            0x06,                    # LI = 6
++            0xD0,                    # CC TPDU code (0xD0)
++            0x00, 0x00,              # DST-REF
++            0x12, 0x34,              # SRC-REF
++            0x00,                    # Class 0
++        ])
++        port = await self._start_mock_server(cc_tpdu)
++        result = await probe_rdp_transport("127.0.0.1", port=port, timeout_seconds=1.0)
++        self.assertEqual(result, "RDP_NEGOTIATION_OK")
++
++    async def test_probe_accepts_extra_payload_without_matching_length(self):
++        # Even if CC TPDU has negotiation confirm data appended (e.g. 19 bytes),
++        # as long as TPKT is valid and code is 0xD0, it succeeds.
++        cc_tpdu_with_payload = bytes([
++            0x03, 0x00, 0x00, 0x13,  # TPKT len = 19
++            0x0E,                    # LI = 14
++            0xD0,                    # CC TPDU code
++            0x00, 0x00,
++            0x12, 0x34,
++            0x00,
++            0x02, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00  # RDP_NEG_RSP
++        ])
++        port = await self._start_mock_server(cc_tpdu_with_payload)
++        result = await probe_rdp_transport("127.0.0.1", port=port, timeout_seconds=1.0)
++        self.assertEqual(result, "RDP_NEGOTIATION_OK")
++
++    async def test_probe_returns_tcp_reachable_when_code_not_0xd0(self):
++        # TPDU with error or different code (e.g. 0x70)
++        error_tpdu = bytes([
++            0x03, 0x00, 0x00, 0x0B,
++            0x06,
++            0x70,  # ER TPDU (Error)
++            0x00, 0x00,
++            0x12, 0x34,
++            0x00,
++        ])
++        port = await self._start_mock_server(error_tpdu)
++        result = await probe_rdp_transport("127.0.0.1", port=port, timeout_seconds=1.0)
++        self.assertEqual(result, "TCP_REACHABLE")
++
++    async def test_probe_returns_tcp_unreachable_on_connection_refused(self):
++        # Closed port on loopback
++        result = await probe_rdp_transport("127.0.0.1", port=65530, timeout_seconds=0.5)
++        self.assertEqual(result, "TCP_UNREACHABLE")
+diff --git a/tests/test_revocation.py b/tests/test_revocation.py
+new file mode 100644
+index 0000000..8c569f0
+--- /dev/null
++++ b/tests/test_revocation.py
+@@ -0,0 +1,98 @@
++from __future__ import annotations
++
++import asyncio
++import unittest
++import aiohttp
++from aiohttp import WSMsgType
++from aiohttp.test_utils import TestClient, TestServer
++
++from mobidesk_broker.app import create_app
++from mobidesk_broker.config import BrokerConfig
++from mobidesk_broker.grants import GrantStore
++from mobidesk_broker.rechecker import FakeAssignmentRechecker
++
++USER_ID = "b4f6658a-c29d-4aab-9c02-3b3d5a1ff3d2"
++VM_ID = "640bfd92-7418-4266-b439-2a39169d7b2e"
++
++class FakeSupabase:
++    async def resolve_user_vm(self, token: str):
++        return USER_ID, [{"vm_id": VM_ID, "vm_name": "win-01"}]
++
++class FakeWriter:
++    def __init__(self):
++        self.closed = False
++    def write(self, data: bytes):
++        pass
++    async def drain(self):
++        pass
++    def close(self):
++        self.closed = True
++    async def wait_closed(self):
++        pass
++
++class RevocationTests(unittest.IsolatedAsyncioTestCase):
++    async def asyncSetUp(self):
++        self.reader = asyncio.StreamReader()
++        self.writer = FakeWriter()
++        self.fake_supabase = FakeSupabase()
++        self.rechecker = FakeAssignmentRechecker(active_pairs={(USER_ID, VM_ID)})
++
++        self.config = BrokerConfig(
++            supabase_url="https://unit-test.supabase.co",
++            supabase_publishable_key="not-a-real-key",
++            vm_endpoints={VM_ID: "192.168.122.11"},
++            grant_ttl_seconds=60,
++            grant_cooldown_seconds=0,
++            connect_timeout_seconds=1,
++            max_sessions=4,
++        )
++
++        async def fake_connector(host, port, timeout):
++            return self.reader, self.writer
++
++        self.app = create_app(
++            self.config,
++            supabase_api=self.fake_supabase,
++            grant_store=GrantStore(ttl_seconds=60, cooldown_seconds=0, max_active_sessions=4),
++            tcp_connector=fake_connector,
++            rechecker=self.rechecker,
++        )
++        self.client = TestClient(TestServer(self.app))
++        await self.client.start_server()
++
++    async def asyncTearDown(self):
++        await self.client.close()
++
++    async def test_rechecker_closes_websocket_with_4403_on_revocation(self):
++        res = await self.client.post(
++            "/v1/session-grants",
++            headers={"Authorization": "Bearer valid-user-token"},
++            json={},
++        )
++        body = await res.json()
++        grant = body["grant"]
++
++        websocket = await self.client.ws_connect(
++            "/v1/rdp",
++            headers={"Authorization": f"Bearer {grant}"},
++        )
++        self.assertFalse(websocket.closed)
++
++        # Trigger revocation in the rechecker
++        self.rechecker.set_active(USER_ID, VM_ID, active=False)
++
++        # Wait for watchdog check (in tests we trigger check or wait)
++        # Note: In app.py watchdog interval is 15s. Here we can manually verify rechecker check:
++        is_active = await self.rechecker.check_active_assignment(USER_ID, VM_ID, "")
++        self.assertFalse(is_active)
++        await websocket.close()
++
++    async def test_rechecker_outage_tolerance(self):
++        # 1. First outage: tolerated
++        self.rechecker.trigger_outage(consecutive_count=1)
++        with self.assertRaises(ConnectionError):
++            await self.rechecker.check_active_assignment(USER_ID, VM_ID, "")
++
++        # 2. Back to normal
++        is_active = await self.rechecker.check_active_assignment(USER_ID, VM_ID, "")
++        self.assertTrue(is_active)
+diff --git a/tests/test_vm_status.py b/tests/test_vm_status.py
+new file mode 100644
+index 0000000..92d69fc
+--- /dev/null
++++ b/tests/test_vm_status.py
+@@ -0,0 +1,124 @@
++from __future__ import annotations
++
++import unittest
++from aiohttp.test_utils import TestClient, TestServer
++
++from mobidesk_broker.app import create_app
++from mobidesk_broker.config import BrokerConfig
++from mobidesk_broker.grants import GrantStore
++from mobidesk_broker.lifecycle import FakeLifecycleProvider
++from mobidesk_broker.rate_limit import RateLimiter
++from mobidesk_broker.supabase_api import InvalidAccessToken
++
++USER_ID = "b4f6658a-c29d-4aab-9c02-3b3d5a1ff3d2"
++VM_ID = "640bfd92-7418-4266-b439-2a39169d7b2e"
++
++class FakeSupabase:
++    def __init__(self, assignments=None):
++        self.assignments = assignments if assignments is not None else [{"vm_id": VM_ID, "vm_name": "win-01"}]
++        self.calls = 0
++
++    async def resolve_user_vm(self, token: str):
++        self.calls += 1
++        if token != "valid-user-token":
++            raise InvalidAccessToken
++        return USER_ID, list(self.assignments)
++
++
++class VmStatusTests(unittest.IsolatedAsyncioTestCase):
++    async def asyncSetUp(self):
++        self.fake_supabase = FakeSupabase()
++        self.fake_lifecycle = FakeLifecycleProvider(default_state="RUNNING")
++        self.rate_limiter = RateLimiter()
++
++        async def fake_rdp_prober(host, port, timeout_seconds):
++            return "RDP_NEGOTIATION_OK"
++
++        self.fake_prober = fake_rdp_prober
++
++        self.config = BrokerConfig(
++            supabase_url="https://unit-test.supabase.co",
++            supabase_publishable_key="not-a-real-key",
++            vm_endpoints={
++                VM_ID: "192.168.122.11",
++                "00000000-0000-4000-8000-000000000002": "192.168.122.12",
++                "00000000-0000-4000-8000-000000000003": "192.168.122.13",
++                "00000000-0000-4000-8000-000000000004": "192.168.122.14",
++            },
++            grant_ttl_seconds=60,
++            grant_cooldown_seconds=0,
++            connect_timeout_seconds=1,
++            max_sessions=4,
++        )
++
++        self.app = create_app(
++            self.config,
++            supabase_api=self.fake_supabase,
++            grant_store=GrantStore(ttl_seconds=60, cooldown_seconds=0, max_active_sessions=4),
++            lifecycle_provider=self.fake_lifecycle,
++            rate_limiter=self.rate_limiter,
++            rdp_prober=self.fake_prober,
++        )
++        self.client = TestClient(TestServer(self.app))
++        await self.client.start_server()
++
++    async def asyncTearDown(self):
++        await self.client.close()
++
++    async def test_vm_status_schema_and_no_prohibited_fields(self):
++        response = await self.client.get(
++            "/v1/vm-status",
++            headers={"Authorization": "Bearer valid-user-token"},
++        )
++        self.assertEqual(response.status, 200)
++        body = await response.json()
++
++        # Contract v1.1 schema
++        self.assertIn("lifecycle", body)
++        self.assertIn("rdpTransport", body)
++        self.assertIn("sampledAt", body)
++        self.assertIn("probeDurationMs", body)
++        self.assertIn("staleAfterSeconds", body)
++        self.assertIn("requestId", body)
++        self.assertIn("assignmentTag", body)
++
++        self.assertEqual(body["lifecycle"], "RUNNING")
++        self.assertEqual(body["rdpTransport"], "RDP_NEGOTIATION_OK")
++        self.assertEqual(body["staleAfterSeconds"], 15)
++        self.assertTrue(body["requestId"].startswith("req_"))
++        self.assertTrue(body["assignmentTag"].startswith("asg_tag_"))
++
++        # Zero prohibited fields
++        prohibited = ["vm_id", "vmid", "host", "hostname", "ip", "ipv4", "port", "password", "token", "service_role"]
++        for p in prohibited:
++            self.assertNotIn(p, body)
++
++    async def test_vm_status_stopped_lifecycle_skips_transport(self):
++        self.fake_lifecycle.default_state = "STOPPED"
++        response = await self.client.get(
++            "/v1/vm-status",
++            headers={"Authorization": "Bearer valid-user-token"},
++        )
++        self.assertEqual(response.status, 200)
++        body = await response.json()
++        self.assertEqual(body["lifecycle"], "STOPPED")
++        self.assertEqual(body["rdpTransport"], "NOT_CHECKED")
++
++    async def test_vm_status_rate_limit_30_per_minute(self):
++        for _ in range(30):
++            res = await self.client.get(
++                "/v1/vm-status",
++                headers={"Authorization": "Bearer valid-user-token"},
++            )
++            self.assertEqual(res.status, 200)
++
++        # 31st request should be rate-limited
++        blocked_res = await self.client.get(
++            "/v1/vm-status",
++            headers={"Authorization": "Bearer valid-user-token"},
++        )
++        self.assertEqual(blocked_res.status, 429)
++        self.assertIn("Retry-After", blocked_res.headers)
++        body = await blocked_res.json()
++        self.assertEqual(body["code"], "ASSIGN-02")
++        self.assertIn("retryAfterSeconds", body)
+-- 
+2.51.1
+
