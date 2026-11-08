@@ -134,3 +134,32 @@ Owner reviews OQ-01 through OQ-06 and the proposed recovery/AuthLevel behavior. 
   - `scripts/check-traceability.ps1`: PASSED (0 unmapped requirements, 0 missing tests)
   - `scripts/check-docs.ps1`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
 
+---
+
+## 10. Development Loop Iteration 3 (2026-11-08)
+
+### Loop A — Review and Self-Critique
+- **Readiness:** READY FOR OWNER (Automated tests and CI verification PASS; gated strictly on physical device demonstration DEF-001, DEF-002, DEF-003)
+- **Iterations used:** 3 (Iteration cap reached)
+- **Findings & Severity:**
+  - `C1 / Automated Test Execution`: Resolved. Executed `./gradlew testDebugUnitTest --rerun-tasks` in Codespaces Linux environment (OpenJDK 21.0.12.1, Gradle 9.6.1, Android SDK 37). All 40 unit tests executed and passed (0 failed, 0 skipped).
+  - `Submodule Integrity Restored`: Cleaned `third_party/FreeRDP` submodule to remove dirty working tree modifications, strictly pinning commit `d27a4f7c1c63b62a5e60e5d939ad116cfb58ffc1` per AGENTS.md §1.2.
+  - `Broker Validation Script Fix`: Fixed Python 3 f-string escaped-quote syntax error in `scripts/validate-fake-broker-contract.sh`.
+- **Remaining NEGOTIABLE items:** NEG-01 (F1 trunk policy), NEG-03 (staging credentials), NEG-04 (prune execution), NEG-05 (branch protection).
+
+### Loop B — Automated Test & Output Mismatch Log
+- **Local Toolchain Check:** PASSED. OpenJDK 21.0.12.1, Gradle 9.6.1, Android SDK 37.
+- **Expected vs Actual Mismatches:** 0 unexplained mismatches.
+- **Automated Test Results (40/40 passed, 0 failures, 0 skipped):**
+  - `com.mobidesk.android.AuthErrorMessagesTest`: 10 passed, 0 failed
+  - `com.mobidesk.android.MobiDeskApplicationTest`: 1 passed, 0 failed
+  - `com.mobidesk.android.MobiDeskViewModelTest`: 23 passed, 0 failed
+  - `com.mobidesk.android.RecoveryStateStoreTest`: 6 passed, 0 failed
+- **Static Verification Scripts:**
+  - `scripts/check-docs.sh`: PASSED (0 case collisions, 0 broken links, 0 duplicate plan files)
+  - `scripts/check-release-config.sh`: PASSED (0 release configuration risks)
+  - `scripts/check-traceability.sh`: PASSED (FP-01: 20/20 requirements mapped, 0 missing tests)
+  - `scripts/scan-secrets-logs.sh`: PASSED (0 leaks or credentials)
+  - `scripts/validate-fake-broker-contract.sh`: PASSED (0 schema violations, 0 prohibited fields; fakeVersusReal: UNKNOWN)
+
+

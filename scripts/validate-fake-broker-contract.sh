@@ -36,9 +36,9 @@ for idx, obj in enumerate(sample_payloads, 1):
         if p in obj:
             report["prohibitedFieldViolations"].append(f"Payload #{idx} contains prohibited field: {p}")
     if obj.get("lifecycle") not in valid_lifecycles:
-        report["schemaViolations"].append(f"Payload #{idx} invalid or missing lifecycle: {obj.get(\"lifecycle\")}")
+        report["schemaViolations"].append(f"Payload #{idx} invalid or missing lifecycle: {obj.get('lifecycle')}")
     if obj.get("rdpTransport") not in valid_transports:
-        report["schemaViolations"].append(f"Payload #{idx} invalid or missing rdpTransport: {obj.get(\"rdpTransport\")}")
+        report["schemaViolations"].append(f"Payload #{idx} invalid or missing rdpTransport: {obj.get('rdpTransport')}")
     if not obj.get("assignmentTag"):
         report["schemaViolations"].append(f"Payload #{idx} missing mandatory assignmentTag")
     if not obj.get("requestId"):
