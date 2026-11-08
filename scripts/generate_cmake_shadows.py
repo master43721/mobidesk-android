@@ -58,13 +58,6 @@ CACHE_RULES = {
         'files': ['libwebp-${WEBP_VERSION}.tar.gz'],
         'pattern': r'URL\s+https://storage\.googleapis\.com/downloads\.webmproject\.org/releases/webp/libwebp-\$\{WEBP_VERSION\}\.tar\.gz',
     },
-    'ExternalOpenH264.cmake': {
-        'var': 'OPENH264_GIT_REPO',
-        'default': 'https://github.com/cisco/openh264.git',
-        'files': ['openh264/.git'],
-        'is_git': True,
-        'pattern': r'GIT_REPOSITORY\s+https://github\.com/cisco/openh264\.git',
-    },
 }
 
 def main():
