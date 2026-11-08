@@ -31,6 +31,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
+      MOBIDESK_TARGET_ABIS: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_instrumentation) && 'arm64-v8a,x86_64' || 'arm64-v8a' }}
     steps:
       - name: Check out source and pinned FreeRDP submodule
         uses: actions/checkout@v4
@@ -76,6 +77,22 @@ jobs:
             "cmake;4.1.2"
           test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
           test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+
+      - name: Cache FreeRDP native dependency archives
+        uses: actions/cache@v4
+        with:
+          path: .freerdp-deps-cache
+          key: freerdp-deps-v1-${{ hashFiles('third_party/FreeRDP/cmake/DepVersions.cmake') }}
+
+      - name: Fetch and verify native dependencies
+        shell: bash
+        run: |
+          python3 scripts/fetch_freerdp_deps.py --cache-dir .freerdp-deps-cache
+
+      - name: Verify Live Drill Acceptance Gate Policy
+        shell: bash
+        run: |
+          python3 scripts/verify_live_drill_gate.py
 
       - name: Run JVM unit tests and assemble debug APK
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug

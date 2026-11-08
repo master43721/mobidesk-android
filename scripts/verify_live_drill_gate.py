@@ -3,17 +3,23 @@
 MobiDesk — Mandatory Live Drill Gate Process Verification Test
 Governance: docs/MANDATORY_LIVE_DRILL_POLICY.md
 
-Demonstrates the 4 mandatory gate conditions:
+Demonstrates mandatory gate conditions and negative tests:
 1. Simulated FP with passing automated tests but no live drill remains NOT ACCEPTED.
 2. Simulated FP with a prepared APK but no Owner interaction remains NOT ACCEPTED.
 3. Simulated FP with all live scenarios passed but no Owner sign-off remains NOT ACCEPTED.
 4. Simulated FP with required evidence and Owner sign-off may become ACCEPTED.
+5. (Negative) PASS claimed without an explicit Owner sign-off block MUST FAIL.
+6. (Negative) An edited/tampered evidence manifest MUST FAIL.
+7. (Negative) A PR targeting main with NOT RUN live drill steps MUST FAIL.
 """
 
+import os
+import re
 import sys
+import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 class LiveDrillStatus(Enum):
     NOT_REQUESTED = "NOT REQUESTED"
@@ -39,6 +45,10 @@ class FeaturePointGateState:
     independent_review_passed: bool = False
     live_drill_status: LiveDrillStatus = LiveDrillStatus.NOT_REQUESTED
     evidence_directory_complete: bool = False
+    owner_sign_off_present: bool = False
+    evidence_manifest_valid: bool = True
+    not_run_steps_count: int = 0
+    pr_targets_main: bool = False
     owner_decision: OwnerDecision = OwnerDecision.NONE
     defects: List[str] = field(default_factory=list)
 
@@ -50,7 +60,10 @@ class FeaturePointGateState:
                       AND (Build Verification == PASS)
                       AND (Independent Review == PASS)
                       AND (LIVE_DRILL_STATUS == PASS)
+                      AND (Evidence Manifest == VALID)
+                      AND (Owner Sign-off Block == SIGNED)
                       AND (Project Owner Decision == ACCEPTED)
+                      AND (No NOT RUN steps if targeting main)
         """
         if not self.implementation_passed:
             return "NOT ACCEPTED (Implementation incomplete)"
@@ -68,8 +81,17 @@ class FeaturePointGateState:
         if not self.evidence_directory_complete:
             return "NOT ACCEPTED (Live drill evidence directory missing or incomplete)"
 
+        if not self.evidence_manifest_valid:
+            return "NOT ACCEPTED (Evidence manifest invalid, edited or checksum mismatch)"
+
+        if not self.owner_sign_off_present:
+            return "NOT ACCEPTED (PASS claimed without signed owner sign-off block)"
+
         if self.owner_decision != OwnerDecision.ACCEPTED:
             return f"NOT ACCEPTED (Owner decision is {self.owner_decision.value}; written sign-off required)"
+
+        if self.pr_targets_main and self.not_run_steps_count > 0:
+            return f"NOT ACCEPTED (PR targeting main contains {self.not_run_steps_count} unexecuted NOT RUN steps)"
 
         return "ACCEPTED"
 
@@ -80,7 +102,7 @@ def run_tests() -> int:
     print("=" * 70)
 
     passed_cases = 0
-    total_cases = 4
+    total_cases = 7
 
     # -------------------------------------------------------------
     # Case 1: Passing automated tests but no live drill
@@ -94,6 +116,7 @@ def run_tests() -> int:
         independent_review_passed=True,
         live_drill_status=LiveDrillStatus.NOT_REQUESTED,
         evidence_directory_complete=False,
+        owner_sign_off_present=False,
         owner_decision=OwnerDecision.NONE
     )
     result1 = fp1.evaluate_acceptance()
@@ -117,6 +140,7 @@ def run_tests() -> int:
         independent_review_passed=True,
         live_drill_status=LiveDrillStatus.READY_FOR_OWNER,
         evidence_directory_complete=False,
+        owner_sign_off_present=False,
         owner_decision=OwnerDecision.NONE
     )
     result2 = fp2.evaluate_acceptance()
@@ -140,6 +164,7 @@ def run_tests() -> int:
         independent_review_passed=True,
         live_drill_status=LiveDrillStatus.PASS,
         evidence_directory_complete=True,
+        owner_sign_off_present=False,
         owner_decision=OwnerDecision.NONE
     )
     result3 = fp3.evaluate_acceptance()
@@ -152,7 +177,7 @@ def run_tests() -> int:
         print("  --> FAIL: FP was incorrectly marked accepted without Owner sign-off!")
 
     # -------------------------------------------------------------
-    # Case 4: Required evidence and Owner sign-off present
+    # Case 4: Required evidence and Owner sign-off present (Positive Baseline)
     # -------------------------------------------------------------
     print("\n[TEST 4] Simulated FP with required evidence and Owner sign-off...")
     fp4 = FeaturePointGateState(
@@ -163,16 +188,95 @@ def run_tests() -> int:
         independent_review_passed=True,
         live_drill_status=LiveDrillStatus.PASS,
         evidence_directory_complete=True,
+        evidence_manifest_valid=True,
+        owner_sign_off_present=True,
         owner_decision=OwnerDecision.ACCEPTED
     )
     result4 = fp4.evaluate_acceptance()
     print(f"  Status: LIVE_DRILL_STATUS={fp4.live_drill_status.value}, OwnerDecision={fp4.owner_decision.value}")
     print(f"  Evaluation Result: {result4}")
     if result4 == "ACCEPTED":
-        print("  --> PASS: FP correctly transitions to ACCEPTED with passing drill and Owner sign-off.")
+        print("  --> PASS: FP correctly transitions to ACCEPTED with passing drill and signed Owner block.")
         passed_cases += 1
     else:
         print(f"  --> FAIL: Expected ACCEPTED, got {result4}")
+
+    # -------------------------------------------------------------
+    # Case 5 (Negative): PASS claimed without an Owner sign-off block
+    # -------------------------------------------------------------
+    print("\n[TEST 5] (Negative) PASS claimed without an explicit Owner sign-off block...")
+    fp5 = FeaturePointGateState(
+        fp_id="SIM-FP-05-NEG-SIGNOFF",
+        implementation_passed=True,
+        automated_tests_passed=True,
+        build_verified=True,
+        independent_review_passed=True,
+        live_drill_status=LiveDrillStatus.PASS,
+        evidence_directory_complete=True,
+        evidence_manifest_valid=True,
+        owner_sign_off_present=False,  # Missing sign-off block
+        owner_decision=OwnerDecision.ACCEPTED
+    )
+    result5 = fp5.evaluate_acceptance()
+    print(f"  Status: LIVE_DRILL_STATUS={fp5.live_drill_status.value}, sign_off_present={fp5.owner_sign_off_present}")
+    print(f"  Evaluation Result: {result5}")
+    if "NOT ACCEPTED" in result5 and "signed owner sign-off block" in result5:
+        print("  --> PASS: Gate correctly REJECTS PASS claim lacking physical owner sign-off block.")
+        passed_cases += 1
+    else:
+        print(f"  --> FAIL: Expected rejection for missing sign-off block, got: {result5}")
+
+    # -------------------------------------------------------------
+    # Case 6 (Negative): Edited evidence manifest (checksum mismatch / tampering)
+    # -------------------------------------------------------------
+    print("\n[TEST 6] (Negative) Edited or tampered evidence manifest...")
+    fp6 = FeaturePointGateState(
+        fp_id="SIM-FP-06-NEG-MANIFEST",
+        implementation_passed=True,
+        automated_tests_passed=True,
+        build_verified=True,
+        independent_review_passed=True,
+        live_drill_status=LiveDrillStatus.PASS,
+        evidence_directory_complete=True,
+        evidence_manifest_valid=False,  # Edited / hash mismatch
+        owner_sign_off_present=True,
+        owner_decision=OwnerDecision.ACCEPTED
+    )
+    result6 = fp6.evaluate_acceptance()
+    print(f"  Status: manifest_valid={fp6.evidence_manifest_valid}")
+    print(f"  Evaluation Result: {result6}")
+    if "NOT ACCEPTED" in result6 and "manifest" in result6:
+        print("  --> PASS: Gate correctly REJECTS claim with altered/invalid evidence manifest.")
+        passed_cases += 1
+    else:
+        print(f"  --> FAIL: Expected rejection for invalid manifest, got: {result6}")
+
+    # -------------------------------------------------------------
+    # Case 7 (Negative): PR to main with NOT RUN steps
+    # -------------------------------------------------------------
+    print("\n[TEST 7] (Negative) PR to main with NOT RUN live drill steps...")
+    fp7 = FeaturePointGateState(
+        fp_id="SIM-FP-07-NEG-NOTRUN",
+        implementation_passed=True,
+        automated_tests_passed=True,
+        build_verified=True,
+        independent_review_passed=True,
+        live_drill_status=LiveDrillStatus.PASS,
+        evidence_directory_complete=True,
+        evidence_manifest_valid=True,
+        owner_sign_off_present=True,
+        owner_decision=OwnerDecision.ACCEPTED,
+        pr_targets_main=True,
+        not_run_steps_count=3  # 3 unexecuted steps
+    )
+    result7 = fp7.evaluate_acceptance()
+    print(f"  Status: pr_targets_main={fp7.pr_targets_main}, not_run_steps={fp7.not_run_steps_count}")
+    print(f"  Evaluation Result: {result7}")
+    if "NOT ACCEPTED" in result7 and "NOT RUN steps" in result7:
+        print("  --> PASS: Gate correctly REJECTS PR to main with unexecuted NOT RUN steps.")
+        passed_cases += 1
+    else:
+        print(f"  --> FAIL: Expected rejection for NOT RUN steps in PR to main, got: {result7}")
 
     # -------------------------------------------------------------
     # Summary
@@ -183,5 +287,103 @@ def run_tests() -> int:
 
     return 0 if passed_cases == total_cases else 1
 
+
+def verify_live_drills_on_disk(repo_root: str) -> int:
+    """
+    Validates actual live drill documentation and evidence on disk.
+    Ensures that no live drill improperly claims PASS or ACCEPTED without:
+    1. A signed Owner Sign-off block
+    2. An uncorrupted evidence manifest
+    3. No NOT RUN steps if targeting main
+    """
+    print("\n" + "=" * 70)
+    print("MobiDesk — On-Disk Live Drill Integrity Verification")
+    print("=" * 70)
+
+    drills_dir = os.path.join(repo_root, "docs", "live-drills")
+    if not os.path.isdir(drills_dir):
+        print(f"Notice: live-drills directory not found at {drills_dir}")
+        return 0
+
+    base_ref = os.environ.get("GITHUB_BASE_REF", "")
+    is_pr_to_main = base_ref == "main" or "--pr-main" in sys.argv
+
+    violations = []
+
+    for item in sorted(os.listdir(drills_dir)):
+        item_path = os.path.join(drills_dir, item)
+        if not os.path.isdir(item_path) or item in ("TEMPLATE", ".git"):
+            continue
+
+        report_path = os.path.join(item_path, "EXECUTION_REPORT.md")
+        checklist_path = os.path.join(item_path, "DEVICE_OR_ENVIRONMENT_CHECKLIST.md")
+        manifest_path = os.path.join(item_path, "evidence", "manifest.sha256")
+        evidence_dir = os.path.join(item_path, "evidence")
+
+        if os.path.isfile(report_path):
+            with open(report_path, "r", encoding="utf-8", errors="ignore") as fp:
+                report_text = fp.read()
+
+            # Check actual current status claims (not dependency tables)
+            is_pass_claimed = bool(re.search(r"(Current Live-Drill Status:.*?LIVE_DRILL_STATUS:\s*PASS\b|Status:\s*`?PASS`?\b)", report_text, re.IGNORECASE)) and not bool(re.search(r"Current Live-Drill Status:.*?(NOT REQUESTED|NOT READY|READY FOR OWNER|IN PROGRESS|BLOCKED|FAIL)", report_text, re.IGNORECASE))
+            is_accepted_claimed = bool(re.search(r"Owner\s*Sign-off\s*Status\s*:\s*`?ACCEPTED`?\b", report_text, re.IGNORECASE)) and not bool(re.search(r"Owner\s*Sign-off\s*Status\s*:\s*`?UNACCEPTED", report_text, re.IGNORECASE))
+
+            # Check sign-off block
+            has_sign_off_block = "Owner Sign-off Block" in report_text or "OWNER SIGN-OFF" in report_text
+            is_signed = bool(re.search(r"(Signature|Signed by):\s*\S+", report_text)) and not bool(re.search(r"\[Awaiting Physical Demonstration\]|\[Pending Owner Signature\]", report_text, re.IGNORECASE))
+
+            if is_pass_claimed or is_accepted_claimed:
+                if not (has_sign_off_block and is_signed):
+                    violations.append(f"{item}: Claims PASS/ACCEPTED in EXECUTION_REPORT.md but lacks signed Owner Sign-off block.")
+
+            # Validate manifest if present
+            if os.path.isfile(manifest_path):
+                with open(manifest_path, "r", encoding="utf-8") as fp:
+                    for line in fp:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        parts = line.split(None, 1)
+                        if len(parts) == 2:
+                            expected_sha, fname = parts
+                            fpath = os.path.join(evidence_dir, os.path.basename(fname))
+                            if not os.path.isfile(fpath):
+                                violations.append(f"{item}: Manifest entry missing on disk: {fname}")
+                            else:
+                                with open(fpath, "rb") as ef:
+                                    actual_sha = hashlib.sha256(ef.read()).hexdigest()
+                                if actual_sha.lower() != expected_sha.lower():
+                                    violations.append(f"{item}: Manifest hash mismatch for {fname} (expected {expected_sha}, got {actual_sha})")
+
+        # Validate checklist steps if PR targets main
+        if is_pr_to_main and os.path.isfile(checklist_path):
+            with open(checklist_path, "r", encoding="utf-8", errors="ignore") as fp:
+                chk_text = fp.read()
+            not_run_matches = re.findall(r"\|\s*NOT RUN\s*\|", chk_text, re.IGNORECASE)
+            if not_run_matches:
+                violations.append(f"{item}: PR targets main but DEVICE_OR_ENVIRONMENT_CHECKLIST.md contains {len(not_run_matches)} NOT RUN step(s).")
+
+    if violations:
+        print("\nGATE VIOLATIONS FOUND:")
+        for v in violations:
+            print(f"  ❌ {v}")
+        return 1
+
+    print("\nAll on-disk live drill checks passed. Zero premature acceptance claims found.")
+    return 0
+
+
+def main() -> int:
+    # 1. Run mandatory test suite (including negative tests)
+    test_rc = run_tests()
+    if test_rc != 0:
+        return test_rc
+
+    # 2. Verify repository on-disk live drill documents
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    disk_rc = verify_live_drills_on_disk(repo_root)
+    return disk_rc
+
+
 if __name__ == "__main__":
-    sys.exit(run_tests())
+    sys.exit(main())

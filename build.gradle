@@ -19,12 +19,23 @@ ext {
     minApi = 29
     toolsVersion = '37.0.0'
     ndkVersion = '29.0.13113456'
-    abiFilters = ['arm64-v8a', 'x86_64']
-    splitArchs = ['arm64-v8a', 'x86_64']
+
+    // Configurable ABI targeting: CI defaults to arm64-v8a (per NEG-09 proposal),
+    // and adds x86_64 only when run_instrumentation is requested.
+    def targetAbis = (project.findProperty('mobideskTargetAbis') ?:
+                      System.getenv('MOBIDESK_TARGET_ABIS') ?:
+                      'arm64-v8a,x86_64').split(',') as List
+    abiFilters = targetAbis
+    splitArchs = targetAbis
     splitEnabled = false
     universal = true
     cmakeVersion = '4.1.2'
+
+    def depsCacheDir = file("${rootDir}/.freerdp-deps-cache").absolutePath
+    def cmakeModulesDir = file("${rootDir}/cmake/freerdp").absolutePath
     cmakeArguments = [
+        "-DCMAKE_MODULE_PATH=${cmakeModulesDir}",
+        "-DFREERDP_EXTERNAL_CACHE_DIR=${depsCacheDir}",
         '-DWITH_FFMPEG=ON',
         '-DWITH_OPENH264=ON',
         '-DWITH_OPUS=ON',
