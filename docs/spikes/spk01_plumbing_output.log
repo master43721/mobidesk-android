@@ -1,0 +1,42 @@
+======================================================================
+SPK-01 TEST: 1. Socketpair Transport Bridge (AF_UNIX SOCK_STREAM)
+======================================================================
+Testing in-kernel socketpair file descriptor relay...
+  Sent bytes from App:     19 bytes (030000130ee000000000000100080003000000)
+  Received at FreeRDP fd:  19 bytes (030000130ee000000000000100080003000000)
+  Sent back from FreeRDP:  11 bytes (0300000b06d00000123400)
+  Received at App side:    11 bytes (0300000b06d00000123400)
+  --> PASS: Socketpair full-duplex byte transfer verified with zero network exposure.
+
+======================================================================
+SPK-01 TEST: 2. Unix Domain Socket with SO_PEERCRED Peer-UID Check
+======================================================================
+  Caller Process PID: 111226, UID: 1000, GID: 1000
+  Expected App UID:   1000
+  --> PASS: SO_PEERCRED verified caller UID matches expected app UID.
+
+======================================================================
+SPK-01 TEST: 3. Same-Device Loopback Hijack Test (Demonstrates TCP vulnerability)
+======================================================================
+  Loopback server listening on 127.0.0.1:42275
+  Connected client address: ('127.0.0.1', 60950)
+  Received data: b'ROGUE_INJECTION_PACKET'
+  --> PASS (NEGATIVE TEST): Proved that Loopback TCP can be intercepted / hijacked
+      by any concurrent process on the same device. Proves why Loopback is REJECTED.
+
+======================================================================
+SPK-01 TEST: 4. WebSocket Relay Plumbing Proof (Without Windows)
+======================================================================
+Setting up Linux test target (mock RDP target), relay server, and client...
+  Target received bytes: 19 bytes (TPKT Header + X.224 CR)
+  Client received bytes: 11 bytes (TPKT Header + X.224 CC)
+
+  ------------------------------------------------------------------
+  NOTICE: This test proves transport byte relay framing only.
+  It does NOT prove NLA authentication, CredSSP exchange, or certificates.
+  ------------------------------------------------------------------
+  --> PASS: End-to-end byte relay framing verified successfully.
+
+======================================================================
+SPK-01 SUITE SUMMARY: 4/4 PASSED
+======================================================================
