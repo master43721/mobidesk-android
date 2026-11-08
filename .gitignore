@@ -20,6 +20,7 @@ release.properties.local
 # Android emulator state
 .avd/
 *.hprof
+*.bundle
 
 # OS/editor
 .DS_Store
