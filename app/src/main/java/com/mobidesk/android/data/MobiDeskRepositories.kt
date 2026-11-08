@@ -73,6 +73,9 @@ class SupabaseAuthRepository(private val client: SupabaseClient) : AuthRepositor
 
 class StudentWorkspaceRepository(private val client: SupabaseClient) : WorkspaceRepository {
     override suspend fun loadFor(userId: String): StudentWorkspaceResult {
+        if (userId.isBlank()) {
+            return StudentWorkspaceResult.AccountNotProvisioned
+        }
         val profiles = client.from("students").select(
             columns = Columns.list("id", "name", "college")
         ) {
@@ -88,23 +91,40 @@ class StudentWorkspaceRepository(private val client: SupabaseClient) : Workspace
             columns = Columns.list("id", "name")
         ).decodeList<VmSummary>()
 
-        return when {
-            assignedVms.isEmpty() -> StudentWorkspaceResult.NoAssignment(profile)
-            assignedVms.size == 1 -> {
-                val vm = assignedVms.first()
-                val derivedTag = "asg_tag_${vm.id}"
-                StudentWorkspaceResult.Assigned(
+        return resolve(profile, assignedVms)
+    }
+
+    companion object {
+        fun resolve(
+            profile: StudentProfile?,
+            assignedVms: List<VmSummary>
+        ): StudentWorkspaceResult {
+            if (profile == null) return StudentWorkspaceResult.AccountNotProvisioned
+            return when {
+                assignedVms.isEmpty() -> StudentWorkspaceResult.NoAssignment(profile)
+                assignedVms.size == 1 -> {
+                    val vm = assignedVms.first()
+                    if (vm.id.isBlank() || vm.name.isBlank()) {
+                        StudentWorkspaceResult.AssignmentInvalid(
+                            profile = profile,
+                            reason = "Corrupt assignment data: VM identifier or name is blank"
+                        )
+                    } else {
+                        val derivedTag = "asg_tag_${vm.id}"
+                        StudentWorkspaceResult.Assigned(
+                            profile = profile,
+                            assignedWorkspace = AssignedWorkspace(
+                                displayLabel = vm.name,
+                                assignmentTag = derivedTag
+                            )
+                        )
+                    }
+                }
+                else -> StudentWorkspaceResult.AssignmentInvalid(
                     profile = profile,
-                    assignedWorkspace = AssignedWorkspace(
-                        displayLabel = vm.name,
-                        assignmentTag = derivedTag
-                    )
+                    reason = "Multiple assignments detected"
                 )
             }
-            else -> StudentWorkspaceResult.AssignmentInvalid(
-                profile = profile,
-                reason = "Multiple assignments detected"
-            )
         }
     }
 }
