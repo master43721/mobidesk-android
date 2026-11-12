@@ -3,8 +3,12 @@ name: Android CI
 on:
   push:
     branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
+    paths-ignore:
+      - '.github/workflows/publish-milestones.yml'
   pull_request:
     branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
+    paths-ignore:
+      - '.github/workflows/publish-milestones.yml'
   workflow_dispatch:
     inputs:
       run_instrumentation:

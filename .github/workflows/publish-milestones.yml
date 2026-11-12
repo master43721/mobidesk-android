@@ -1,0 +1,60 @@
+name: Publish Milestone APKs
+
+on:
+  push:
+    branches:
+      - fp-05-freerdp-pipeline
+    paths:
+      - '.github/workflows/publish-milestones.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Run Artifacts and Prepare Milestones
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p apks
+          # FP-01
+          gh run download 42480480518 --name "mobidesk-debug-13c0916fe84726c75e1313cb1c5b13e8759622bd" --dir apks/fp-01
+          cp apks/fp-01/app-debug.apk apks/fp-01.apk
+
+          # FP-02
+          gh run download 42479811818 --name "mobidesk-debug-c532be1603908d559c8c9bf83379c03243129d76" --dir apks/fp-02
+          cp apks/fp-02/app-debug.apk apks/fp-02.apk
+
+          # FP-03
+          gh run download 42480760861 --name "mobidesk-debug-aacc395f88a9eca410a1e463ce5c4ebfe8b89136" --dir apks/fp-03
+          cp apks/fp-03/app-debug.apk apks/fp-03.apk
+
+          # FP-04
+          gh run download 42481760406 --name "mobidesk-debug-1cba5876ee163ef36d9e3cd505112fb24fb6a568" --dir apks/fp-04
+          cp apks/fp-04/app-debug.apk apks/fp-04.apk
+
+          # FP-05..11
+          gh run download 43243680874 --name "mobidesk-debug-60f864b1991c8269fb510e93f51f20c7211962d5" --dir apks/fp-11
+          cp apks/fp-11/app-debug.apk apks/fp-05.apk
+          cp apks/fp-11/app-debug.apk apks/fp-06.apk
+          cp apks/fp-11/app-debug.apk apks/fp-07.apk
+          cp apks/fp-11/app-debug.apk apks/fp-08.apk
+          cp apks/fp-11/app-debug.apk apks/fp-09.apk
+          cp apks/fp-11/app-debug.apk apks/fp-10.apk
+          cp apks/fp-11/app-debug.apk apks/fp-11.apk
+
+          ls -lh apks/fp-*.apk
+          sha256sum apks/fp-*.apk
+
+      - name: Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload v0.2.0-fp11-candidate apks/fp-*.apk --clobber
