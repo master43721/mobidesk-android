@@ -4,9 +4,6 @@ import com.mobidesk.android.data.DefaultSessionGrantRepository
 import com.mobidesk.android.data.MonotonicClock
 import com.mobidesk.android.data.SessionGrant
 import com.mobidesk.android.data.SessionGrantResult
-import com.sun.net.httpserver.HttpExchange
-import com.sun.net.httpserver.HttpHandler
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -14,17 +11,22 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.net.InetSocketAddress
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.ServerSocket
+import java.net.Socket
+import kotlin.concurrent.thread
 
 class SessionGrantRepositoryTest {
 
-    private lateinit var server: HttpServer
+    private lateinit var server: ServerSocket
     private var serverPort: Int = 0
     private var handlerResponseCode: Int = 200
     private var handlerResponseBody: String = ""
     private var handlerHeaders: MutableMap<String, String> = mutableMapOf()
     private var receivedAuthHeader: String? = null
     private var receivedBody: String? = null
+    @Volatile private var isRunning = true
 
     private val fakeClock = object : MonotonicClock {
         var timeMs = 1000L
@@ -33,24 +35,82 @@ class SessionGrantRepositoryTest {
 
     @Before
     fun setUp() {
-        server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        serverPort = server.address.port
-        server.createContext("/v1/session-grants", HttpHandler { exchange: HttpExchange ->
-            receivedAuthHeader = exchange.requestHeaders.getFirst("Authorization")
-            receivedBody = exchange.requestBody.reader().readText()
+        isRunning = true
+        server = ServerSocket(0)
+        serverPort = server.localPort
 
-            handlerHeaders.forEach { (k, v) -> exchange.responseHeaders.set(k, v) }
-            val bytes = handlerResponseBody.toByteArray(Charsets.UTF_8)
-            exchange.sendResponseHeaders(handlerResponseCode, bytes.size.toLong())
-            exchange.responseBody.write(bytes)
-            exchange.close()
-        })
-        server.start()
+        thread(isDaemon = true) {
+            while (isRunning) {
+                try {
+                    val socket = server.accept()
+                    handleConnection(socket)
+                } catch (_: Exception) {
+                    break
+                }
+            }
+        }
+    }
+
+    private fun handleConnection(socket: Socket) {
+        socket.use { s ->
+            val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
+            val line = reader.readLine() ?: return
+            var contentLength = 0
+            while (true) {
+                val headerLine = reader.readLine() ?: break
+                if (headerLine.isEmpty()) break
+                if (headerLine.startsWith("Authorization: ", ignoreCase = true)) {
+                    receivedAuthHeader = headerLine.substring("Authorization: ".length).trim()
+                } else if (headerLine.startsWith("Content-Length: ", ignoreCase = true)) {
+                    contentLength = headerLine.substring("Content-Length: ".length).trim().toIntOrNull() ?: 0
+                }
+            }
+
+            if (contentLength > 0) {
+                val bodyChars = CharArray(contentLength)
+                var read = 0
+                while (read < contentLength) {
+                    val r = reader.read(bodyChars, read, contentLength - read)
+                    if (r == -1) break
+                    read += r
+                }
+                receivedBody = String(bodyChars, 0, read)
+            } else {
+                receivedBody = ""
+            }
+
+            val bodyBytes = handlerResponseBody.toByteArray(Charsets.UTF_8)
+            val statusText = when (handlerResponseCode) {
+                200 -> "OK"
+                201 -> "Created"
+                401 -> "Unauthorized"
+                403 -> "Forbidden"
+                429 -> "Too Many Requests"
+                else -> "Status"
+            }
+
+            val out = s.getOutputStream()
+            val headerBuilder = StringBuilder()
+            headerBuilder.append("HTTP/1.1 $handlerResponseCode $statusText\r\n")
+            headerBuilder.append("Content-Type: application/json; charset=utf-8\r\n")
+            headerBuilder.append("Content-Length: ${bodyBytes.size}\r\n")
+            handlerHeaders.forEach { (k, v) ->
+                headerBuilder.append("$k: $v\r\n")
+            }
+            headerBuilder.append("Connection: close\r\n\r\n")
+
+            out.write(headerBuilder.toString().toByteArray(Charsets.UTF_8))
+            out.write(bodyBytes)
+            out.flush()
+        }
     }
 
     @After
     fun tearDown() {
-        server.stop(0)
+        isRunning = false
+        try {
+            server.close()
+        } catch (_: Exception) {}
     }
 
     @Test
