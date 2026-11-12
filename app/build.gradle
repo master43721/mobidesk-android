@@ -30,6 +30,16 @@ android {
         buildConfigField 'String', 'AUTH_CALLBACK_HOST', '"auth-callback"'
         buildConfigField 'String', 'AUTH_CALLBACK_URI', '"com.mobidesk.android://auth-callback"'
         buildConfigField 'String', 'AUTH_RECOVERY_URI', '"com.mobidesk.android://auth-callback/recovery"'
+        ndk {
+            abiFilters.addAll(rootProject.ext.abiFilters)
+        }
+    }
+
+    signingConfigs {
+        debug {
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
     }
 
     buildFeatures {
@@ -39,6 +49,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig signingConfigs.debug
         }
         release {
             minifyEnabled false

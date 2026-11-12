@@ -27,6 +27,7 @@ class StandardRdpRelayClientTest {
     @Before
     fun setUp() {
         mockServer = ServerSocket(0)
+        mockServer.soTimeout = 5000
         serverPort = mockServer.localPort
     }
 
@@ -78,6 +79,7 @@ class StandardRdpRelayClientTest {
 
             socket.close()
         }
+        serverThread.isDaemon = true
         serverThread.start()
 
         client.connect("ws://127.0.0.1:$serverPort/v1/rdp", "my-one-time-grant", object : RdpRelayListener {
@@ -135,6 +137,7 @@ class StandardRdpRelayClientTest {
 
             socket.close()
         }
+        serverThread.isDaemon = true
         serverThread.start()
 
         client.connect("ws://127.0.0.1:$serverPort/v1/rdp", "grant", object : RdpRelayListener {
@@ -187,6 +190,7 @@ class StandardRdpRelayClientTest {
 
             socket.close()
         }
+        serverThread.isDaemon = true
         serverThread.start()
 
         client.connect("ws://127.0.0.1:$serverPort/v1/rdp", "grant", object : RdpRelayListener {

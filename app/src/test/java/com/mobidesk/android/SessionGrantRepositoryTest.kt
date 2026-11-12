@@ -26,6 +26,7 @@ class SessionGrantRepositoryTest {
     private var handlerHeaders: MutableMap<String, String> = mutableMapOf()
     private var receivedAuthHeader: String? = null
     private var receivedBody: String? = null
+    private val activeSockets = java.util.concurrent.CopyOnWriteArrayList<Socket>()
     @Volatile private var isRunning = true
 
     private val fakeClock = object : MonotonicClock {
@@ -36,14 +37,27 @@ class SessionGrantRepositoryTest {
     @Before
     fun setUp() {
         isRunning = true
+        handlerResponseCode = 200
+        handlerResponseBody = ""
+        handlerHeaders.clear()
+        receivedAuthHeader = null
+        receivedBody = null
+
         server = ServerSocket(0)
+        server.soTimeout = 2000
         serverPort = server.localPort
 
         thread(isDaemon = true) {
             while (isRunning) {
                 try {
                     val socket = server.accept()
-                    handleConnection(socket)
+                    socket.soTimeout = 2000
+                    activeSockets.add(socket)
+                    try {
+                        handleConnection(socket)
+                    } finally {
+                        activeSockets.remove(socket)
+                    }
                 } catch (_: Exception) {
                     break
                 }
@@ -108,6 +122,10 @@ class SessionGrantRepositoryTest {
     @After
     fun tearDown() {
         isRunning = false
+        for (s in activeSockets) {
+            try { s.close() } catch (_: Exception) {}
+        }
+        activeSockets.clear()
         try {
             server.close()
         } catch (_: Exception) {}
