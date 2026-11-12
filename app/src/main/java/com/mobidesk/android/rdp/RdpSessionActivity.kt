@@ -10,8 +10,8 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -36,7 +36,7 @@ import com.freerdp.freerdpcore.services.LibFreeRDP
  * 3. Consumes ephemeral parameters from [RdpSessionCarrier]; zero Intent extra credential persistence.
  * 4. Deterministic teardown and zeroing on [onDestroy] or user disconnect.
  */
-class RdpSessionActivity : AppCompatActivity(), RdpSessionListener {
+class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
     private lateinit var sessionManager: RdpSessionManager
     private lateinit var sessionView: SessionView
@@ -113,7 +113,6 @@ class RdpSessionActivity : AppCompatActivity(), RdpSessionListener {
 
     private fun hideSystemBars() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        supportActionBar?.hide()
 
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior =
