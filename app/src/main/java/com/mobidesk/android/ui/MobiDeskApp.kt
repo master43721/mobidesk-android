@@ -236,6 +236,12 @@ fun MobiDeskApp(
                     viewModel.clearMessages()
                     route = SignedOutRoute.RESET_REQUEST.name
                 }
+        }
+
+        if (state.showGuestCredentialPrompt) {
+            WindowsCredentialDialog(
+                onDismiss = viewModel::onGuestCredentialPromptDismissed,
+                onConnect = viewModel::onGuestCredentialsSubmitted
             )
         }
     }

@@ -5,11 +5,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.mobidesk.android.data.RecoveryStage
 import com.mobidesk.android.data.SharedPreferencesRecoveryStateStore
+import com.mobidesk.android.rdp.RdpSessionActivity
 import com.mobidesk.android.ui.MobiDeskApp
 import com.mobidesk.android.ui.MobiDeskTheme
 import io.github.jan.supabase.auth.handleDeeplinks
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MobiDeskViewModel by viewModels()
@@ -17,6 +22,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleAuthIntent(intent)
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.navigateToSessionEvent.collect {
+                    val sessionIntent = Intent(this@MainActivity, RdpSessionActivity::class.java)
+                    startActivity(sessionIntent)
+                }
+            }
+        }
+
         setContent {
             MobiDeskTheme {
                 MobiDeskApp(viewModel)

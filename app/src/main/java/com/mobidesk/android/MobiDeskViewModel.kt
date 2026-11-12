@@ -21,7 +21,13 @@ import com.mobidesk.android.data.SupabaseAuthRepository
 import com.mobidesk.android.data.SystemMonotonicClock
 import com.mobidesk.android.data.VmLifecycle
 import com.mobidesk.android.data.VmStatusSample
+import com.mobidesk.android.data.DefaultSessionGrantRepository
+import com.mobidesk.android.data.SessionGrant
+import com.mobidesk.android.data.SessionGrantRepository
+import com.mobidesk.android.data.SessionGrantResult
+import com.mobidesk.android.data.WindowsGuestCredentials
 import com.mobidesk.android.data.WorkspaceRepository
+import com.mobidesk.android.rdp.RdpSessionCarrier
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -48,6 +54,9 @@ data class MobiDeskUiState(
     val isCheckingStatus: Boolean = false,
     val statusAgeText: String? = null,
     val isConnectEnabled: Boolean = false,
+    val showGuestCredentialPrompt: Boolean = false,
+    val isConnectingSession: Boolean = false,
+    val sessionGrant: SessionGrant? = null,
     val isPasswordRecovery: Boolean = false,
     val isRecoveryInterrupted: Boolean = false,
     val signOutFailed: Boolean = false,
@@ -61,7 +70,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
     customWorkspaceRepository: WorkspaceRepository? = null,
     customStatusRepository: StatusRepository? = null,
     customRecoveryStore: RecoveryStateStore? = null,
-    private val clock: MonotonicClock = SystemMonotonicClock
+    private val clock: MonotonicClock = SystemMonotonicClock,
+    customSessionGrantRepository: SessionGrantRepository? = null
 ) : AndroidViewModel(application) {
     private val app = application as? MobiDeskApplication
     private val supabase = app?.supabaseClient
@@ -72,6 +82,13 @@ class MobiDeskViewModel @JvmOverloads constructor(
     private val statusRepository: StatusRepository? =
         customStatusRepository ?: if (authRepository != null && supabase != null) {
             DefaultStatusRepository(
+                baseUrl = BuildConfig.SUPABASE_URL,
+                clock = clock
+            )
+        } else null
+    private val sessionGrantRepository: SessionGrantRepository? =
+        customSessionGrantRepository ?: if (authRepository != null && supabase != null) {
+            DefaultSessionGrantRepository(
                 baseUrl = BuildConfig.SUPABASE_URL,
                 clock = clock
             )
@@ -90,6 +107,9 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
     private val _navigateToConnectEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val navigateToConnectEvent = _navigateToConnectEvent.asSharedFlow()
+
+    private val _navigateToSessionEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToSessionEvent = _navigateToSessionEvent.asSharedFlow()
 
     private var sessionGeneration: Long = 0L
     private var activeUserId: String? = null
@@ -647,6 +667,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
                     }
 
                     if (eligible) {
+                        _uiState.update { it.copy(showGuestCredentialPrompt = true) }
                         _navigateToConnectEvent.tryEmit(Unit)
                     }
                 }
@@ -685,6 +706,67 @@ class MobiDeskViewModel @JvmOverloads constructor(
             }
             recalculateUiAgeAndConnect()
         }
+    }
+
+    fun onGuestCredentialsSubmitted(credentials: WindowsGuestCredentials) {
+        _uiState.update { it.copy(showGuestCredentialPrompt = false, isConnectingSession = true, errorMessage = null) }
+        viewModelScope.launch {
+            val auth = authRepository ?: run {
+                credentials.clear()
+                _uiState.update { it.copy(isConnectingSession = false, errorMessage = "Authentication service unavailable.") }
+                return@launch
+            }
+            val grantRepo = sessionGrantRepository ?: run {
+                credentials.clear()
+                _uiState.update { it.copy(isConnectingSession = false, errorMessage = "Session authorization service unavailable.") }
+                return@launch
+            }
+            val token = auth.currentAccessToken().orEmpty()
+            val result = grantRepo.requestSessionGrant(token)
+            when (result) {
+                is SessionGrantResult.Success -> {
+                    _uiState.update { it.copy(isConnectingSession = false, sessionGrant = result.grant) }
+                    val brokerUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+                    val relayPath = if (result.grant.relayPath.startsWith("/")) result.grant.relayPath else "/${result.grant.relayPath}"
+                    val wssUrl = if (brokerUrl.startsWith("https://")) {
+                        brokerUrl.replaceFirst("https://", "wss://") + relayPath
+                    } else if (brokerUrl.startsWith("http://")) {
+                        brokerUrl.replaceFirst("http://", "ws://") + relayPath
+                    } else {
+                        "wss://$brokerUrl$relayPath"
+                    }
+                    RdpSessionCarrier.stageSession(
+                        grant = result.grant,
+                        credentials = credentials,
+                        relayUrl = wssUrl
+                    )
+                    _navigateToSessionEvent.tryEmit(Unit)
+                }
+                is SessionGrantResult.RateLimited -> {
+                    credentials.clear()
+                    _uiState.update { it.copy(isConnectingSession = false, errorMessage = result.message) }
+                }
+                is SessionGrantResult.AuthExpired -> {
+                    credentials.clear()
+                    _uiState.update {
+                        it.copy(
+                            isConnectingSession = false,
+                            authLevel = AuthLevel.SIGNED_OUT,
+                            isAuthenticated = false,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is SessionGrantResult.Error -> {
+                    credentials.clear()
+                    _uiState.update { it.copy(isConnectingSession = false, errorMessage = result.message) }
+                }
+            }
+        }
+    }
+
+    fun onGuestCredentialPromptDismissed() {
+        _uiState.update { it.copy(showGuestCredentialPrompt = false) }
     }
 
     fun signIn(email: String, password: String) {

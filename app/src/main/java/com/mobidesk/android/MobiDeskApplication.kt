@@ -1,8 +1,8 @@
 package com.mobidesk.android
 
-import android.app.Application
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.freerdp.freerdpcore.application.GlobalApp
 import com.mobidesk.android.data.RecoveryStateStore
 import com.mobidesk.android.data.SharedPreferencesRecoveryStateStore
 import com.russhwolf.settings.SharedPreferencesSettings
@@ -15,7 +15,11 @@ import io.github.jan.supabase.auth.SettingsSessionManager
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 
-class MobiDeskApplication : Application() {
+class MobiDeskApplication : GlobalApp() {
+    override fun onCreate() {
+        super.onCreate()
+    }
+
     val recoveryStateStore: RecoveryStateStore by lazy {
         SharedPreferencesRecoveryStateStore(this)
     }

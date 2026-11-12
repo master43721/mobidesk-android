@@ -23,6 +23,7 @@ release.properties.local
 .avd/
 *.hprof
 *.bundle
+*.bmp
 
 # OS/editor
 .DS_Store
