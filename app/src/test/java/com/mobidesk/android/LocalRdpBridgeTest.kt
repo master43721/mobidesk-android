@@ -3,9 +3,8 @@ package com.mobidesk.android
 import com.mobidesk.android.network.LocalRdpBridge
 import com.mobidesk.android.network.RdpRelayClient
 import com.mobidesk.android.network.RdpRelayListener
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,11 +17,9 @@ import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class LocalRdpBridgeTest {
 
-    private val testDispatcher = UnconfinedTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
+    private val ioScope = CoroutineScope(Dispatchers.IO)
 
     private class FakeRelayClient : RdpRelayClient {
         val sentData = mutableListOf<ByteArray>()
@@ -37,7 +34,7 @@ class LocalRdpBridgeTest {
     @Test
     fun startListener_bindsToLoopbackPort() {
         val relayClient = FakeRelayClient()
-        val bridge = LocalRdpBridge(relayClient, testScope)
+        val bridge = LocalRdpBridge(relayClient, ioScope)
 
         val port = bridge.startListener()
         assertTrue("Port should be dynamic ephemeral port (> 0)", port > 0)
@@ -49,7 +46,7 @@ class LocalRdpBridgeTest {
     @Test
     fun acceptAndPump_acceptsOnePeerAndImmediatelyClosesListener() {
         val relayClient = FakeRelayClient()
-        val bridge = LocalRdpBridge(relayClient, testScope)
+        val bridge = LocalRdpBridge(relayClient, ioScope)
         val port = bridge.startListener()
 
         val connectedLatch = CountDownLatch(1)
@@ -100,7 +97,7 @@ class LocalRdpBridgeTest {
     @Test
     fun writeToFreeRdp_beforePeerConnects_buffersAndFlushesOnAccept() {
         val relayClient = FakeRelayClient()
-        val bridge = LocalRdpBridge(relayClient, testScope)
+        val bridge = LocalRdpBridge(relayClient, ioScope)
         val port = bridge.startListener()
 
         // Relay receives packets BEFORE FreeRDP connects

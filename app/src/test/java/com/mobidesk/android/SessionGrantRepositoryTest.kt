@@ -58,6 +58,8 @@ class SessionGrantRepositoryTest {
                     } finally {
                         activeSockets.remove(socket)
                     }
+                } catch (_: java.net.SocketTimeoutException) {
+                    continue
                 } catch (_: Exception) {
                     break
                 }
