@@ -44,20 +44,15 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Provisioning demo student accounts for Windows guest login..."
-          $password = "DemoLab@1985"
-          $secPassword = ConvertTo-SecureString $password -AsPlainText -Force
+          $password = "DemoStudent@MobiDesk2026!"
           
-          # Create demo student account
-          if (-not (Get-LocalUser -Name "demo_student" -ErrorAction SilentlyContinue)) {
-              New-LocalUser -Name "demo_student" -Password $secPassword -FullName "Demo Student (MobiDesk)" -Description "MobiDesk Student Workspace Account"
-          }
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "demo_student" -ErrorAction SilentlyContinue
+          # Provision demo_student account
+          cmd.exe /c "net user demo_student $password /add /expires:never /active:yes"
+          cmd.exe /c "net localgroup `"Remote Desktop Users`" demo_student /add"
           
-          # Create campus lab student user
-          if (-not (Get-LocalUser -Name "student_lab_user" -ErrorAction SilentlyContinue)) {
-              New-LocalUser -Name "student_lab_user" -Password $secPassword -FullName "Campus Lab Student" -Description "Campus Lab Windows Account"
-          }
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "student_lab_user" -ErrorAction SilentlyContinue
+          # Provision student_lab_user account
+          cmd.exe /c "net user student_lab_user $password /add /expires:never /active:yes"
+          cmd.exe /c "net localgroup `"Remote Desktop Users`" student_lab_user /add"
           
           Write-Host "Users 'demo_student' and 'student_lab_user' provisioned in Remote Desktop Users group."
 
