@@ -1,0 +1,93 @@
+name: Windows 11 VM Host (FP-11 Remote Desktop)
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_hours:
+        description: "Duration to keep the Windows VM running (1 to 6 hours)"
+        required: false
+        default: "6"
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  host-windows-vm:
+    name: Host Dedicated Windows 11 VM for MobiDesk FP-11
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Windows 11 Host & Enable Remote Desktop (RDP)
+        shell: powershell
+        run: |
+          Write-Host "Configuring Windows Remote Desktop Services (RDP)..."
+          # Enable Remote Desktop in registry
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          
+          # Enable Windows Firewall rules for Remote Desktop
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+          New-NetFirewallRule -DisplayName "Allow RDP TCP 3389" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -ErrorAction SilentlyContinue
+          
+          # Start and ensure TermService is running
+          Set-Service -Name "TermService" -StartupType Automatic
+          Start-Service -Name "TermService"
+          
+          Write-Host "Remote Desktop Services successfully enabled and running on TCP port 3389."
+
+      - name: Provision Demo Student & Guest Accounts
+        shell: powershell
+        run: |
+          Write-Host "Provisioning demo student accounts for Windows guest login..."
+          $password = "DemoLab@1985"
+          $secPassword = ConvertTo-SecureString $password -AsPlainText -Force
+          
+          # Create demo student account
+          if (-not (Get-LocalUser -Name "demo_student" -ErrorAction SilentlyContinue)) {
+              New-LocalUser -Name "demo_student" -Password $secPassword -FullName "Demo Student (MobiDesk)" -Description "MobiDesk Student Workspace Account"
+          }
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "demo_student" -ErrorAction SilentlyContinue
+          
+          # Create campus lab student user
+          if (-not (Get-LocalUser -Name "student_lab_user" -ErrorAction SilentlyContinue)) {
+              New-LocalUser -Name "student_lab_user" -Password $secPassword -FullName "Campus Lab Student" -Description "Campus Lab Windows Account"
+          }
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "student_lab_user" -ErrorAction SilentlyContinue
+          
+          Write-Host "Users 'demo_student' and 'student_lab_user' provisioned in Remote Desktop Users group."
+
+      - name: Set up MobiDesk Session Broker and RDP Bridge
+        shell: powershell
+        run: |
+          Write-Host "Starting MobiDesk Session Broker & RDP Relay Services..."
+          python scripts/verify_rdp_pipeline.py
+          Write-Host "Session Broker and RDP pipeline verified and operational."
+
+      - name: Run Windows VM Continuous Host Watchdog
+        shell: powershell
+        run: |
+          $hours = [int]("${{ github.event.inputs.duration_hours }}" -replace "[^0-9]", "")
+          if ($hours -lt 1 -or $hours -gt 6) { $hours = 6 }
+          $totalSeconds = $hours * 3600
+          $elapsed = 0
+          
+          Write-Host "================================================================="
+          Write-Host " MobiDesk Windows 11 VM Host is ACTIVE"
+          Write-Host " VM Name: win-01 (MobiDesk Student Workspace)"
+          Write-Host " RDP Port: TCP 3389 (NLA Enabled)"
+          Write-Host " Max Duration: $hours hours ($totalSeconds seconds)"
+          Write-Host "================================================================="
+          
+          while ($elapsed -lt $totalSeconds) {
+              Start-Sleep -Seconds 60
+              $elapsed += 60
+              $remaining = [math]::Round(($totalSeconds - $elapsed) / 60)
+              $rdpService = Get-Service -Name "TermService" -ErrorAction SilentlyContinue
+              Write-Host "[Watchdog $(Get-Date -Format 'HH:mm:ss')] VM win-01 status: $($rdpService.Status) | Time remaining: $remaining minutes"
+          }
+          Write-Host "Windows VM Host session completed."
