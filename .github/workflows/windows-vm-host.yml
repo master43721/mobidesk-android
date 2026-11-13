@@ -44,9 +44,9 @@ jobs:
         shell: powershell
         run: |
           Write-Host "Provisioning demo student accounts for Windows guest login..."
-          $password = "DemoStudent@MobiDesk2026!"
+          $password = "DemoLab1985!"
           
-          # Provision demo_student account
+          # Provision demo_student account (12 chars to avoid Windows 2000 prompt)
           cmd.exe /c "net user demo_student $password /add /expires:never /active:yes"
           cmd.exe /c "net localgroup `"Remote Desktop Users`" demo_student /add"
           
