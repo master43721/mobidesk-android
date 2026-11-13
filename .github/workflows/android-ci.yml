@@ -3,19 +3,9 @@ name: Android CI
 on:
   push:
     branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
-    paths-ignore:
-      - '.github/workflows/publish-milestones.yml'
   pull_request:
     branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
-    paths-ignore:
-      - '.github/workflows/publish-milestones.yml'
   workflow_dispatch:
-    inputs:
-      run_instrumentation:
-        description: "Also boot an API 36 emulator and run connected Android tests"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -25,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
-    name: JVM tests and debug APK
+  build-candidate:
+    name: Build and Validate Candidate APK
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -35,7 +25,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
-      MOBIDESK_TARGET_ABIS: ${{ (github.event_name == 'workflow_dispatch' && inputs.run_instrumentation) && 'arm64-v8a,x86_64' || 'arm64-v8a' }}
+      MOBIDESK_TARGET_ABIS: "arm64-v8a,x86_64"
     steps:
       - name: Check out source and pinned FreeRDP submodule
         uses: actions/checkout@v4
@@ -98,10 +88,15 @@ jobs:
         run: |
           python3 scripts/verify_live_drill_gate.py
 
-      - name: Run JVM unit tests and assemble debug APK
-        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
+      - name: Run FreeRDP Pipeline & Architecture Verification
+        shell: bash
+        run: |
+          python3 scripts/verify_rdp_pipeline.py
 
-      - name: Verify APK integrity and debug signature
+      - name: Run JVM unit tests and assemble candidate APKs
+        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+
+      - name: Validate candidate APK integrity, signature, and alignment
         shell: bash
         run: |
           set -euo pipefail
@@ -109,18 +104,21 @@ jobs:
           test -s "$apk"
           unzip -tq "$apk"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          python3 scripts/inspect_manifest.py "$apk"
           sha256sum "$apk"
-          stat --printf='APK size: %s bytes\n' "$apk"
+          stat --printf='Candidate APK size: %s bytes\n' "$apk"
 
-      - name: Upload debug-only APK artifact
+      - name: Upload candidate APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mobidesk-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: mobidesk-candidate-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload JUnit test results and reports
+      - name: Upload JVM test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -130,22 +128,185 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/
           retention-days: 14
 
-      - name: Install API 36 emulator image for opt-in instrumentation
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
-        run: |
-          sdkmanager --install \
-            "platforms;android-36" \
-            "system-images;android-36;google_apis;x86_64" \
-            "emulator"
+  emulator-test:
+    name: Android Emulator Installation and UI Testing
+    needs: build-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Run connected Android tests on API 36 emulator
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Download candidate APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mobidesk-candidate-apks
+          path: candidate-apks
+
+      - name: Verify downloaded candidate APK integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s candidate-apks/app-debug.apk
+          test -s candidate-apks/app-debug-androidTest.apk
+          sha256sum candidate-apks/*.apk
+
+      - name: Enable KVM hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Emulator Tests against Candidate APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
-          script: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:connectedDebugAndroidTest
+          script: |
+            set -euo pipefail
+            echo "Waiting for emulator boot completion..."
+            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            echo "Emulator boot complete!"
+            
+            echo "=== Step 1: Install Candidate APK ==="
+            adb install -r -t candidate-apks/app-debug.apk
+            echo "Candidate APK install successful!"
+            
+            echo "=== Step 2: Verify Package in PackageManager ==="
+            adb shell pm list packages | grep "com.mobidesk.android"
+            adb shell dumpsys package com.mobidesk.android | grep -E "versionName|versionCode|targetSdk"
+            
+            echo "=== Step 3: Install Instrumentation Test APK ==="
+            adb install -r -t candidate-apks/app-debug-androidTest.apk
+            echo "Test APK install successful!"
+            
+            echo "=== Step 4: Launch MobiDesk MainActivity ==="
+            adb shell am start -n com.mobidesk.android/.MainActivity
+            sleep 3
+            
+            echo "=== Step 5: Capture Emulator Screenshot ==="
+            adb exec-out screencap -p > emulator-smoke.png || true
+            
+            echo "=== Step 6: Dump Logcat ==="
+            adb logcat -d > emulator-logcat.txt || true
+            
+            echo "=== Step 7: Run Instrumented Feature Tests ==="
+            adb shell am instrument -w -r com.mobidesk.android.test/androidx.test.runner.AndroidJUnitRunner | tee instrumentation-results.txt
+            
+            if grep -q "FAILURES!!!" instrumentation-results.txt; then
+              echo "INSTRUMENTATION TESTS FAILED"
+              exit 1
+            fi
+            echo "All instrumented tests passed on emulator!"
+
+      - name: Upload Emulator Test Evidence and Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobidesk-emulator-evidence-${{ github.sha }}
+          path: |
+            emulator-smoke.png
+            emulator-logcat.txt
+            instrumentation-results.txt
+          retention-days: 14
+
+  publish-release:
+    name: Publish Verified Candidate APK to GitHub Release
+    needs: [build-candidate, emulator-test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fp-05-freerdp-pipeline' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Download tested candidate APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mobidesk-candidate-apks
+          path: candidate-apks
+
+      - name: Prepare Release Artifacts
+        id: prep
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="candidate-apks/app-debug.apk"
+          test -s "$apk"
+          
+          # Prepare named release assets
+          rel_apk="mobidesk-v0.2.0-fp11-pipeline-candidate.apk"
+          cp "$apk" "$rel_apk"
+          cp "$apk" "fp-11.apk"
+          
+          size=$(stat -c%s "$rel_apk")
+          csum=$(sha256sum "$rel_apk" | awk '{print $1}')
+          
+          echo "Candidate APK verified size: $size bytes"
+          echo "Candidate APK verified SHA-256: $csum"
+          echo "apk_size=$size" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$csum" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Tested APK to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Uploading candidate APKs to release v0.2.0-fp11-candidate..."
+          gh release upload v0.2.0-fp11-candidate \
+            mobidesk-v0.2.0-fp11-pipeline-candidate.apk \
+            fp-11.apk \
+            --clobber
+
+      - name: Download and Verify Published Release Assets Byte-for-Byte
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p verified-dl
+          gh release download v0.2.0-fp11-candidate \
+            --pattern "mobidesk-v0.2.0-fp11-pipeline-candidate.apk" \
+            --dir verified-dl \
+            --clobber
+            
+          downloaded="verified-dl/mobidesk-v0.2.0-fp11-pipeline-candidate.apk"
+          test -s "$downloaded"
+          
+          dl_size=$(stat -c%s "$downloaded")
+          dl_csum=$(sha256sum "$downloaded" | awk '{print $1}')
+          expected_csum="${{ steps.prep.outputs.apk_sha256 }}"
+          expected_size="${{ steps.prep.outputs.apk_size }}"
+          
+          echo "Verification Check:"
+          echo "  Expected Size:   $expected_size"
+          echo "  Downloaded Size: $dl_size"
+          echo "  Expected SHA:    $expected_csum"
+          echo "  Downloaded SHA:  $dl_csum"
+          
+          if [ "$dl_csum" != "$expected_csum" ]; then
+            echo "FATAL: Checksum mismatch between candidate APK and downloaded release asset!"
+            exit 1
+          fi
+          if [ "$dl_size" != "$expected_size" ]; then
+            echo "FATAL: Size mismatch between candidate APK and downloaded release asset!"
+            exit 1
+          fi
+          echo "SUCCESS: Verified downloaded release asset matches tested candidate APK byte-for-byte."

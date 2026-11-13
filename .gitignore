@@ -14,10 +14,12 @@ executables-apks/
 # Local signing/configuration
 *.jks
 *.keystore
+!app/mobidesk-ci.keystore
 release.properties.local
 .env
 .env.*
 !.env.example
+temp-*/
 
 # Android emulator state
 .avd/
