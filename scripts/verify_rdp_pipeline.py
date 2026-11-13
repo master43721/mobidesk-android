@@ -19,6 +19,12 @@ import os
 import socket
 import struct
 import sys
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 import threading
 import time
 
@@ -31,13 +37,13 @@ BOLD = "\033[1m"
 RESET = "\033[0m"
 
 def log_step(step: str, detail: str):
-    print(f"{BOLD}[{step}]{RESET} {detail}")
+    print(f"[{step}] {detail}")
 
 def log_success(msg: str):
-    print(f"  {GREEN}✔ PASS:{RESET} {msg}")
+    print(f"  [PASS]: {msg}")
 
 def log_info(msg: str):
-    print(f"  {CYAN}ℹ INFO:{RESET} {msg}")
+    print(f"  [INFO]: {msg}")
 
 # ----------------------------------------------------------------------
 # 1. Mock Windows RDP Target Server
