@@ -107,7 +107,7 @@ class MobiDeskSmokeTest {
         assertNotNull(submittedCreds)
         assertEquals("demo_student", String(submittedCreds!!.username))
         submittedCreds!!.clear()
-        assertTrue(submittedCreds!!.isCleared)
+        assertTrue(submittedCreds!!.isDestroyed)
     }
 
     @Test
