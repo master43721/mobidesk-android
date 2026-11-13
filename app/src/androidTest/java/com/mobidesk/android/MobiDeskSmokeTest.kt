@@ -42,11 +42,11 @@ class MobiDeskSmokeTest {
         }
 
         // Enter student email & password
-        compose.onNodeWithText("School email").performTextInput(email)
-        compose.onNodeWithText("Password").performTextInput(password)
+        compose.onNodeWithText("School email").performScrollTo().performTextInput(email)
+        compose.onNodeWithText("Password").performScrollTo().performTextInput(password)
 
         // Click Sign In
-        compose.onNodeWithText("Sign in").performClick()
+        compose.onNodeWithText("Sign in").performScrollTo().performClick()
 
         // Wait for authenticated workspace to appear
         try {
