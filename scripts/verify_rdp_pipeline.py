@@ -73,14 +73,18 @@ class MockWindowsRdpServer:
         return self.port
 
     def _serve(self):
-        conn, addr = self.server_sock.accept()
+        self.server_sock.settimeout(10.0)
+        try:
+            conn, addr = self.server_sock.accept()
+        except Exception:
+            return
+        conn.settimeout(5.0)
         conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         try:
             # 1. Read X.224 Connection Request
             cr_data = conn.recv(1024)
             # Send X.224 Connection Confirm + RDP Negotiation Response (Protocol: SSL/TLS + CredSSP)
-            # RDP Negotiation Response structure: type=0x02, flags=0x00, length=8, selectedProtocol=0x00000003 (SSL + HYBRID/NLA)
             cc_payload = bytes([
                 0x03, 0x00, 0x00, 0x13, # TPKT Header (length 19)
                 0x0e,                   # X.224 Length Indicator
@@ -115,6 +119,7 @@ class MockWindowsRdpServer:
                 0x04, 0x01, 0x01
             ])
             conn.sendall(mcs_resp)
+            time.sleep(0.05)
 
             # 3. Send Server Demand Active PDU with desktop specs (1280x720 32bpp)
             demand_active = bytes([
@@ -136,15 +141,15 @@ class MockWindowsRdpServer:
                 0x01, 0x00, 0x00, 0x00  # Capabilities flags
             ])
             conn.sendall(demand_active)
+            time.sleep(0.05)
 
             # 4. Generate and Send Real Windows Desktop Graphics Frame (Fast-Path Bitmap Update)
-            # Creates an authentic 1280x720 desktop frame with Windows blue theme & taskbar
             desktop_update = self._generate_desktop_frame()
             conn.sendall(desktop_update)
 
             # Keep connection open for client rendering
             time.sleep(1.0)
-        except Exception as e:
+        except Exception:
             pass
         finally:
             conn.close()
@@ -493,10 +498,13 @@ def run_pipeline_verification():
     # 7. FP-08 & FP-09: FreeRDP Connects to Bridge & Anti-Hijack Listener Closure
     log_step("STEP 7", "[FP-08/FP-09] FreeRDP Engine connects to 127.0.0.1:<bridgePort>...")
     freerdp_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    freerdp_client.settimeout(5.0)
     freerdp_client.connect(("127.0.0.1", bridge_port))
 
     # Accept the single connection and IMMEDIATELY close listener
+    bridge_listener.settimeout(5.0)
     bridge_sock, _ = bridge_listener.accept()
+    bridge_sock.settimeout(5.0)
     bridge_listener.close()
     log_success("Local bridge accepted FreeRDP socket and IMMEDIATELY closed listener (Anti-hijack verified).")
 
