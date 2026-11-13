@@ -6,7 +6,7 @@ adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do slee
 echo "Emulator boot complete!"
 
 echo "=== Step 1: Install Candidate APK ==="
-adb install -r -t candidate-apks/app-debug.apk
+adb install -r candidate-apks/app-debug.apk
 echo "Candidate APK install successful!"
 
 echo "=== Step 2: Verify Package in PackageManager ==="

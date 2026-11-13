@@ -287,3 +287,7 @@ jobs:
             exit 1
           fi
           echo "SUCCESS: Verified downloaded release asset matches tested candidate APK byte-for-byte."
+
+          echo "Validating downloaded release APK ZIP structure and integrity..."
+          unzip -tq "$downloaded"
+          echo "SUCCESS: Downloaded release asset passed ZIP integrity check."

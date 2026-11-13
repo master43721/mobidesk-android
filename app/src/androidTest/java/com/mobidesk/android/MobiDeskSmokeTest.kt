@@ -4,7 +4,12 @@ import android.content.Context
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
+import com.mobidesk.android.data.WindowsGuestCredentials
+import com.mobidesk.android.ui.WindowsCredentialDialog
 import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -22,34 +27,10 @@ class MobiDeskSmokeTest {
             context.getSharedPreferences("mobidesk_session", Context.MODE_PRIVATE).edit().clear().commit()
             context.getSharedPreferences("mobidesk_recovery_state", Context.MODE_PRIVATE).edit().clear().commit()
         } catch (_: Throwable) {}
-
-        // If UI is on Settings or Reset screen, navigate back
-        try {
-            if (compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithContentDescription("Settings").performClick()
-                if (compose.onAllNodesWithText("Sign out", substring = true).fetchSemanticsNodes().isNotEmpty()) {
-                    compose.onNodeWithText("Sign out", substring = true).performClick()
-                }
-            } else if (compose.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithContentDescription("Back").performClick()
-            }
-        } catch (_: Throwable) {}
     }
 
     @After
     fun tearDown() {
-        // Clean up UI session after every test
-        try {
-            if (compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithContentDescription("Settings").performClick()
-                if (compose.onAllNodesWithText("Sign out", substring = true).fetchSemanticsNodes().isNotEmpty()) {
-                    compose.onNodeWithText("Sign out", substring = true).performClick()
-                }
-            } else if (compose.onAllNodesWithContentDescription("Back").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithContentDescription("Back").performClick()
-            }
-        } catch (_: Throwable) {}
-
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         try {
             context.getSharedPreferences("mobidesk_secure_session", Context.MODE_PRIVATE).edit().clear().commit()
@@ -94,6 +75,42 @@ class MobiDeskSmokeTest {
     }
 
     @Test
+    fun guestCredentialDialogInputsAndValidation() {
+        var submittedCreds: WindowsGuestCredentials? = null
+        var dismissed = false
+
+        compose.setContent {
+            WindowsCredentialDialog(
+                onDismiss = { dismissed = true },
+                onConnect = { creds -> submittedCreds = creds }
+            )
+        }
+
+        // Verify title & security disclaimer
+        compose.onNodeWithText("Windows Lab Sign-In").assertIsDisplayed()
+        compose.onNodeWithText("Enter your Windows lab account credentials", substring = true).assertIsDisplayed()
+
+        // Connect button should initially be disabled until username & password entered
+        compose.onNodeWithTag("windows_connect_confirm_button").assertIsNotEnabled()
+
+        // Enter username & password
+        compose.onNodeWithTag("windows_username_field").performTextInput("demo_student")
+        compose.onNodeWithTag("windows_password_field").performTextInput("DemoStudent@MobiDesk2026!")
+
+        // Connect button should now be enabled
+        compose.onNodeWithTag("windows_connect_confirm_button").assertIsEnabled()
+
+        // Click Connect
+        compose.onNodeWithTag("windows_connect_confirm_button").performClick()
+
+        // Assert submitted credentials match and can be zeroized
+        assertNotNull(submittedCreds)
+        assertEquals("demo_student", String(submittedCreds!!.username))
+        submittedCreds!!.clear()
+        assertTrue(submittedCreds!!.isCleared)
+    }
+
+    @Test
     fun signInAndVerifyDashboardWorkspace() {
         val email = System.getenv("TEST_STUDENT_EMAIL") ?: "y25cs340@rvrjc.ac.in"
         val password = System.getenv("TEST_STUDENT_PASSWORD") ?: "rvrjc@1985"
@@ -110,44 +127,21 @@ class MobiDeskSmokeTest {
         compose.onNodeWithText("Sign in").performScrollTo().performClick()
 
         // Wait for authenticated workspace to appear
-        try {
-            compose.waitUntil(timeoutMillis = 15_000) {
-                compose.onAllNodesWithText("Cloud PC Workspace", substring = true).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithText("win-01", substring = true).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodesWithText("Connect", substring = true).fetchSemanticsNodes().isNotEmpty()
-            }
-
-            // Verify workspace display elements
-            compose.onNodeWithText("win-01", substring = true).assertIsDisplayed()
-
-            // Verify connect button is visible
-            compose.onNodeWithText("Connect", substring = true).assertIsDisplayed()
-
-            // Click connect to trigger guest credential dialog (FP-05)
-            compose.onNodeWithText("Connect", substring = true).performClick()
-
-            // Verify Windows Lab Credentials dialog opens
-            compose.waitUntil(timeoutMillis = 5_000) {
-                compose.onAllNodesWithText("Windows Lab Credentials", substring = true).fetchSemanticsNodes().isNotEmpty()
-            }
-            compose.onNodeWithText("Windows Lab Credentials", substring = true).assertIsDisplayed()
-
-            // Dismiss the dialog
-            compose.onNodeWithText("Cancel").performClick()
-
-            // Sign out to return to Sign in screen
-            if (compose.onAllNodesWithContentDescription("Settings").fetchSemanticsNodes().isNotEmpty()) {
-                compose.onNodeWithContentDescription("Settings").performClick()
-                compose.waitUntil(timeoutMillis = 5_000) {
-                    compose.onAllNodesWithText("Sign out", substring = true).fetchSemanticsNodes().isNotEmpty()
-                }
-                compose.onNodeWithText("Sign out", substring = true).performClick()
-                compose.waitUntil(timeoutMillis = 5_000) {
-                    compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
-                }
-            }
-        } catch (_: Throwable) {
-            // Fallback gracefully if emulator has restricted external connectivity
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithText("win-01", substring = true).fetchSemanticsNodes().isNotEmpty()
         }
+
+        // Verify workspace display elements
+        compose.onNodeWithText("win-01", substring = true).assertIsDisplayed()
+
+        // Verify connect button is visible
+        compose.onNodeWithText("Connect", substring = true).assertIsDisplayed()
+
+        // Sign out to verify session termination
+        compose.onNodeWithText("Sign out", substring = true).performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Sign in").assertIsDisplayed()
     }
 }
