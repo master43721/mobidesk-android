@@ -78,8 +78,11 @@ jobs:
               Write-Host "No certificate in Cert:\LocalMachine\Remote Desktop; broker will probe dynamically."
           }
 
-      - name: Start Continuous MobiDesk Session Broker
+      - name: Start Broker, Cloudflare Tunnel & Continuous Host Watchdog
         shell: powershell
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           Write-Host "Starting Continuous MobiDesk Session Broker on port 8080..."
           $brokerProcess = Start-Process -FilePath "python" -ArgumentList "scripts/run_live_session_broker.py" -PassThru -RedirectStandardOutput "broker.log" -RedirectStandardError "broker.err"
@@ -89,12 +92,6 @@ jobs:
           $ready = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -Method Get -ErrorAction SilentlyContinue
           Write-Host "Local Broker Health Response: $($ready | ConvertTo-Json -Compress)"
 
-      - name: Start Cloudflare Tunnel & Register Public URL with Supabase
-        shell: powershell
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: |
           Write-Host "Downloading Cloudflare Tunnel client (cloudflared.exe)..."
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
           
@@ -145,9 +142,6 @@ jobs:
               if (Test-Path "tunnel.log") { Get-Content "tunnel.log" -Tail 50 }
           }
 
-      - name: Run Windows VM Continuous Host Watchdog
-        shell: powershell
-        run: |
           $hours = [int]("${{ github.event.inputs.duration_hours }}" -replace "[^0-9]", "")
           if ($hours -lt 1 -or $hours -gt 6) { $hours = 6 }
           $totalSeconds = $hours * 3600
@@ -157,6 +151,7 @@ jobs:
           Write-Host " MobiDesk Windows 11 VM Host is ACTIVE"
           Write-Host " VM Name: win-01 (MobiDesk Student Workspace)"
           Write-Host " RDP Port: TCP 3389 (Standard TLS / RDP)"
+          Write-Host " Public URL: $tunnelUrl"
           Write-Host " Max Duration: $hours hours ($totalSeconds seconds)"
           Write-Host "================================================================="
           
@@ -165,7 +160,7 @@ jobs:
               $elapsed += 60
               $remaining = [math]::Round(($totalSeconds - $elapsed) / 60)
               $rdpService = Get-Service -Name "TermService" -ErrorAction SilentlyContinue
-              Write-Host "[Watchdog $(Get-Date -Format 'HH:mm:ss')] VM win-01 status: $($rdpService.Status) | Time remaining: $remaining minutes"
+              Write-Host "[Watchdog $(Get-Date -Format 'HH:mm:ss')] VM win-01 status: $($rdpService.Status) | Tunnel: $tunnelUrl | Time remaining: $remaining minutes"
               if (Test-Path "broker.err") {
                   $errs = Get-Content "broker.err" -Tail 5 -ErrorAction SilentlyContinue
                   if ($errs) { Write-Host "[Broker log] $errs" }
