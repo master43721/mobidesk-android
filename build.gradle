@@ -14,10 +14,10 @@ buildscript {
 }
 
 ext {
-    compileApi = 37
+    compileApi = 35
     targetApi = 35
     minApi = 26
-    toolsVersion = '37.0.0'
+    toolsVersion = '35.0.0'
     ndkVersion = '29.0.13113456'
 
     // Configurable ABI targeting: arm64-v8a, armeabi-v7a, and x86_64
