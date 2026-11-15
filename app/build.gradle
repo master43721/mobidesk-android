@@ -4,8 +4,8 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
 }
 
-def supabaseUrl = localProperties.getProperty('SUPABASE_URL', '')
-def supabasePublishableKey = localProperties.getProperty('SUPABASE_PUBLISHABLE_KEY', '')
+def supabaseUrl = localProperties.getProperty('SUPABASE_URL', System.getenv('SUPABASE_URL') ?: '')
+def supabasePublishableKey = localProperties.getProperty('SUPABASE_PUBLISHABLE_KEY', System.getenv('SUPABASE_PUBLISHABLE_KEY') ?: '')
 
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
@@ -30,6 +30,9 @@ android {
         buildConfigField 'String', 'AUTH_CALLBACK_HOST', '"auth-callback"'
         buildConfigField 'String', 'AUTH_CALLBACK_URI', '"com.mobidesk.android://auth-callback"'
         buildConfigField 'String', 'AUTH_RECOVERY_URI', '"com.mobidesk.android://auth-callback/recovery"'
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
     }
 
     buildFeatures {
@@ -41,6 +44,7 @@ android {
         debug {
         }
         release {
+            signingConfig signingConfigs.debug
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

@@ -14,7 +14,7 @@ on:
         default: false
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
-      contents: read
+      contents: write
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -67,17 +67,18 @@ jobs:
           yes | sdkmanager --licenses
           set -o pipefail
           sdkmanager --licenses
-          # Android 17/API 37 is published as android-37.0, not android-37.
-          # Install explicitly before Gradle starts to avoid on-demand SDK resolution.
-          sdkmanager --channel=3 --install \
-            "platforms;android-37.0" \
-            "build-tools;37.0.0" \
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
             "ndk;29.0.13113456" \
             "cmake;4.1.2"
-          test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
-          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          test -s "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
       - name: Run JVM unit tests and assemble debug APK
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
 
       - name: Verify APK integrity and debug signature
@@ -87,7 +88,7 @@ jobs:
           apk="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
           unzip -tq "$apk"
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
           sha256sum "$apk"
           stat --printf='APK size: %s bytes\n' "$apk"
 
@@ -98,6 +99,21 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare APK for release
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk MobiDesk-v0.2.0-debug.apk
+
+      - name: Publish direct APK to GitHub Releases
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest-apk
+          name: "MobiDesk v0.2.0 (Latest Build)"
+          files: MobiDesk-v0.2.0-debug.apk
+          overwrite_files: true
 
       - name: Upload JUnit test results and reports
         if: always()
