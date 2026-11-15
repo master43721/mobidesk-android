@@ -99,17 +99,17 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
           
           Write-Host "Starting Cloudflare Quick Tunnel to port 8080..."
-          $tunnelProcess = Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:8080 --no-autoupdate" -PassThru -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel.log"
+          $tunnelProcess = Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:8080 --no-autoupdate" -PassThru -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel.err"
           
           $tunnelUrl = $null
           for ($i = 0; $i -lt 30; $i++) {
               Start-Sleep -Seconds 2
-              if (Test-Path "tunnel.log") {
-                  $content = Get-Content "tunnel.log" -Raw
-                  if ($content -match 'https://[a-zA-Z0-9-]+\.trycloudflare\.com') {
-                      $tunnelUrl = $matches[0]
-                      break
-                  }
+              $content = ""
+              if (Test-Path "tunnel.err") { $content += Get-Content "tunnel.err" -Raw }
+              if (Test-Path "tunnel.log") { $content += Get-Content "tunnel.log" -Raw }
+              if ($content -match 'https://[a-zA-Z0-9-]+\.trycloudflare\.com') {
+                  $tunnelUrl = $matches[0]
+                  break
               }
           }
           
@@ -141,7 +141,8 @@ jobs:
               }
           } else {
               Write-Error "Failed to obtain Cloudflare tunnel URL within timeout."
-              Get-Content "tunnel.log" -Tail 50
+              if (Test-Path "tunnel.err") { Get-Content "tunnel.err" -Tail 50 }
+              if (Test-Path "tunnel.log") { Get-Content "tunnel.log" -Tail 50 }
           }
 
       - name: Run Windows VM Continuous Host Watchdog
