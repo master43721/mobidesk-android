@@ -4,8 +4,8 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.withInputStream { stream -> localProperties.load(stream) }
 }
 
-def supabaseUrl = localProperties.getProperty('SUPABASE_URL', System.getenv('SUPABASE_URL') ?: '')
-def supabasePublishableKey = localProperties.getProperty('SUPABASE_PUBLISHABLE_KEY', System.getenv('SUPABASE_PUBLISHABLE_KEY') ?: '')
+def supabaseUrl = localProperties.getProperty('SUPABASE_URL', System.getenv('SUPABASE_URL') ?: 'https://kthfhjwltcpjhjemugwm.supabase.co')
+def supabasePublishableKey = localProperties.getProperty('SUPABASE_PUBLISHABLE_KEY', System.getenv('SUPABASE_PUBLISHABLE_KEY') ?: 'sb_publishable_sXBA9ZI9HHeGqN3_SA7tWQ_5ole-HmK')
 
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
@@ -31,7 +31,18 @@ android {
         buildConfigField 'String', 'AUTH_CALLBACK_URI', '"com.mobidesk.android://auth-callback"'
         buildConfigField 'String', 'AUTH_RECOVERY_URI', '"com.mobidesk.android://auth-callback/recovery"'
         ndk {
-            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            abiFilters.addAll(rootProject.ext.abiFilters)
+        }
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file('mobidesk-ci.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+            v1SigningEnabled true
+            v2SigningEnabled true
         }
     }
 
@@ -42,6 +53,7 @@ android {
 
     buildTypes {
         debug {
+            signingConfig signingConfigs.debug
         }
         release {
             signingConfig signingConfigs.debug
@@ -96,7 +108,9 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1'
+    androidTestImplementation platform('androidx.compose:compose-bom:2026.09.00')
     androidTestImplementation 'androidx.test.ext:junit:1.3.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+    androidTestImplementation 'androidx.compose.ui:ui-test'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
 }

@@ -6,17 +6,39 @@ import androidx.lifecycle.viewModelScope
 import com.mobidesk.android.data.AuthErrorMessages
 import com.mobidesk.android.data.AuthLevel
 import com.mobidesk.android.data.AuthRepository
+import com.mobidesk.android.data.ConnectPolicy
+import com.mobidesk.android.data.DefaultStatusRepository
+import com.mobidesk.android.data.MonotonicClock
+import com.mobidesk.android.data.RdpTransport
 import com.mobidesk.android.data.RecoveryStage
 import com.mobidesk.android.data.RecoveryStateStore
 import com.mobidesk.android.data.SharedPreferencesRecoveryStateStore
+import com.mobidesk.android.data.StatusRepository
+import com.mobidesk.android.data.StatusResult
 import com.mobidesk.android.data.StudentWorkspaceRepository
 import com.mobidesk.android.data.StudentWorkspaceResult
 import com.mobidesk.android.data.SupabaseAuthRepository
+import com.mobidesk.android.data.SystemMonotonicClock
+import com.mobidesk.android.data.VmLifecycle
+import com.mobidesk.android.data.VmStatusSample
+import com.mobidesk.android.data.DefaultSessionGrantRepository
+import com.mobidesk.android.data.SessionGrant
+import com.mobidesk.android.data.SessionGrantRepository
+import com.mobidesk.android.data.SessionGrantResult
+import com.mobidesk.android.data.WindowsGuestCredentials
 import com.mobidesk.android.data.WorkspaceRepository
+import com.mobidesk.android.rdp.RdpSessionCarrier
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class MobiDeskUiState(
@@ -28,6 +50,13 @@ data class MobiDeskUiState(
     val email: String? = null,
     val workspace: StudentWorkspaceResult? = null,
     val isLoadingWorkspace: Boolean = false,
+    val statusSample: VmStatusSample? = null,
+    val isCheckingStatus: Boolean = false,
+    val statusAgeText: String? = null,
+    val isConnectEnabled: Boolean = false,
+    val showGuestCredentialPrompt: Boolean = false,
+    val isConnectingSession: Boolean = false,
+    val sessionGrant: SessionGrant? = null,
     val isPasswordRecovery: Boolean = false,
     val isRecoveryInterrupted: Boolean = false,
     val signOutFailed: Boolean = false,
@@ -39,7 +68,10 @@ class MobiDeskViewModel @JvmOverloads constructor(
     application: Application,
     customAuthRepository: AuthRepository? = null,
     customWorkspaceRepository: WorkspaceRepository? = null,
-    customRecoveryStore: RecoveryStateStore? = null
+    customStatusRepository: StatusRepository? = null,
+    customRecoveryStore: RecoveryStateStore? = null,
+    private val clock: MonotonicClock = SystemMonotonicClock,
+    customSessionGrantRepository: SessionGrantRepository? = null
 ) : AndroidViewModel(application) {
     private val app = application as? MobiDeskApplication
     private val supabase = app?.supabaseClient
@@ -47,6 +79,20 @@ class MobiDeskViewModel @JvmOverloads constructor(
         customAuthRepository ?: supabase?.let(::SupabaseAuthRepository)
     private val workspaceRepository: WorkspaceRepository? =
         customWorkspaceRepository ?: supabase?.let(::StudentWorkspaceRepository)
+    private val statusRepository: StatusRepository? =
+        customStatusRepository ?: if (authRepository != null && supabase != null) {
+            DefaultStatusRepository(
+                baseUrl = BuildConfig.SUPABASE_URL,
+                clock = clock
+            )
+        } else null
+    private val sessionGrantRepository: SessionGrantRepository? =
+        customSessionGrantRepository ?: if (authRepository != null && supabase != null) {
+            DefaultSessionGrantRepository(
+                baseUrl = BuildConfig.SUPABASE_URL,
+                clock = clock
+            )
+        } else null
     private val recoveryStore: RecoveryStateStore =
         customRecoveryStore ?: app?.recoveryStateStore ?: SharedPreferencesRecoveryStateStore(application)
 
@@ -58,10 +104,27 @@ class MobiDeskViewModel @JvmOverloads constructor(
         )
     )
     val uiState = _uiState.asStateFlow()
-    private var workspaceRequestedFor: String? = null
+
+    private val _navigateToConnectEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToConnectEvent = _navigateToConnectEvent.asSharedFlow()
+
+    private val _navigateToSessionEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val navigateToSessionEvent = _navigateToSessionEvent.asSharedFlow()
+
+    private var sessionGeneration: Long = 0L
+    private var activeUserId: String? = null
+
+    private var parallelLoadJob: Job? = null
+    private var statusJob: Job? = null
+    private var uiAgeTimerJob: Job? = null
+
+    private var nextAllowedStatusRequestAt: Long = 0L
+    private var lastActionTapAt: Long = 0L
+    private var consecutiveTagMismatches: Int = 0
 
     init {
         observeSession()
+        startUiAgeTimer()
     }
 
     private fun observeSession() {
@@ -77,10 +140,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
                         when (stage) {
                             RecoveryStage.CALLBACK_PENDING -> {
                                 if (!recoveryStore.isExchangeInProgress) {
-                                    // Process death occurred while CALLBACK_PENDING.
-                                    // Do not replay code or treat session as valid.
-                                    // Fail closed, clear partial session, show interrupted recovery screen.
-                                    workspaceRequestedFor = null
+                                    cancelActiveLoadsAndIncrementGeneration()
                                     recoveryStore.setStage(RecoveryStage.INTERRUPTED)
                                     viewModelScope.launch {
                                         runCatching { auth.clearLocalSession() }
@@ -96,13 +156,13 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                             email = null,
                                             workspace = null,
                                             isLoadingWorkspace = false,
+                                            statusSample = null,
+                                            isCheckingStatus = false,
                                             errorMessage = "This recovery link was interrupted or has expired. Please request a new recovery link."
                                         )
                                     }
                                 } else {
-                                    // Active PKCE exchange in flight in this process.
-                                    // HARD INVARIANT: Zero workspace calls during RECOVERY_ONLY.
-                                    workspaceRequestedFor = null
+                                    cancelActiveLoadsAndIncrementGeneration()
                                     _uiState.update {
                                         it.copy(
                                             isRestoringSession = false,
@@ -114,15 +174,15 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                             email = status.session.user?.email,
                                             workspace = null,
                                             isLoadingWorkspace = false,
+                                            statusSample = null,
+                                            isCheckingStatus = false,
                                             errorMessage = null
                                         )
                                     }
                                 }
                             }
                             RecoveryStage.PASSWORD_UPDATE_REQUIRED -> {
-                                // HARD INVARIANT: Zero workspace calls during RECOVERY_ONLY.
-                                // Restore new-password form if SDK session is valid.
-                                workspaceRequestedFor = null
+                                cancelActiveLoadsAndIncrementGeneration()
                                 _uiState.update {
                                     it.copy(
                                         isRestoringSession = false,
@@ -134,13 +194,14 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                         email = status.session.user?.email,
                                         workspace = null,
                                         isLoadingWorkspace = false,
+                                        statusSample = null,
+                                        isCheckingStatus = false,
                                         errorMessage = null
                                     )
                                 }
                             }
                             RecoveryStage.INTERRUPTED -> {
-                                // Process death or failure during callback: fail-closed, clear partial session
-                                workspaceRequestedFor = null
+                                cancelActiveLoadsAndIncrementGeneration()
                                 viewModelScope.launch {
                                     runCatching { auth.clearLocalSession() }
                                 }
@@ -155,42 +216,56 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                         email = null,
                                         workspace = null,
                                         isLoadingWorkspace = false,
+                                        statusSample = null,
+                                        isCheckingStatus = false,
                                         errorMessage = "This recovery link was interrupted or has expired. Please request a new recovery link."
                                     )
                                 }
                             }
                             RecoveryStage.NONE -> {
                                 val user = status.session.user
-                                _uiState.update {
-                                    it.copy(
-                                        isRestoringSession = false,
-                                        isBusy = false,
-                                        isAuthenticated = true,
-                                        authLevel = AuthLevel.FULLY_AUTHENTICATED,
-                                        isPasswordRecovery = false,
-                                        isRecoveryInterrupted = false,
-                                        email = user?.email,
-                                        errorMessage = null
-                                    )
-                                }
                                 val userId = user?.id
                                 if (userId == null) {
-                                    workspaceRequestedFor = null
+                                    cancelActiveLoadsAndIncrementGeneration()
                                     _uiState.update {
                                         it.copy(
+                                            isRestoringSession = false,
+                                            isBusy = false,
+                                            isAuthenticated = false,
+                                            authLevel = AuthLevel.SIGNED_OUT,
                                             isLoadingWorkspace = false,
                                             errorMessage = "We couldn't verify this account. Sign in again."
                                         )
                                     }
-                                } else if (workspaceRequestedFor != userId) {
-                                    loadWorkspace(userId)
+                                } else {
+                                    val previousUserId = activeUserId
+                                    if (previousUserId != userId || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                                        activeUserId = userId
+                                        sessionGeneration++
+                                        consecutiveTagMismatches = 0
+                                        parallelLoadJob?.cancel()
+                                        statusJob?.cancel()
+                                        _uiState.update {
+                                            it.copy(
+                                                isRestoringSession = false,
+                                                isBusy = false,
+                                                isAuthenticated = true,
+                                                authLevel = AuthLevel.FULLY_AUTHENTICATED,
+                                                isPasswordRecovery = false,
+                                                isRecoveryInterrupted = false,
+                                                email = user.email,
+                                                errorMessage = null
+                                            )
+                                        }
+                                        loadWorkspaceAndStatusParallel(userId, sessionGeneration)
+                                    }
                                 }
                             }
                         }
                     }
                     is SessionStatus.RefreshFailure -> {
+                        cancelActiveLoadsAndIncrementGeneration()
                         recoveryStore.clear()
-                        workspaceRequestedFor = null
                         _uiState.update {
                             it.copy(
                                 isRestoringSession = false,
@@ -200,6 +275,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                 email = null,
                                 workspace = null,
                                 isLoadingWorkspace = false,
+                                statusSample = null,
+                                isCheckingStatus = false,
                                 isPasswordRecovery = false,
                                 isRecoveryInterrupted = false,
                                 signOutFailed = false,
@@ -208,11 +285,10 @@ class MobiDeskViewModel @JvmOverloads constructor(
                         }
                     }
                     is SessionStatus.NotAuthenticated -> {
-                        // If recovery was required but session is gone, clear stale recovery
+                        cancelActiveLoadsAndIncrementGeneration()
                         if (recoveryStore.getStage() == RecoveryStage.PASSWORD_UPDATE_REQUIRED) {
                             recoveryStore.clear()
                         }
-                        workspaceRequestedFor = null
                         _uiState.update {
                             it.copy(
                                 isRestoringSession = false,
@@ -222,6 +298,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                 email = null,
                                 workspace = null,
                                 isLoadingWorkspace = false,
+                                statusSample = null,
+                                isCheckingStatus = false,
                                 isPasswordRecovery = false,
                                 signOutFailed = false
                             )
@@ -230,6 +308,397 @@ class MobiDeskViewModel @JvmOverloads constructor(
                 }
             }
         }
+    }
+
+    private fun cancelActiveLoadsAndIncrementGeneration() {
+        sessionGeneration++
+        activeUserId = null
+        consecutiveTagMismatches = 0
+        parallelLoadJob?.cancel()
+        parallelLoadJob = null
+        statusJob?.cancel()
+        statusJob = null
+    }
+
+    private fun startUiAgeTimer() {
+        uiAgeTimerJob?.cancel()
+        uiAgeTimerJob = viewModelScope.launch {
+            while (isActive) {
+                recalculateUiAgeAndConnect()
+                delay(1000)
+            }
+        }
+    }
+
+    private fun recalculateUiAgeAndConnect() {
+        val now = clock.elapsedRealtime()
+        val currentSample = _uiState.value.statusSample
+        val auth = _uiState.value.authLevel
+        val isAssigned = _uiState.value.workspace is StudentWorkspaceResult.Assigned
+        val isRequestInFlight = _uiState.value.isLoadingWorkspace || _uiState.value.isCheckingStatus
+        val isCooldown = now < nextAllowedStatusRequestAt
+
+        val ageText = currentSample?.relativeAgeText(now)
+        val canConnect = ConnectPolicy.isConnectAvailable(
+            authLevel = auth,
+            isAssigned = isAssigned,
+            sample = currentSample,
+            nowElapsedMs = now,
+            isRequestInFlight = isRequestInFlight,
+            isCooldownActive = isCooldown
+        )
+
+        _uiState.update {
+            it.copy(
+                statusAgeText = ageText,
+                isConnectEnabled = canConnect
+            )
+        }
+    }
+
+    private fun loadWorkspaceAndStatusParallel(userId: String, generation: Long) {
+        val wkRepo = workspaceRepository ?: return
+        val authRepo = authRepository ?: return
+        val stRepo = statusRepository
+
+        parallelLoadJob?.cancel()
+        parallelLoadJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoadingWorkspace = true,
+                    isCheckingStatus = stRepo != null,
+                    workspace = null,
+                    statusSample = null,
+                    isConnectEnabled = false
+                )
+            }
+
+            try {
+                if (stRepo == null) {
+                    val workspace = wkRepo.loadFor(userId)
+                    if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                        return@launch
+                    }
+                    _uiState.update {
+                        it.copy(
+                            isLoadingWorkspace = false,
+                            isCheckingStatus = false,
+                            workspace = workspace,
+                            errorMessage = null
+                        )
+                    }
+                    recalculateUiAgeAndConnect()
+                    return@launch
+                }
+
+                val workspaceDeferred = async { wkRepo.loadFor(userId) }
+                val statusDeferred = async {
+                    val token = authRepo.currentAccessToken().orEmpty()
+                    stRepo.getVmStatus(token)
+                }
+
+                val workspaceResult = workspaceDeferred.await()
+                val statusResult = statusDeferred.await()
+
+                if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                    return@launch
+                }
+
+                handlePairedResults(workspaceResult, statusResult, userId, generation)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == sessionGeneration) {
+                    _uiState.update {
+                        it.copy(
+                            isLoadingWorkspace = false,
+                            isCheckingStatus = false,
+                            workspace = null,
+                            statusSample = null,
+                            errorMessage = AuthErrorMessages.safeMessage(e)
+                        )
+                    }
+                    recalculateUiAgeAndConnect()
+                }
+            }
+        }
+    }
+
+    private fun handlePairedResults(
+        workspaceResult: StudentWorkspaceResult,
+        statusResult: StatusResult,
+        userId: String,
+        generation: Long
+    ) {
+        when (workspaceResult) {
+            is StudentWorkspaceResult.AccountNotProvisioned,
+            is StudentWorkspaceResult.NoAssignment,
+            is StudentWorkspaceResult.AssignmentInvalid -> {
+                _uiState.update {
+                    it.copy(
+                        isLoadingWorkspace = false,
+                        isCheckingStatus = false,
+                        workspace = workspaceResult,
+                        statusSample = null,
+                        errorMessage = if (workspaceResult is StudentWorkspaceResult.AssignmentInvalid) {
+                            "Your Cloud PC assignment needs administrator review."
+                        } else null
+                    )
+                }
+                recalculateUiAgeAndConnect()
+            }
+            is StudentWorkspaceResult.Assigned -> {
+                val workspaceTag = workspaceResult.assignedWorkspace.assignmentTag
+                when (statusResult) {
+                    is StatusResult.Success -> {
+                        val statusTag = statusResult.sample.assignmentTag
+                        if (statusTag == workspaceTag) {
+                            consecutiveTagMismatches = 0
+                            _uiState.update {
+                                it.copy(
+                                    isLoadingWorkspace = false,
+                                    isCheckingStatus = false,
+                                    workspace = workspaceResult,
+                                    statusSample = statusResult.sample,
+                                    errorMessage = null
+                                )
+                            }
+                        } else {
+                            consecutiveTagMismatches++
+                            if (consecutiveTagMismatches <= 1) {
+                                loadWorkspaceAndStatusParallel(userId, generation)
+                                return
+                            } else {
+                                _uiState.update {
+                                    it.copy(
+                                        isLoadingWorkspace = false,
+                                        isCheckingStatus = false,
+                                        workspace = null,
+                                        statusSample = null,
+                                        errorMessage = "We could not verify your assigned Cloud PC. Try again."
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    is StatusResult.RateLimited -> {
+                        val now = clock.elapsedRealtime()
+                        nextAllowedStatusRequestAt = now + (statusResult.retryAfterSeconds * 1000L)
+                        _uiState.update {
+                            it.copy(
+                                isLoadingWorkspace = false,
+                                isCheckingStatus = false,
+                                workspace = workspaceResult,
+                                statusSample = null,
+                                errorMessage = statusResult.message
+                            )
+                        }
+                    }
+                    is StatusResult.AuthExpired -> {
+                        _uiState.update {
+                            it.copy(
+                                isLoadingWorkspace = false,
+                                isCheckingStatus = false,
+                                authLevel = AuthLevel.SIGNED_OUT,
+                                isAuthenticated = false,
+                                workspace = null,
+                                statusSample = null,
+                                errorMessage = statusResult.message
+                            )
+                        }
+                    }
+                    is StatusResult.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                isLoadingWorkspace = false,
+                                isCheckingStatus = false,
+                                workspace = workspaceResult,
+                                statusSample = null,
+                                errorMessage = statusResult.message
+                            )
+                        }
+                    }
+                }
+                recalculateUiAgeAndConnect()
+            }
+            is StudentWorkspaceResult.Ready -> {
+                _uiState.update {
+                    it.copy(
+                        isLoadingWorkspace = false,
+                        isCheckingStatus = false,
+                        workspace = workspaceResult
+                    )
+                }
+                recalculateUiAgeAndConnect()
+            }
+        }
+    }
+
+    fun refreshStatus() {
+        val now = clock.elapsedRealtime()
+        if (now - lastActionTapAt < 2000L) return
+        if (now < nextAllowedStatusRequestAt) return
+        lastActionTapAt = now
+
+        val auth = authRepository ?: return
+        val stRepo = statusRepository ?: return
+        val currentWorkspace = _uiState.value.workspace as? StudentWorkspaceResult.Assigned ?: return
+        val currentGen = sessionGeneration
+
+        if (_uiState.value.isCheckingStatus) return
+
+        statusJob?.cancel()
+        statusJob = viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingStatus = true, errorMessage = null) }
+            recalculateUiAgeAndConnect()
+
+            val token = auth.currentAccessToken().orEmpty()
+            val result = stRepo.getVmStatus(token)
+
+            if (currentGen != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                return@launch
+            }
+
+            when (result) {
+                is StatusResult.Success -> {
+                    if (result.sample.assignmentTag == currentWorkspace.assignedWorkspace.assignmentTag) {
+                        _uiState.update {
+                            it.copy(
+                                isCheckingStatus = false,
+                                statusSample = result.sample,
+                                errorMessage = null
+                            )
+                        }
+                    } else {
+                        val uid = activeUserId
+                        if (uid != null) {
+                            loadWorkspaceAndStatusParallel(uid, currentGen)
+                            return@launch
+                        }
+                    }
+                }
+                is StatusResult.RateLimited -> {
+                    val rateNow = clock.elapsedRealtime()
+                    nextAllowedStatusRequestAt = rateNow + (result.retryAfterSeconds * 1000L)
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            statusSample = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is StatusResult.AuthExpired -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            authLevel = AuthLevel.SIGNED_OUT,
+                            isAuthenticated = false,
+                            workspace = null,
+                            statusSample = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is StatusResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            statusSample = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+            }
+            recalculateUiAgeAndConnect()
+        }
+    }
+
+    fun connect() {
+        val now = clock.elapsedRealtime()
+        if (now - lastActionTapAt < 1000L) return
+        lastActionTapAt = now
+
+        val assignedWorkspace = (_uiState.value.workspace as? StudentWorkspaceResult.Assigned)?.assignedWorkspace ?: return
+        if (_uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) return
+        if (_uiState.value.isConnectingSession) return
+
+        // 1-Click Single Login: Default pool credentials & auto-submit
+        val poolCredentials = WindowsGuestCredentials.create(
+            username = "demo_student",
+            password = "DemoLab1985!".toCharArray(),
+            domain = ""
+        )
+        onGuestCredentialsSubmitted(poolCredentials)
+    }
+
+    fun onGuestCredentialsSubmitted(credentials: WindowsGuestCredentials) {
+        _uiState.update { it.copy(showGuestCredentialPrompt = false, isConnectingSession = true, errorMessage = null) }
+        viewModelScope.launch {
+            val auth = authRepository ?: run {
+                credentials.clear()
+                _uiState.update { it.copy(isConnectingSession = false, errorMessage = "Authentication service unavailable.") }
+                return@launch
+            }
+
+            val assigned = (_uiState.value.workspace as? StudentWorkspaceResult.Assigned)?.assignedWorkspace
+            val vmHost = assigned?.hostname?.trim().orEmpty()
+            val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
+                vmHost.trimEnd('/')
+            } else {
+                BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+            }
+
+            val grantRepo = customSessionGrantRepository ?: DefaultSessionGrantRepository(
+                baseUrl = effectiveBrokerUrl,
+                clock = clock
+            )
+
+            val token = auth.currentAccessToken().orEmpty()
+            val result = grantRepo.requestSessionGrant(token)
+            when (result) {
+                is SessionGrantResult.Success -> {
+                    _uiState.update { it.copy(isConnectingSession = false, sessionGrant = result.grant) }
+                    val relayPath = if (result.grant.relayPath.startsWith("/")) result.grant.relayPath else "/${result.grant.relayPath}"
+                    val wssUrl = if (effectiveBrokerUrl.startsWith("https://")) {
+                        effectiveBrokerUrl.replaceFirst("https://", "wss://") + relayPath
+                    } else if (effectiveBrokerUrl.startsWith("http://")) {
+                        effectiveBrokerUrl.replaceFirst("http://", "ws://") + relayPath
+                    } else {
+                        "wss://$effectiveBrokerUrl$relayPath"
+                    }
+                    RdpSessionCarrier.stageSession(
+                        grant = result.grant,
+                        credentials = credentials,
+                        relayUrl = wssUrl
+                    )
+                    _navigateToSessionEvent.tryEmit(Unit)
+                }
+                is SessionGrantResult.RateLimited -> {
+                    credentials.clear()
+                    _uiState.update { it.copy(isConnectingSession = false, errorMessage = result.message) }
+                }
+                is SessionGrantResult.AuthExpired -> {
+                    credentials.clear()
+                    _uiState.update {
+                        it.copy(
+                            isConnectingSession = false,
+                            authLevel = AuthLevel.SIGNED_OUT,
+                            isAuthenticated = false,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is SessionGrantResult.Error -> {
+                    credentials.clear()
+                    _uiState.update { it.copy(isConnectingSession = false, errorMessage = result.message) }
+                }
+            }
+        }
+    }
+
+    fun onGuestCredentialPromptDismissed() {
+        _uiState.update { it.copy(showGuestCredentialPrompt = false) }
     }
 
     fun signIn(email: String, password: String) {
@@ -279,6 +748,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
     }
 
     fun beginPasswordRecovery() {
+        cancelActiveLoadsAndIncrementGeneration()
         _uiState.update {
             it.copy(
                 isPasswordRecovery = true,
@@ -286,6 +756,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                 authLevel = AuthLevel.RECOVERY_ONLY,
                 workspace = null,
                 isLoadingWorkspace = false,
+                statusSample = null,
+                isCheckingStatus = false,
                 errorMessage = null,
                 infoMessage = null
             )
@@ -302,7 +774,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
                 runCatching { auth.clearLocalSession() }
             }
             recoveryStore.clear()
-            workspaceRequestedFor = null
+            cancelActiveLoadsAndIncrementGeneration()
             _uiState.update {
                 it.copy(
                     isBusy = false,
@@ -312,6 +784,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                     isRecoveryInterrupted = false,
                     workspace = null,
                     isLoadingWorkspace = false,
+                    statusSample = null,
+                    isCheckingStatus = false,
                     errorMessage = null,
                     infoMessage = if (remoteFailed) {
                         "Signed out on this device. Remote session revocation could not be confirmed."
@@ -350,7 +824,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                     }
                     val userId = auth.currentUser()?.id
                     if (userId != null) {
-                        loadWorkspace(userId)
+                        activeUserId = userId
+                        loadWorkspaceAndStatusParallel(userId, sessionGeneration)
                     }
                 }
                 .onFailure { error ->
@@ -369,7 +844,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
             runCatching { auth.signOutCurrentSession() }
                 .onSuccess {
                     recoveryStore.clear()
-                    workspaceRequestedFor = null
+                    cancelActiveLoadsAndIncrementGeneration()
                     _uiState.update {
                         it.copy(
                             isBusy = false,
@@ -378,6 +853,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                             email = null,
                             workspace = null,
                             isLoadingWorkspace = false,
+                            statusSample = null,
+                            isCheckingStatus = false,
                             isPasswordRecovery = false,
                             signOutFailed = false,
                             errorMessage = null
@@ -401,7 +878,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             runCatching { auth.clearLocalSession() }
             recoveryStore.clear()
-            workspaceRequestedFor = null
+            cancelActiveLoadsAndIncrementGeneration()
             _uiState.update {
                 it.copy(
                     isBusy = false,
@@ -410,6 +887,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                     email = null,
                     workspace = null,
                     isLoadingWorkspace = false,
+                    statusSample = null,
+                    isCheckingStatus = false,
                     isPasswordRecovery = false,
                     signOutFailed = false,
                     errorMessage = null,
@@ -422,7 +901,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
     fun retryWorkspaceLoad() {
         val userId = authRepository?.currentUser()?.id ?: return
         if (_uiState.value.authLevel == AuthLevel.FULLY_AUTHENTICATED) {
-            loadWorkspace(userId)
+            loadWorkspaceAndStatusParallel(userId, sessionGeneration)
         }
     }
 
@@ -431,7 +910,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
     }
 
     fun handleRecoveryCallbackError(error: Throwable) {
-        workspaceRequestedFor = null
+        cancelActiveLoadsAndIncrementGeneration()
         viewModelScope.launch {
             runCatching { authRepository?.clearLocalSession() }
         }
@@ -444,6 +923,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                 isRecoveryInterrupted = true,
                 workspace = null,
                 isLoadingWorkspace = false,
+                statusSample = null,
+                isCheckingStatus = false,
                 errorMessage = AuthErrorMessages.safeMessage(error)
             )
         }
@@ -451,6 +932,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
     fun retryRecoveryAfterInterruption() {
         recoveryStore.clear()
+        cancelActiveLoadsAndIncrementGeneration()
         _uiState.update {
             it.copy(
                 isRecoveryInterrupted = false,
@@ -464,33 +946,6 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
     fun clearMessages() {
         _uiState.update { it.copy(errorMessage = null, infoMessage = null) }
-    }
-
-    private fun loadWorkspace(userId: String) {
-        // HARD INVARIANT: only load workspace when fully authenticated
-        if (_uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
-            return
-        }
-        val repository = workspaceRepository ?: return
-        workspaceRequestedFor = userId
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingWorkspace = true, workspace = null) }
-            runCatching { repository.loadFor(userId) }
-                .onSuccess { workspace ->
-                    _uiState.update {
-                        it.copy(isLoadingWorkspace = false, workspace = workspace, errorMessage = null)
-                    }
-                }
-                .onFailure { error ->
-                    _uiState.update {
-                        it.copy(
-                            isLoadingWorkspace = false,
-                            workspace = null,
-                            errorMessage = AuthErrorMessages.safeMessage(error)
-                        )
-                    }
-                }
-        }
     }
 
     private fun showConfigurationError() {

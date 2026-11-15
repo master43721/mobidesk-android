@@ -8,19 +8,24 @@ local.properties
 .cxx/
 .externalNativeBuild/
 captures/
+.freerdp-deps-cache/
+executables-apks/
 
 # Local signing/configuration
 *.jks
 *.keystore
+!app/mobidesk-ci.keystore
 release.properties.local
 .env
 .env.*
 !.env.example
+temp-*/
 
 # Android emulator state
 .avd/
 *.hprof
 *.bundle
+*.bmp
 
 # OS/editor
 .DS_Store

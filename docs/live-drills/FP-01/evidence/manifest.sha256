@@ -1,0 +1,3 @@
+# FP-01 Live Drill Evidence SHA-256 Manifest
+# Format: <sha256>  <filename>
+# To be populated with physical captures upon drill execution.

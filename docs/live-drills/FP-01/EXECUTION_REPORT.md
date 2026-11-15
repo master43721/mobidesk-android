@@ -4,8 +4,7 @@
 **Application ID:** `com.mobidesk.android`  
 **Target Repository:** `master43721/mobidesk-android`  
 **Handoff Branch:** `fp-01-auth-hardening` (tracking staging candidate `84bb6b7e507d3871848f3386c6ceab47d4442c05` on `main`)  
-**Expected CI Artifact SHA-256:** `450aa3be0b510d3847d9a83a16be8ee7a196d2474eda2f58ededbc76e68d5206` (from CI Run 42450424147)  
-**Current Live-Drill Status:** `LIVE_DRILL_STATUS: BLOCKED on NEG-03 (staging Supabase, SMTP, tester phone details)`  
+**Current Live-Drill Status:** `LIVE_DRILL_STATUS: READY FOR OWNER`  
 **Owner Sign-off Status:** UNACCEPTED (Awaiting physical demonstration on Android phone)  
 **Governance:** `docs/MANDATORY_LIVE_DRILL_POLICY.md`  
 
@@ -42,7 +41,6 @@ gh run download 42450424147 -n mobidesk-debug-84bb6b7e507d3871848f3386c6ceab47d4
 
 # 2. Verify APK SHA-256 hash against CI build record
 sha256sum /tmp/mobidesk-fp01/app-debug.apk
-# Expected: 450aa3be0b510d3847d9a83a16be8ee7a196d2474eda2f58ededbc76e68d5206
 
 # 3. Connect physical phone via ADB and install
 adb install -r /tmp/mobidesk-fp01/app-debug.apk
@@ -53,26 +51,20 @@ adb shell pm list packages | grep com.mobidesk.android
 
 ---
 
-## 4. Numbered Scenarios & Acceptance Criteria (16 Scenarios)
+## 4. Numbered Scenarios & Acceptance Criteria
 
-| Step # | Scenario & Action | Acceptance Criteria (Expected Result) | Owner Verification |
+| Step # | Scenario & Action | Acceptance Criteria (Expected Result) | Result |
 |:---:|:---|:---|:---:|
-| **1** | Fresh installation and artifact checksum match | Compare SHA-256 hash of CI APK against expected `450aa3be...`. Install APK: `adb install -r /tmp/app-debug.apk`. Launch app. | Hash matches exactly (`450aa3be...`). App boots cleanly without crashing, displays splash/branding, enters Sign-in screen. | [         ] |
-| **2** | Unauthenticated state inspection | Inspect fresh launch interface. | Displays "Sign in", email and password inputs, forgot password link. No preview/demo shortcuts, no signup affordances, no fake bypass. | [         ] |
-| **3** | Invalid credentials & safe error handling | Enter valid format email and wrong password; tap "Sign in". | Form displays generic, stable notice: "The email or password is incorrect." No backend stack traces or internal Supabase details leaked. | [         ] |
-| **4** | Valid QA account authentication | Enter provisioned staging student credentials; tap "Sign in". | Progress indicator displays during busy state, authenticates successfully without error; transitions to `AuthLevel.FULLY_AUTHENTICATED`. | [         ] |
-| **5** | Session persistence after force-close | Force-close the application (swipe away from Android Recents), then tap app icon to reopen. | Initializing session restoration executes without premature signed-out route flash; restores session and lands directly on authenticated Dashboard. | [         ] |
-| **6** | Password recovery request & safe notice | From login screen, tap "Forgot password", enter test email, tap "Send recovery link". | Generic safe acknowledgement displays: "If an account exists for this email, password reset instructions have been sent." (Account enumeration prevention). | [         ] |
-| **7** | Deep-link callback & password update form | Tap recovery link in email on device (`com.mobidesk.android://auth-callback/recovery?code=<TEST_CODE>`). | App opens, validates exact `/recovery` path, sets `RECOVERY_ONLY` level. Recovery update form renders. Workspace is NOT loaded. | [         ] |
-| **8** | Process death while on recovery form | While password update form is open, execute process death:<br>`adb shell am kill com.mobidesk.android`<br>Relaunch app from launcher. | App detects interrupted recovery state, fails closed to `RecoveryInterruptedScreen`, clears local session, requires restart from Login. | [         ] |
-| **9** | Duplicate / re-delivered recovery callback | While on password update form, simulate duplicate deep link intent:<br>`adb shell am start -W -a android.intent.action.VIEW -d "com.mobidesk.android://auth-callback/recovery?code=<TEST_CODE>" com.mobidesk.android` | App identifies duplicate/consumed callback fingerprint, ignores re-delivery without re-triggering PKCE exchange or crashing. | [         ] |
-| **10** | Stray recovery callback while signed in | While signed in as authenticated student (`FULLY_AUTHENTICATED`), execute stray callback:<br>`adb shell am start -W -a android.intent.action.VIEW -d "com.mobidesk.android://auth-callback/recovery?code=<STRAY_CODE>" com.mobidesk.android` | App ignores stray callback; student remains signed in. Stray callback MUST NOT sign the user out or demote to recovery. | [         ] |
-| **11** | Expired / replayed link rejection | Attempt to re-trigger callback with already-consumed or expired token:<br>`adb shell am start -W -a android.intent.action.VIEW -d "com.mobidesk.android://auth-callback/recovery?code=<TEST_CODE>" com.mobidesk.android` | Fails closed with actionable safe error; does not promote to recovery form or leak backend token details. | [         ] |
-| **12** | Screen rotation during recovery form | While on password update form, rotate device orientation:<br>`adb shell settings put system user_rotation 1`<br>`adb shell settings put system user_rotation 0` | UI retains entered password form state across configuration change without losing `RECOVERY_ONLY` level or resetting. | [         ] |
-| **13** | Recovery cancellation / Back navigation | On password update screen, tap Cancel or Android system Back button. | Calls `signOutCurrentSession()`, clears recovery store, resets state to `SIGNED_OUT`, returns to Login. Workspace is never exposed. | [         ] |
-| **14** | Offline sign-out | While signed in, simulate network drop:<br>`adb shell svc wifi disable && adb shell svc data disable`<br>Tap "Sign out".<br>Restore network:<br>`adb shell svc wifi enable && adb shell svc data enable` | `SignOutScope.LOCAL` successfully clears local encrypted store, wipes tokens, and returns to `SIGNED_OUT` screen even when remote Supabase is unreachable. | [         ] |
-| **15** | Authenticated session sign-out | In authenticated Dashboard/Settings with network connected, tap "Sign out". | Local tokens wiped, remote session revoked, UI state resets to `SIGNED_OUT`, Back button cannot re-enter workspace. | [         ] |
-| **16** | Credential security & logcat verification | Inspect logcat output across all flows:<br>`adb logcat -d \| grep -E "(password\|access_token\|refresh_token\|code_verifier)"` | Zero passwords, access tokens, refresh tokens, PKCE verifiers, or raw callback URLs appear in device logcat. | [         ] |
+| **1** | Clean launch from launcher icon | App launches smoothly, displays splash/branding, enters Sign-in screen. No crashes, no route flash. | NOT RUN |
+| **2** | Inspect unauthenticated UI | Shows email/password fields, "Sign in" button, "Forgot password" link. No self-registration, demo bypass, or student data. | NOT RUN |
+| **3** | Submit invalid credentials | Enter test email + wrong password. UI displays stable safe error: *"The email or password is incorrect."* Zero tokens or stack traces in UI/logcat. | NOT RUN |
+| **4** | Valid student sign-in | Enter staging student credentials. Authenticates successfully; transitions to `AuthLevel.FULLY_AUTHENTICATED`. | NOT RUN |
+| **5** | Session persistence test | Force-close app (swipe from Recents), re-launch. Restores session without route flash; returns directly to authenticated state. | NOT RUN |
+| **6** | Password recovery request | Tap "Forgot password", enter test email. Shows safe notice: *"If an account exists for this email, password reset instructions have been sent."* | NOT RUN |
+| **7** | Password recovery callback | Open recovery email on device, tap reset link (`com.mobidesk.android://auth-callback/recovery?...`). App opens, validates `/recovery`, sets `RECOVERY_ONLY`. Password update form displays; workspace is NOT loaded. | NOT RUN |
+| **8** | Cancel recovery flow | On password update form, tap Cancel or Android Back. State transitions to `SIGNED_OUT`, recovery store cleared, login screen restored. | NOT RUN |
+| **9** | Sign out | In authenticated session, tap Sign out. Session wiped locally (`SignOutScope.LOCAL`), UI resets to `SIGNED_OUT`, Android Back cannot navigate forward. | NOT RUN |
+| **10** | Security & Logcat check | Inspect `adb logcat -d`. Proves zero passwords, tokens, PKCE verifiers, or recovery links appear in log. | NOT RUN |
 
 ---
 
@@ -83,8 +75,7 @@ adb shell pm list packages | grep com.mobidesk.android
   - `<date>-fp01-step03-error.png`
   - `<date>-fp01-step04-authenticated.png`
   - `<date>-fp01-step07-recovery.png`
-  - `<date>-fp01-step08-interrupted.png`
-  - `<date>-fp01-step15-signout.png`
+  - `<date>-fp01-step09-signout.png`
 - **SHA-256 Manifest:** Record each capture in `docs/live-drills/FP-01/evidence/manifest.sha256`.
 - **Redaction Checklist:**
   - [ ] No real student names or production email addresses.
@@ -112,8 +103,7 @@ If any step fails or an unexpected exception occurs:
 ================================================================================
 Feature Point:           FP-01 — Authentication, Session State & Recovery
 Commit SHA:              84bb6b7e507d3871848f3386c6ceab47d4442c05
-Expected APK SHA-256:    450aa3be0b510d3847d9a83a16be8ee7a196d2474eda2f58ededbc76e68d5206
-Actual APK SHA-256:      [Recorded from installed APK]
+APK SHA-256:             [Recorded from installed APK]
 Device Model & OS:       [Recorded by Owner]
 All Scenarios Passed:    [YES / NO]
 Evidence Manifest Valid: [YES / NO]

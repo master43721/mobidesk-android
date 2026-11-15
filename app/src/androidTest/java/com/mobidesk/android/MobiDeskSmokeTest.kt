@@ -1,12 +1,11 @@
 package com.mobidesk.android
 
-import androidx.compose.ui.test.assertDoesNotExist
-import androidx.compose.ui.test.assertIsDisplayed
+import android.content.Context
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
@@ -14,9 +13,30 @@ class MobiDeskSmokeTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
+    @Before
+    fun ensureSignedOutState() {
+        // Reset local preferences so session restore does not bypass sign-in
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        try {
+            context.getSharedPreferences("mobidesk_secure_session", Context.MODE_PRIVATE).edit().clear().commit()
+            context.getSharedPreferences("mobidesk_session", Context.MODE_PRIVATE).edit().clear().commit()
+            context.getSharedPreferences("mobidesk_recovery_state", Context.MODE_PRIVATE).edit().clear().commit()
+        } catch (_: Throwable) {}
+    }
+
+    @After
+    fun tearDown() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        try {
+            context.getSharedPreferences("mobidesk_secure_session", Context.MODE_PRIVATE).edit().clear().commit()
+            context.getSharedPreferences("mobidesk_session", Context.MODE_PRIVATE).edit().clear().commit()
+            context.getSharedPreferences("mobidesk_recovery_state", Context.MODE_PRIVATE).edit().clear().commit()
+        } catch (_: Throwable) {}
+    }
+
     @Test
     fun signInScreenDoesNotOfferFakePreviewAccess() {
-        compose.waitUntil(timeoutMillis = 5_000) {
+        compose.waitUntil(timeoutMillis = 10_000) {
             compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("MobiDesk").assertIsDisplayed()
@@ -32,8 +52,53 @@ class MobiDeskSmokeTest {
 
     @Test
     fun passwordRecoveryRequestScreenOpensWithoutSendingAnEmail() {
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("Forgot password?").performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Reset your password").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("Reset your password").assertIsDisplayed()
         compose.onNodeWithText("Send recovery link").assertIsDisplayed()
+
+        // Navigate back to Sign in
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun signInAndVerifyDashboardWorkspace() {
+        val email = System.getenv("TEST_STUDENT_EMAIL") ?: "y25cs340@rvrjc.ac.in"
+        val password = System.getenv("TEST_STUDENT_PASSWORD") ?: "rvrjc@1985"
+
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Enter student email & password
+        compose.onNodeWithText("School email").performScrollTo().performTextInput(email)
+        compose.onNodeWithText("Password").performScrollTo().performTextInput(password)
+
+        // Click Sign In
+        compose.onNodeWithText("Sign in").performScrollTo().performClick()
+
+        // Wait for authenticated workspace to appear
+        compose.waitUntil(timeoutMillis = 20_000) {
+            compose.onAllNodesWithText("win-01", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+
+        // Verify workspace display elements
+        compose.onNodeWithText("win-01", substring = true).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Connect to Cloud PC").assertIsDisplayed()
+
+        // Sign out to verify session termination
+        compose.onNodeWithText("Sign out").performScrollTo().performClick()
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Sign in").assertIsDisplayed()
     }
 }

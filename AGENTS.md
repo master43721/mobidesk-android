@@ -32,10 +32,10 @@
   - Tag historical bootstrap: `baseline-fp-00`.
   - Tag accepted feature points after merge: `fp-NN-accepted`.
 
-### Legacy Merge State Notice (FP-01)
-- **Historical Context**: PR #8 (`20d089c`) merged early FP-01 code into `main` before the formal Mandatory Live Drill Gate policy was established.
-- **Current Staging Role**: Commit `c414c73` on `main` serves as the staging candidate for FP-01 awaiting physical device demonstration. Branch `fp-01-auth-hardening` tracks this exact candidate commit.
-- **Gate Invariant Enforcement**: FP-01 remains formally `UNACCEPTED` until the physical live drill passes on target hardware. Once accepted, tag `fp-01-accepted` will be created. All subsequent feature points (beginning with FP-02) strictly enforce trunk isolation: no feature branch merges to `main` without completing all 6 criteria of the Terminal Acceptance Invariant.
+### Staging Trunk & Acceptance Invariant Enforcement (NEG-01(a) Owner Decision — 2026-11-08)
+- **Staging Trunk Governance**: Per Project Owner approval of NEG-01(a) on 2026-11-08, `main` serves as an owner-approved staging trunk. Code residing on or merged into `main` (including historical FP-01 code merged under PR #8 `20d089c` and current staging HEAD `1b2f0ba`) represents unaccepted staging candidates.
+- **Milestone Tags Define Acceptance**: No feature point is accepted simply because it exists on `main`. Acceptance is marked EXCLUSIVELY by `fp-NN-accepted` Git tags created after a fully passed and Project Owner-signed live drill.
+- **Trunk Isolation for Active Development**: Feature branches (such as `fp-02-student-workspace`, `fp-03-assignment-resolution`, etc.) must not merge into `main` until all 6 criteria of the Terminal Acceptance Invariant are satisfied. Branch `fp-01-auth-hardening` tracks the staging candidate on `main` and has zero net file difference from `main`; it is retained for live-drill execution against candidate builds.
 
 ---
 

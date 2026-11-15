@@ -616,6 +616,8 @@ class FakeAuthRepository : AuthRepository {
         clearLocalSessionCalls++
     }
 
+    override suspend fun currentAccessToken(): String? = "fake-access-token"
+
     override suspend fun requestPasswordReset(email: String) {
         resetCalls.add(email)
         shouldFailResetWith?.let { throw it }

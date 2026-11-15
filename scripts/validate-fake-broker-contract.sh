@@ -18,6 +18,13 @@ sample_payloads = [
     {"lifecycle":"UNKNOWN","rdpTransport":"UNKNOWN","sampledAt":"2026-11-03T06:00:01Z","probeDurationMs":1500,"staleAfterSeconds":15,"requestId":"req_9a26d0f4712a45ef","assignmentTag":"asg_tag_9a26d0f4712a45ef"}
 ]
 
+# Load shared fixture files if present
+import os
+for path in ["shared-fixtures/vm_status_sample.json", "../session-broker/tests/fixtures/vm_status_sample.json"]:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            sample_payloads.append(json.load(f))
+
 valid_lifecycles = {"STOPPED", "STARTING", "RUNNING", "STOPPING", "ERROR", "UNKNOWN"}
 valid_transports = {"NOT_CHECKED", "TCP_UNREACHABLE", "TCP_REACHABLE", "RDP_NEGOTIATION_OK", "UNKNOWN"}
 prohibited_fields = ["vm_id", "vmid", "host", "hostname", "ip", "ipv4", "port", "password", "secret", "token", "service_role"]

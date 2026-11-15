@@ -31,7 +31,10 @@ jobs:
           Write-Host "Configuring Windows Remote Desktop Services (RDP)..."
           # Enable Remote Desktop in registry
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 1
+          
+          # Allow Standard RDP/TLS negotiation without domain CredSSP mismatch
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "SecurityLayer" -Value 1
           
           # Enable Windows Firewall rules for Remote Desktop
           Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
@@ -39,7 +42,7 @@ jobs:
           
           # Start and ensure TermService is running
           Set-Service -Name "TermService" -StartupType Automatic
-          Start-Service -Name "TermService"
+          Restart-Service -Name "TermService" -Force
           
           Write-Host "Remote Desktop Services successfully enabled and running on TCP port 3389."
 
@@ -49,7 +52,7 @@ jobs:
           Write-Host "Provisioning demo student accounts for Windows guest login..."
           $password = "DemoLab1985!"
           
-          # Provision demo_student account (12 chars to avoid Windows 2000 prompt)
+          # Provision demo_student account
           cmd.exe /c "net user demo_student $password /add /expires:never /active:yes"
           cmd.exe /c "net localgroup `"Remote Desktop Users`" demo_student /add"
           
@@ -59,12 +62,87 @@ jobs:
           
           Write-Host "Users 'demo_student' and 'student_lab_user' provisioned in Remote Desktop Users group."
 
-      - name: Set up MobiDesk Session Broker and RDP Bridge
+      - name: Extract RDP Certificate SHA-256 Fingerprint
+        id: cert
         shell: powershell
         run: |
-          Write-Host "Starting MobiDesk Session Broker & RDP Relay Services..."
-          python scripts/verify_rdp_pipeline.py
-          Write-Host "Session Broker and RDP pipeline verified and operational."
+          $cert = Get-ChildItem -Path "Cert:\LocalMachine\Remote Desktop" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($cert) {
+              $hasher = [System.Security.Cryptography.SHA256]::Create()
+              $certBytes = $cert.GetRawCertData()
+              $sha256 = [System.BitConverter]::ToString($hasher.ComputeHash($certBytes)) -replace '-'
+              $sha256 = $sha256.ToLower()
+              Write-Host "Found RDP Certificate SHA-256: $sha256"
+              echo "RDP_CERT_SHA256=$sha256" >> $env:GITHUB_ENV
+          } else {
+              Write-Host "No certificate in Cert:\LocalMachine\Remote Desktop; broker will probe dynamically."
+          }
+
+      - name: Start Continuous MobiDesk Session Broker
+        shell: powershell
+        run: |
+          Write-Host "Starting Continuous MobiDesk Session Broker on port 8080..."
+          $brokerProcess = Start-Process -FilePath "python" -ArgumentList "scripts/run_live_session_broker.py" -PassThru -RedirectStandardOutput "broker.log" -RedirectStandardError "broker.err"
+          Start-Sleep -Seconds 3
+          
+          # Test local broker liveness
+          $ready = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -Method Get -ErrorAction SilentlyContinue
+          Write-Host "Local Broker Health Response: $($ready | ConvertTo-Json -Compress)"
+
+      - name: Start Cloudflare Tunnel & Register Public URL with Supabase
+        shell: powershell
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          Write-Host "Downloading Cloudflare Tunnel client (cloudflared.exe)..."
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          
+          Write-Host "Starting Cloudflare Quick Tunnel to port 8080..."
+          $tunnelProcess = Start-Process -FilePath ".\cloudflared.exe" -ArgumentList "tunnel --url http://127.0.0.1:8080 --no-autoupdate" -PassThru -RedirectStandardOutput "tunnel.log" -RedirectStandardError "tunnel.log"
+          
+          $tunnelUrl = $null
+          for ($i = 0; $i -lt 30; $i++) {
+              Start-Sleep -Seconds 2
+              if (Test-Path "tunnel.log") {
+                  $content = Get-Content "tunnel.log" -Raw
+                  if ($content -match 'https://[a-zA-Z0-9-]+\.trycloudflare\.com') {
+                      $tunnelUrl = $matches[0]
+                      break
+                  }
+              }
+          }
+          
+          if ($tunnelUrl) {
+              Write-Host "================================================================="
+              Write-Host " CLOUDFLARE PUBLIC TUNNEL IS LIVE!"
+              Write-Host " URL: $tunnelUrl"
+              Write-Host "================================================================="
+              
+              if ($env:SUPABASE_URL -and $env:SUPABASE_KEY) {
+                  Write-Host "Registering public URL in Supabase for VM 'win-01'..."
+                  $headers = @{
+                      "apikey" = $env:SUPABASE_KEY
+                      "Authorization" = "Bearer $($env:SUPABASE_KEY)"
+                      "Content-Type" = "application/json"
+                  }
+                  $body = @{
+                      p_vm_name = "win-01"
+                      p_hostname = $tunnelUrl
+                  } | ConvertTo-Json
+                  
+                  try {
+                      $res = Invoke-RestMethod -Uri "$($env:SUPABASE_URL)/rest/v1/rpc/update_vm_hostname" -Method Post -Headers $headers -Body $body
+                      Write-Host "Supabase update_vm_hostname result: $res"
+                      Write-Host "Successfully registered $tunnelUrl in Supabase public.vms for win-01!"
+                  } catch {
+                      Write-Warning "Could not update Supabase via RPC: $_"
+                  }
+              }
+          } else {
+              Write-Error "Failed to obtain Cloudflare tunnel URL within timeout."
+              Get-Content "tunnel.log" -Tail 50
+          }
 
       - name: Run Windows VM Continuous Host Watchdog
         shell: powershell
@@ -77,7 +155,7 @@ jobs:
           Write-Host "================================================================="
           Write-Host " MobiDesk Windows 11 VM Host is ACTIVE"
           Write-Host " VM Name: win-01 (MobiDesk Student Workspace)"
-          Write-Host " RDP Port: TCP 3389 (NLA Enabled)"
+          Write-Host " RDP Port: TCP 3389 (Standard TLS / RDP)"
           Write-Host " Max Duration: $hours hours ($totalSeconds seconds)"
           Write-Host "================================================================="
           
@@ -87,5 +165,9 @@ jobs:
               $remaining = [math]::Round(($totalSeconds - $elapsed) / 60)
               $rdpService = Get-Service -Name "TermService" -ErrorAction SilentlyContinue
               Write-Host "[Watchdog $(Get-Date -Format 'HH:mm:ss')] VM win-01 status: $($rdpService.Status) | Time remaining: $remaining minutes"
+              if (Test-Path "broker.err") {
+                  $errs = Get-Content "broker.err" -Tail 5 -ErrorAction SilentlyContinue
+                  if ($errs) { Write-Host "[Broker log] $errs" }
+              }
           }
           Write-Host "Windows VM Host session completed."

@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 interface AuthRepository {
     val sessionStatus: Flow<SessionStatus>
     fun currentUser(): UserInfo?
+    suspend fun currentAccessToken(): String?
     suspend fun signIn(email: String, password: String)
     suspend fun signOutCurrentSession()
     suspend fun clearLocalSession()
@@ -34,6 +35,8 @@ class SupabaseAuthRepository(private val client: SupabaseClient) : AuthRepositor
     override val sessionStatus get() = client.auth.sessionStatus
 
     override fun currentUser(): UserInfo? = client.auth.currentUserOrNull()
+
+    override suspend fun currentAccessToken(): String? = client.auth.currentAccessTokenOrNull()
 
     override suspend fun signIn(email: String, password: String) {
         client.auth.signInWith(Email) {
@@ -70,6 +73,9 @@ class SupabaseAuthRepository(private val client: SupabaseClient) : AuthRepositor
 
 class StudentWorkspaceRepository(private val client: SupabaseClient) : WorkspaceRepository {
     override suspend fun loadFor(userId: String): StudentWorkspaceResult {
+        if (userId.isBlank()) {
+            return StudentWorkspaceResult.AccountNotProvisioned
+        }
         val profiles = client.from("students").select(
             columns = Columns.list("id", "name", "college")
         ) {
@@ -81,16 +87,46 @@ class StudentWorkspaceRepository(private val client: SupabaseClient) : Workspace
         val profile = profiles.firstOrNull()
             ?: return StudentWorkspaceResult.AccountNotProvisioned
 
-        // The vms RLS policy returns only the signed-in user's assigned VMs.
-        // Do not request guac_connection_id or hostname from the client.
         val assignedVms = client.from("vms").select(
-            columns = Columns.list("id", "name")
+            columns = Columns.list("id", "name", "hostname")
         ).decodeList<VmSummary>()
 
-        return StudentWorkspaceResult.Ready(
-            profile = profile,
-            assignedVms = assignedVms
-        )
+        return resolve(profile, assignedVms)
+    }
+
+    companion object {
+        fun resolve(
+            profile: StudentProfile?,
+            assignedVms: List<VmSummary>
+        ): StudentWorkspaceResult {
+            if (profile == null) return StudentWorkspaceResult.AccountNotProvisioned
+            return when {
+                assignedVms.isEmpty() -> StudentWorkspaceResult.NoAssignment(profile)
+                assignedVms.size == 1 -> {
+                    val vm = assignedVms.first()
+                    if (vm.id.isBlank() || vm.name.isBlank()) {
+                        StudentWorkspaceResult.AssignmentInvalid(
+                            profile = profile,
+                            reason = "Corrupt assignment data: VM identifier or name is blank"
+                        )
+                    } else {
+                        val derivedTag = "asg_tag_${vm.id}"
+                        StudentWorkspaceResult.Assigned(
+                            profile = profile,
+                            assignedWorkspace = AssignedWorkspace(
+                                displayLabel = vm.name,
+                                assignmentTag = derivedTag,
+                                hostname = vm.hostname
+                            )
+                        )
+                    }
+                }
+                else -> StudentWorkspaceResult.AssignmentInvalid(
+                    profile = profile,
+                    reason = "Multiple assignments detected"
+                )
+            }
+        }
     }
 }
 
@@ -104,12 +140,34 @@ data class StudentProfile(
 @Serializable
 data class VmSummary(
     val id: String,
-    val name: String
+    val name: String,
+    val hostname: String? = null
+)
+
+data class AssignedWorkspace(
+    val displayLabel: String,
+    val assignmentTag: String,
+    val hostname: String? = null
 )
 
 sealed interface StudentWorkspaceResult {
     data object AccountNotProvisioned : StudentWorkspaceResult
 
+    data class NoAssignment(
+        val profile: StudentProfile
+    ) : StudentWorkspaceResult
+
+    data class AssignmentInvalid(
+        val profile: StudentProfile,
+        val reason: String
+    ) : StudentWorkspaceResult
+
+    data class Assigned(
+        val profile: StudentProfile,
+        val assignedWorkspace: AssignedWorkspace
+    ) : StudentWorkspaceResult
+
+    // Backwards compatibility during transition
     data class Ready(
         val profile: StudentProfile,
         val assignedVms: List<VmSummary>

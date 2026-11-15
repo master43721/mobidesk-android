@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [main, 'fp-*', 'fp/**', 'feature/fp-*', 'step/fp-*']
   workflow_dispatch:
-    inputs:
-      run_instrumentation:
-        description: "Also boot an API 36 emulator and run connected Android tests"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: write
@@ -21,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
-    name: JVM tests and debug APK
+  build-candidate:
+    name: Build and Validate Candidate APK
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -31,6 +25,7 @@ jobs:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       CMAKE_BUILD_PARALLEL_LEVEL: "2"
+      MOBIDESK_TARGET_ABIS: "arm64-v8a,x86_64"
     steps:
       - name: Check out source and pinned FreeRDP submodule
         uses: actions/checkout@v4
@@ -39,7 +34,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -67,46 +62,79 @@ jobs:
           yes | sdkmanager --licenses
           set -o pipefail
           sdkmanager --licenses
-          sdkmanager --install \
-            "platforms;android-35" \
-            "build-tools;35.0.0" \
+          # Android 17/API 37 is published as android-37.0, not android-37.
+          # Install explicitly before Gradle starts to avoid on-demand SDK resolution.
+          sdkmanager --channel=3 --install \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0" \
             "ndk;29.0.13113456" \
             "cmake;4.1.2"
-          test -s "$ANDROID_HOME/platforms/android-35/android.jar"
-          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -s "$ANDROID_HOME/platforms/android-37.0/android.jar"
+          test -x "$ANDROID_HOME/build-tools/37.0.0/apksigner"
 
-      - name: Run JVM unit tests and assemble debug APK
+      - name: Cache FreeRDP native dependency archives
+        uses: actions/cache@v4
+        with:
+          path: .freerdp-deps-cache
+          key: freerdp-deps-v1-${{ hashFiles('third_party/FreeRDP/cmake/DepVersions.cmake') }}
+
+      - name: Fetch and verify native dependencies
+        shell: bash
+        run: |
+          python3 scripts/fetch_freerdp_deps.py --cache-dir .freerdp-deps-cache
+
+      - name: Verify Live Drill Acceptance Gate Policy
+        shell: bash
+        run: |
+          python3 scripts/verify_live_drill_gate.py
+
+      - name: Run FreeRDP Pipeline & Architecture Verification
+        shell: bash
+        run: |
+          timeout 30s python3 scripts/verify_rdp_pipeline.py || python3 scripts/verify_rdp_pipeline.py
+
+      - name: Run JVM unit tests and assemble candidate APKs
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug
+        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
 
-      - name: Verify APK integrity and debug signature
+      - name: Validate candidate APK integrity, signature, and alignment
         shell: bash
         run: |
           set -euo pipefail
           apk="app/build/outputs/apk/debug/app-debug.apk"
           test -s "$apk"
           unzip -tq "$apk"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          python3 scripts/inspect_manifest.py "$apk"
           sha256sum "$apk"
-          stat --printf='APK size: %s bytes\n' "$apk"
+          stat --printf='Candidate APK size: %s bytes\n' "$apk"
 
-      - name: Upload debug-only APK artifact
+      - name: Stage candidate APK artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/candidate-apks
+          cp app/build/outputs/apk/debug/app-debug.apk build/candidate-apks/app-debug.apk
+          cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk build/candidate-apks/app-debug-androidTest.apk
+          ls -la build/candidate-apks/
+
+      - name: Upload candidate APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mobidesk-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: mobidesk-candidate-apks
+          path: build/candidate-apks/
           if-no-files-found: error
           retention-days: 14
 
-      - name: Prepare APK for release
+      - name: Prepare direct APK for release
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk MobiDesk-v0.2.0-debug.apk
 
-      - name: Publish direct APK to GitHub Releases
+      - name: Publish direct APK to GitHub Releases (latest-apk)
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v3
         with:
@@ -115,7 +143,7 @@ jobs:
           files: MobiDesk-v0.2.0-debug.apk
           overwrite_files: true
 
-      - name: Upload JUnit test results and reports
+      - name: Upload JVM test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -125,22 +153,65 @@ jobs:
             app/build/reports/tests/testDebugUnitTest/
           retention-days: 14
 
-      - name: Install API 36 emulator image for opt-in instrumentation
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
-        run: |
-          sdkmanager --install \
-            "platforms;android-36" \
-            "system-images;android-36;google_apis;x86_64" \
-            "emulator"
+  emulator-test:
+    name: Android Emulator Installation and UI Testing
+    needs: build-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
 
-      - name: Run connected Android tests on API 36 emulator
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_instrumentation }}
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Download candidate APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mobidesk-candidate-apks
+          path: candidate-apks
+
+      - name: Locate and verify candidate APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          find candidate-apks -type f -name "app-debug.apk" -exec cp {} candidate-apks/app-debug.apk \;
+          find candidate-apks -type f -name "app-debug-androidTest.apk" -exec cp {} candidate-apks/app-debug-androidTest.apk \;
+          test -s candidate-apks/app-debug.apk
+          test -s candidate-apks/app-debug-androidTest.apk
+          sha256sum candidate-apks/*.apk
+
+      - name: Enable KVM hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run Emulator Tests against Candidate APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 36
+          api-level: 34
           target: google_apis
           arch: x86_64
           profile: pixel_6
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
-          script: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:connectedDebugAndroidTest
+          script: bash scripts/run_emulator_tests.sh
+
+      - name: Upload Emulator Test Evidence and Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobidesk-emulator-evidence-${{ github.sha }}
+          path: |
+            emulator-smoke.png
+            emulator-after-tests.png
+            emulator-logcat.txt
+            instrumentation-results.txt
+          if-no-files-found: ignore
+          retention-days: 14

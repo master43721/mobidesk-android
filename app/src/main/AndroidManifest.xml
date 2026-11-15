@@ -60,5 +60,12 @@
             android:name="com.freerdp.freerdpcore.presentation.SessionActivity"
             android:exported="false"
             tools:replace="android:exported" />
+
+        <activity
+            android:name=".rdp.RdpSessionActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|density|screenLayout"
+            android:exported="false"
+            android:theme="@style/Theme.MobiDesk"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>
