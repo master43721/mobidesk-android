@@ -68,10 +68,10 @@ class MobiDeskViewModel @JvmOverloads constructor(
     application: Application,
     customAuthRepository: AuthRepository? = null,
     customWorkspaceRepository: WorkspaceRepository? = null,
-    customStatusRepository: StatusRepository? = null,
+    private val customStatusRepository: StatusRepository? = null,
     customRecoveryStore: RecoveryStateStore? = null,
     private val clock: MonotonicClock = SystemMonotonicClock,
-    customSessionGrantRepository: SessionGrantRepository? = null
+    private val customSessionGrantRepository: SessionGrantRepository? = null
 ) : AndroidViewModel(application) {
     private val app = application as? MobiDeskApplication
     private val supabase = app?.supabaseClient
@@ -619,17 +619,107 @@ class MobiDeskViewModel @JvmOverloads constructor(
         if (now - lastActionTapAt < 1000L) return
         lastActionTapAt = now
 
+        val auth = authRepository ?: return
         val assignedWorkspace = (_uiState.value.workspace as? StudentWorkspaceResult.Assigned)?.assignedWorkspace ?: return
-        if (_uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) return
-        if (_uiState.value.isConnectingSession) return
+        val currentGen = sessionGeneration
 
-        // 1-Click Single Login: Default pool credentials & auto-submit
-        val poolCredentials = WindowsGuestCredentials.create(
-            username = "demo_student",
-            password = "DemoLab1985!".toCharArray(),
-            domain = ""
+        if (_uiState.value.isCheckingStatus || _uiState.value.isConnectingSession) return
+
+        val vmHost = assignedWorkspace.hostname?.trim().orEmpty()
+        val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
+            vmHost.trimEnd('/')
+        } else {
+            BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+        }
+
+        val stRepo = customStatusRepository ?: DefaultStatusRepository(
+            baseUrl = effectiveBrokerUrl,
+            clock = clock
         )
-        onGuestCredentialsSubmitted(poolCredentials)
+
+        statusJob?.cancel()
+        statusJob = viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingStatus = true, errorMessage = null) }
+            recalculateUiAgeAndConnect()
+
+            val token = auth.currentAccessToken().orEmpty()
+            val result = stRepo.getVmStatus(token)
+
+            if (currentGen != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                return@launch
+            }
+
+            when (result) {
+                is StatusResult.Success -> {
+                    val sample = result.sample
+                    val currentNow = clock.elapsedRealtime()
+                    val eligible = ConnectPolicy.isHandoffEligible(
+                        authLevel = _uiState.value.authLevel,
+                        isAssigned = true,
+                        currentAssignmentTag = assignedWorkspace.assignmentTag,
+                        sample = sample,
+                        nowElapsedMs = currentNow
+                    )
+
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            statusSample = sample,
+                            errorMessage = if (!eligible && sample.lifecycle == VmLifecycle.STOPPED) {
+                                "Your Cloud PC is powered off. Contact the lab administrator."
+                            } else if (!eligible && sample.lifecycle == VmLifecycle.STARTING) {
+                                "Your Cloud PC is starting or is not ready yet."
+                            } else if (!eligible && (sample.rdpTransport == RdpTransport.TCP_UNREACHABLE || sample.rdpTransport == RdpTransport.TCP_REACHABLE)) {
+                                "Your Cloud PC cannot be reached right now."
+                            } else null
+                        )
+                    }
+
+                    if (eligible) {
+                        _navigateToConnectEvent.tryEmit(Unit)
+                        // 1-Click Single Login: Default pool credentials & auto-submit
+                        val poolCredentials = WindowsGuestCredentials.create(
+                            username = "demo_student",
+                            password = "DemoLab1985!".toCharArray(),
+                            domain = ""
+                        )
+                        onGuestCredentialsSubmitted(poolCredentials)
+                    }
+                }
+                is StatusResult.RateLimited -> {
+                    val rateNow = clock.elapsedRealtime()
+                    nextAllowedStatusRequestAt = rateNow + (result.retryAfterSeconds * 1000L)
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            statusSample = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is StatusResult.AuthExpired -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            authLevel = AuthLevel.SIGNED_OUT,
+                            isAuthenticated = false,
+                            workspace = null,
+                            statusSample = null,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+                is StatusResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingStatus = false,
+                            errorMessage = result.message
+                        )
+                    }
+                }
+            }
+            recalculateUiAgeAndConnect()
+        }
     }
 
     fun onGuestCredentialsSubmitted(credentials: WindowsGuestCredentials) {

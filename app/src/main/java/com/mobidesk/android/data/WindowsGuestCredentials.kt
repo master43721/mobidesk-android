@@ -47,4 +47,18 @@ class WindowsGuestCredentials(
     override fun toString(): String {
         return "WindowsGuestCredentials(cleared=$isCleared)"
     }
+
+    companion object {
+        fun create(
+            username: String,
+            password: CharArray,
+            domain: String? = null
+        ): WindowsGuestCredentials {
+            return WindowsGuestCredentials(
+                username = username.toCharArray(),
+                domain = domain?.takeIf { it.isNotBlank() }?.toCharArray(),
+                password = password
+            )
+        }
+    }
 }
