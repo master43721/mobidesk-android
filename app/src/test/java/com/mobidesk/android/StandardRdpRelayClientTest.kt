@@ -76,6 +76,20 @@ class StandardRdpRelayClientTest {
             val b2 = inp.read()
             assertEquals(0x82, b1) // FIN + Binary opcode
             assertTrue((b2 and 0x80) != 0) // Masked from client!
+            val mask = ByteArray(4)
+            var maskRead = 0
+            while (maskRead < 4) {
+                val r = inp.read(mask, maskRead, 4 - maskRead)
+                if (r == -1) break
+                maskRead += r
+            }
+            val payload = ByteArray(2)
+            var payloadRead = 0
+            while (payloadRead < 2) {
+                val r = inp.read(payload, payloadRead, 2 - payloadRead)
+                if (r == -1) break
+                payloadRead += r
+            }
 
             socket.close()
         }

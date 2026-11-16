@@ -668,22 +668,6 @@ class MobiDeskViewModel @JvmOverloads constructor(
             domain = ""
         )
 
-        val currentSample = _uiState.value.statusSample
-        val isFreshAndEligible = currentSample != null && ConnectPolicy.isHandoffEligible(
-            authLevel = _uiState.value.authLevel,
-            isAssigned = true,
-            currentAssignmentTag = assignedWorkspace.assignmentTag,
-            sample = currentSample,
-            nowElapsedMs = now,
-            displayLabel = assignedWorkspace.displayLabel
-        )
-
-        if (isFreshAndEligible) {
-            _navigateToConnectEvent.tryEmit(Unit)
-            onGuestCredentialsSubmitted(poolCredentials)
-            return
-        }
-
         val vmHost = assignedWorkspace.hostname?.trim().orEmpty()
         val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
             vmHost.trimEnd('/')
