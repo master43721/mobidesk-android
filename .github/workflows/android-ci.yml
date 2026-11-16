@@ -95,13 +95,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+        run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest
 
       - name: Validate candidate APK integrity, signature, and alignment
         shell: bash
         run: |
           set -euo pipefail
-          apk="app/build/outputs/apk/debug/app-debug.apk"
+          apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           unzip -tq "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
@@ -114,7 +114,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/candidate-apks
-          cp app/build/outputs/apk/debug/app-debug.apk build/candidate-apks/app-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk build/candidate-apks/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk build/candidate-apks/app-debug.apk
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk build/candidate-apks/app-debug-androidTest.apk
           ls -la build/candidate-apks/
 
@@ -130,15 +131,15 @@ jobs:
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk MobiDesk-v0.2.0-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk MobiDesk-v0.3.0-Stable.apk
 
       - name: Publish direct APK to GitHub Releases (latest-apk)
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: latest-apk
-          name: "MobiDesk v0.2.0 (Latest Build)"
-          files: MobiDesk-v0.2.0-debug.apk
+          name: "MobiDesk v0.3.0 (Latest Build)"
+          files: MobiDesk-v0.3.0-Stable.apk
           overwrite_files: true
 
       - name: Upload JVM test reports

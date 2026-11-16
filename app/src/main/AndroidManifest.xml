@@ -61,6 +61,11 @@
             android:exported="false"
             tools:replace="android:exported" />
 
+        <service
+            android:name="com.freerdp.freerdpcore.presentation.KeyboardAccessibilityService"
+            android:exported="false"
+            tools:replace="android:exported" />
+
         <activity
             android:name=".rdp.RdpSessionActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|density|screenLayout"
