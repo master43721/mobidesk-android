@@ -83,6 +83,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          VM_NAME: "win-01"
+          VM_ASSIGNMENT_TAG: "asg_tag_640bfd92-7418-4266-b439-2a39169d7b2e"
         run: |
           Write-Host "Starting Continuous MobiDesk Session Broker on port 8080..."
           $brokerProcess = Start-Process -FilePath "python" -ArgumentList "scripts/run_live_session_broker.py" -PassThru -RedirectStandardOutput "broker.log" -RedirectStandardError "broker.err"

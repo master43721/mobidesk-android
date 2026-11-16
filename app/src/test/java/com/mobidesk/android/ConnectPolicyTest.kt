@@ -222,5 +222,29 @@ class ConnectPolicyTest {
                 nowElapsedMs = nowElapsedMs
             )
         )
+
+        // Verify fallback matching with displayLabel
+        val vmNameSample = createSample(VmLifecycle.RUNNING, RdpTransport.RDP_NEGOTIATION_OK, tag = "asg_tag_win-01")
+        assertTrue(
+            ConnectPolicy.isHandoffEligible(
+                authLevel = AuthLevel.FULLY_AUTHENTICATED,
+                isAssigned = true,
+                currentAssignmentTag = "asg_tag_640bfd92-7418-4266-b439-2a39169d7b2e",
+                sample = vmNameSample,
+                nowElapsedMs = nowElapsedMs,
+                displayLabel = "win-01"
+            )
+        )
+    }
+
+    @Test
+    fun tagMatching_exactAndDisplayLabelFallback() {
+        assertTrue(ConnectPolicy.isTagMatching("asg_tag_123", "asg_tag_123"))
+        assertFalse(ConnectPolicy.isTagMatching("asg_tag_123", "asg_tag_456"))
+        assertTrue(ConnectPolicy.isTagMatching("asg_tag_uuid", "asg_tag_win-01", "win-01"))
+        assertTrue(ConnectPolicy.isTagMatching("asg_tag_win-01", "asg_tag_uuid", "win-01"))
+        assertFalse(ConnectPolicy.isTagMatching("asg_tag_uuid", "asg_tag_win-02", "win-01"))
+        assertFalse(ConnectPolicy.isTagMatching(null, "asg_tag_123"))
+        assertFalse(ConnectPolicy.isTagMatching("asg_tag_123", null))
     }
 }

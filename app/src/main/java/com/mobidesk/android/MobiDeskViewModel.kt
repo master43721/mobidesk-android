@@ -359,14 +359,14 @@ class MobiDeskViewModel @JvmOverloads constructor(
     private fun loadWorkspaceAndStatusParallel(userId: String, generation: Long) {
         val wkRepo = workspaceRepository ?: return
         val authRepo = authRepository ?: return
-        val stRepo = statusRepository
+        val customStRepo = customStatusRepository
 
         parallelLoadJob?.cancel()
         parallelLoadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isLoadingWorkspace = true,
-                    isCheckingStatus = stRepo != null,
+                    isCheckingStatus = true,
                     workspace = null,
                     statusSample = null,
                     isConnectEnabled = false
@@ -374,37 +374,62 @@ class MobiDeskViewModel @JvmOverloads constructor(
             }
 
             try {
-                if (stRepo == null) {
-                    val workspace = wkRepo.loadFor(userId)
+                if (customStRepo != null) {
+                    val workspaceDeferred = async { wkRepo.loadFor(userId) }
+                    val statusDeferred = async {
+                        val token = authRepo.currentAccessToken().orEmpty()
+                        customStRepo.getVmStatus(token)
+                    }
+
+                    val workspaceResult = workspaceDeferred.await()
+                    val statusResult = statusDeferred.await()
+
                     if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
                         return@launch
                     }
-                    _uiState.update {
-                        it.copy(
-                            isLoadingWorkspace = false,
-                            isCheckingStatus = false,
-                            workspace = workspace,
-                            errorMessage = null
-                        )
+
+                    handlePairedResults(workspaceResult, statusResult, userId, generation)
+                } else {
+                    val workspaceResult = wkRepo.loadFor(userId)
+
+                    if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                        return@launch
                     }
-                    recalculateUiAgeAndConnect()
-                    return@launch
-                }
 
-                val workspaceDeferred = async { wkRepo.loadFor(userId) }
-                val statusDeferred = async {
+                    if (workspaceResult !is StudentWorkspaceResult.Assigned) {
+                        _uiState.update {
+                            it.copy(
+                                isLoadingWorkspace = false,
+                                isCheckingStatus = false,
+                                workspace = workspaceResult,
+                                statusSample = null
+                            )
+                        }
+                        recalculateUiAgeAndConnect()
+                        return@launch
+                    }
+
+                    val assigned = workspaceResult.assignedWorkspace
+                    val vmHost = assigned.hostname?.trim().orEmpty()
+                    val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
+                        vmHost.trimEnd('/')
+                    } else {
+                        BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+                    }
+
+                    val liveStRepo = DefaultStatusRepository(
+                        baseUrl = effectiveBrokerUrl,
+                        clock = clock
+                    )
                     val token = authRepo.currentAccessToken().orEmpty()
-                    stRepo.getVmStatus(token)
+                    val statusResult = liveStRepo.getVmStatus(token)
+
+                    if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
+                        return@launch
+                    }
+
+                    handlePairedResults(workspaceResult, statusResult, userId, generation)
                 }
-
-                val workspaceResult = workspaceDeferred.await()
-                val statusResult = statusDeferred.await()
-
-                if (generation != sessionGeneration || _uiState.value.authLevel != AuthLevel.FULLY_AUTHENTICATED) {
-                    return@launch
-                }
-
-                handlePairedResults(workspaceResult, statusResult, userId, generation)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -449,10 +474,11 @@ class MobiDeskViewModel @JvmOverloads constructor(
             }
             is StudentWorkspaceResult.Assigned -> {
                 val workspaceTag = workspaceResult.assignedWorkspace.assignmentTag
+                val displayLabel = workspaceResult.assignedWorkspace.displayLabel
                 when (statusResult) {
                     is StatusResult.Success -> {
                         val statusTag = statusResult.sample.assignmentTag
-                        if (statusTag == workspaceTag) {
+                        if (ConnectPolicy.isTagMatching(workspaceTag, statusTag, displayLabel)) {
                             consecutiveTagMismatches = 0
                             _uiState.update {
                                 it.copy(
@@ -541,11 +567,22 @@ class MobiDeskViewModel @JvmOverloads constructor(
         lastActionTapAt = now
 
         val auth = authRepository ?: return
-        val stRepo = statusRepository ?: return
         val currentWorkspace = _uiState.value.workspace as? StudentWorkspaceResult.Assigned ?: return
         val currentGen = sessionGeneration
 
         if (_uiState.value.isCheckingStatus) return
+
+        val vmHost = currentWorkspace.assignedWorkspace.hostname?.trim().orEmpty()
+        val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
+            vmHost.trimEnd('/')
+        } else {
+            BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+        }
+
+        val stRepo = customStatusRepository ?: DefaultStatusRepository(
+            baseUrl = effectiveBrokerUrl,
+            clock = clock
+        )
 
         statusJob?.cancel()
         statusJob = viewModelScope.launch {
@@ -561,7 +598,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
             when (result) {
                 is StatusResult.Success -> {
-                    if (result.sample.assignmentTag == currentWorkspace.assignedWorkspace.assignmentTag) {
+                    if (ConnectPolicy.isTagMatching(currentWorkspace.assignedWorkspace.assignmentTag, result.sample.assignmentTag, currentWorkspace.assignedWorkspace.displayLabel)) {
                         _uiState.update {
                             it.copy(
                                 isCheckingStatus = false,
@@ -625,6 +662,28 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
         if (_uiState.value.isCheckingStatus || _uiState.value.isConnectingSession) return
 
+        val poolCredentials = WindowsGuestCredentials.create(
+            username = "demo_student",
+            password = "DemoLab1985!".toCharArray(),
+            domain = ""
+        )
+
+        val currentSample = _uiState.value.statusSample
+        val isFreshAndEligible = currentSample != null && ConnectPolicy.isHandoffEligible(
+            authLevel = _uiState.value.authLevel,
+            isAssigned = true,
+            currentAssignmentTag = assignedWorkspace.assignmentTag,
+            sample = currentSample,
+            nowElapsedMs = now,
+            displayLabel = assignedWorkspace.displayLabel
+        )
+
+        if (isFreshAndEligible) {
+            _navigateToConnectEvent.tryEmit(Unit)
+            onGuestCredentialsSubmitted(poolCredentials)
+            return
+        }
+
         val vmHost = assignedWorkspace.hostname?.trim().orEmpty()
         val effectiveBrokerUrl = if (vmHost.startsWith("http://") || vmHost.startsWith("https://")) {
             vmHost.trimEnd('/')
@@ -658,7 +717,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
                         isAssigned = true,
                         currentAssignmentTag = assignedWorkspace.assignmentTag,
                         sample = sample,
-                        nowElapsedMs = currentNow
+                        nowElapsedMs = currentNow,
+                        displayLabel = assignedWorkspace.displayLabel
                     )
 
                     _uiState.update {
@@ -671,18 +731,14 @@ class MobiDeskViewModel @JvmOverloads constructor(
                                 "Your Cloud PC is starting or is not ready yet."
                             } else if (!eligible && (sample.rdpTransport == RdpTransport.TCP_UNREACHABLE || sample.rdpTransport == RdpTransport.TCP_REACHABLE)) {
                                 "Your Cloud PC cannot be reached right now."
+                            } else if (!eligible) {
+                                "Your Cloud PC is not ready for connection."
                             } else null
                         )
                     }
 
                     if (eligible) {
                         _navigateToConnectEvent.tryEmit(Unit)
-                        // 1-Click Single Login: Default pool credentials & auto-submit
-                        val poolCredentials = WindowsGuestCredentials.create(
-                            username = "demo_student",
-                            password = "DemoLab1985!".toCharArray(),
-                            domain = ""
-                        )
                         onGuestCredentialsSubmitted(poolCredentials)
                     }
                 }

@@ -161,7 +161,7 @@ class RdpSessionManager(
                 setResolution(BookmarkBase.ScreenSettings.CUSTOM)
             }
             advancedSettings.apply {
-                security = 3 // NLA (Network Level Authentication)
+                security = 0 // Auto / Negotiate (supports both NLA and TLS encryption)
             }
             activePerformanceFlags.apply {
                 setRemoteFX(false)

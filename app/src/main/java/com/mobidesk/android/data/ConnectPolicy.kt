@@ -2,6 +2,21 @@ package com.mobidesk.android.data
 
 object ConnectPolicy {
 
+    fun isTagMatching(
+        expectedTag: String?,
+        candidateTag: String?,
+        displayLabel: String? = null
+    ): Boolean {
+        if (expectedTag.isNullOrBlank() || candidateTag.isNullOrBlank()) return false
+        if (candidateTag == expectedTag) return true
+        if (!displayLabel.isNullOrBlank()) {
+            val normalizedLabel = displayLabel.trim()
+            if (candidateTag == "asg_tag_$normalizedLabel" || candidateTag == normalizedLabel) return true
+            if (expectedTag == "asg_tag_$normalizedLabel" || expectedTag == normalizedLabel) return true
+        }
+        return false
+    }
+
     fun isConnectAvailable(
         authLevel: AuthLevel,
         isAssigned: Boolean,
@@ -36,12 +51,13 @@ object ConnectPolicy {
         isAssigned: Boolean,
         currentAssignmentTag: String?,
         sample: VmStatusSample?,
-        nowElapsedMs: Long
+        nowElapsedMs: Long,
+        displayLabel: String? = null
     ): Boolean {
         if (authLevel != AuthLevel.FULLY_AUTHENTICATED) return false
         if (!isAssigned) return false
         if (sample == null) return false
-        if (currentAssignmentTag.isNullOrBlank() || sample.assignmentTag != currentAssignmentTag) return false
+        if (!isTagMatching(currentAssignmentTag, sample.assignmentTag, displayLabel)) return false
         if (!sample.isFresh(nowElapsedMs)) return false
         if (sample.lifecycle != VmLifecycle.RUNNING) return false
         if (sample.rdpTransport != RdpTransport.RDP_NEGOTIATION_OK) return false

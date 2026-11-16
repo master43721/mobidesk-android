@@ -135,10 +135,12 @@ class ContinuousSessionBrokerServer:
                 return
 
             if method == "GET" and path.startswith("/v1/vm-status"):
+                asg_tag = os.environ.get("VM_ASSIGNMENT_TAG") or f"asg_tag_{os.environ.get('VM_NAME', 'win-01')}"
                 self._send_json(conn, 200, {
-                    "assignmentTag": "asg_tag_win-01",
+                    "assignmentTag": asg_tag,
                     "lifecycle": "RUNNING",
                     "rdpTransport": "RDP_NEGOTIATION_OK",
+                    "staleAfterSeconds": 15,
                     "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "requestId": "req_status_live"
                 })

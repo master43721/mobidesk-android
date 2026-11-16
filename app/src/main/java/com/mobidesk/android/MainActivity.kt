@@ -23,18 +23,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         handleAuthIntent(intent)
 
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.navigateToSessionEvent.collect {
-                    val sessionIntent = Intent(this@MainActivity, RdpSessionActivity::class.java)
-                    startActivity(sessionIntent)
-                }
-            }
-        }
-
         setContent {
             MobiDeskTheme {
-                MobiDeskApp(viewModel)
+                MobiDeskApp(
+                    viewModel = viewModel,
+                    onLaunchSession = {
+                        val sessionIntent = Intent(this@MainActivity, RdpSessionActivity::class.java)
+                        startActivity(sessionIntent)
+                    }
+                )
             }
         }
     }

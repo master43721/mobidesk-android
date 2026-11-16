@@ -81,8 +81,10 @@ private enum class SignedOutRoute { SIGN_IN, RESET_REQUEST }
 @Composable
 fun MobiDeskApp(
     viewModel: MobiDeskViewModel,
-    onNavigateToConnect: () -> Unit = {}
+    onNavigateToConnect: () -> Unit = {},
+    onLaunchSession: () -> Unit = {}
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var email by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -96,6 +98,17 @@ fun MobiDeskApp(
     LaunchedEffect(Unit) {
         viewModel.navigateToConnectEvent.collect {
             onNavigateToConnect()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.navigateToSessionEvent.collect {
+            if (onLaunchSession != {}) {
+                onLaunchSession()
+            } else {
+                val sessionIntent = android.content.Intent(context, com.mobidesk.android.rdp.RdpSessionActivity::class.java)
+                context.startActivity(sessionIntent)
+            }
         }
     }
 
@@ -207,7 +220,8 @@ fun MobiDeskApp(
                                     profile = ready.profile,
                                     assignedWorkspace = com.mobidesk.android.data.AssignedWorkspace(
                                         displayLabel = ready.assignedVms.first().name,
-                                        assignmentTag = "asg_tag_${ready.assignedVms.first().id}"
+                                        assignmentTag = "asg_tag_${ready.assignedVms.first().id}",
+                                        hostname = ready.assignedVms.first().hostname
                                     )
                                 ),
                                 onSettings = { showSettings = true },
@@ -303,6 +317,7 @@ private fun DashboardScreen(
             sample = state.statusSample,
             statusAgeText = state.statusAgeText,
             isCheckingStatus = state.isCheckingStatus,
+            isConnectingSession = state.isConnectingSession,
             isConnectEnabled = state.isConnectEnabled,
             onRefresh = onRefresh,
             onConnect = onConnect
@@ -336,6 +351,7 @@ private fun CloudPcCard(
     sample: VmStatusSample?,
     statusAgeText: String?,
     isCheckingStatus: Boolean,
+    isConnectingSession: Boolean = false,
     isConnectEnabled: Boolean,
     onRefresh: () -> Unit,
     onConnect: () -> Unit
@@ -421,7 +437,7 @@ private fun CloudPcCard(
 
             Button(
                 onClick = onConnect,
-                enabled = isConnectEnabled && !isCheckingStatus,
+                enabled = isConnectEnabled && !isCheckingStatus && !isConnectingSession,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
@@ -430,7 +446,7 @@ private fun CloudPcCard(
                     },
                 shape = RoundedCornerShape(14.dp)
             ) {
-                if (isCheckingStatus) {
+                if (isCheckingStatus || isConnectingSession) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
                     Text(stringResource(R.string.connect), style = MaterialTheme.typography.titleMedium)
