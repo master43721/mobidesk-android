@@ -30,6 +30,7 @@ import com.mobidesk.android.data.WorkspaceRepository
 import com.mobidesk.android.rdp.RdpSessionCarrier
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -97,6 +98,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
         } else null
     private val recoveryStore: RecoveryStateStore =
         customRecoveryStore ?: app?.recoveryStateStore ?: SharedPreferencesRecoveryStateStore(application)
+    private val ioDispatcher: CoroutineDispatcher =
+        if (customAuthRepository != null) Dispatchers.Unconfined else Dispatchers.IO
 
     private val _uiState = MutableStateFlow(
         MobiDeskUiState(
@@ -364,7 +367,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
         val customStRepo = customStatusRepository
 
         parallelLoadJob?.cancel()
-        parallelLoadJob = viewModelScope.launch(Dispatchers.IO) {
+        parallelLoadJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isLoadingWorkspace = true,
@@ -846,7 +849,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true, errorMessage = null, infoMessage = null) }
             try {
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher) {
                     auth.signIn(normalizedEmail, password)
                 }
             } catch (e: Exception) {
@@ -867,11 +870,13 @@ class MobiDeskViewModel @JvmOverloads constructor(
 
                 val errorMsg = if (isNetworkError) {
                     "No internet connection available."
-                } else if (e.message?.contains("email not confirmed", ignoreCase = true) == true ||
-                    e.message?.contains("email_not_confirmed", ignoreCase = true) == true) {
-                    "Confirm your school email before signing in."
                 } else {
-                    "Invalid login credentials."
+                    val safe = AuthErrorMessages.safeMessage(e)
+                    if (safe == "The email or password is incorrect.") {
+                        "Invalid login credentials."
+                    } else {
+                        safe
+                    }
                 }
 
                 _uiState.update {
