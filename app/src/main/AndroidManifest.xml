@@ -70,6 +70,7 @@
             android:name=".rdp.RdpSessionActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden|density|screenLayout"
             android:exported="false"
+            android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.MobiDesk"
             android:windowSoftInputMode="adjustResize" />
     </application>

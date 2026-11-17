@@ -149,6 +149,10 @@ class RdpSessionManager(
     private fun startFreeRdp(localPort: Int, width: Int, height: Int) {
         updateState(RdpSessionState.RDP_CONNECTING)
 
+        // Force standard 16:9 PC aspect ratio (1280x720) so Windows does not render a portrait/squished desktop
+        val targetWidth = 1280
+        val targetHeight = 720
+
         val bookmark = BookmarkBase().apply {
             setHostname("127.0.0.1")
             setPort(localPort)
@@ -156,8 +160,8 @@ class RdpSessionManager(
             setPassword("")
             setDomain("")
             activeScreenSettings.apply {
-                this.width = width
-                this.height = height
+                this.width = targetWidth
+                this.height = targetHeight
                 setResolution(BookmarkBase.ScreenSettings.CUSTOM)
             }
             advancedSettings.apply {
