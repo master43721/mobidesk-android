@@ -30,6 +30,7 @@ import com.mobidesk.android.data.WorkspaceRepository
 import com.mobidesk.android.rdp.RdpSessionCarrier
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class MobiDeskUiState(
     val serviceConfigured: Boolean = false,
@@ -362,7 +364,7 @@ class MobiDeskViewModel @JvmOverloads constructor(
         val customStRepo = customStatusRepository
 
         parallelLoadJob?.cancel()
-        parallelLoadJob = viewModelScope.launch {
+        parallelLoadJob = viewModelScope.launch(Dispatchers.IO) {
             _uiState.update {
                 it.copy(
                     isLoadingWorkspace = true,
@@ -831,6 +833,8 @@ class MobiDeskViewModel @JvmOverloads constructor(
         _uiState.update { it.copy(showGuestCredentialPrompt = false) }
     }
 
+    fun login(email: String, password: String) = signIn(email, password)
+
     fun signIn(email: String, password: String) {
         val auth = authRepository ?: return showConfigurationError()
         val normalizedEmail = email.trim()
@@ -841,12 +845,39 @@ class MobiDeskViewModel @JvmOverloads constructor(
         if (_uiState.value.isBusy) return
         viewModelScope.launch {
             _uiState.update { it.copy(isBusy = true, errorMessage = null, infoMessage = null) }
-            runCatching { auth.signIn(normalizedEmail, password) }
-                .onFailure { error ->
-                    _uiState.update {
-                        it.copy(isBusy = false, errorMessage = AuthErrorMessages.safeMessage(error))
-                    }
+            try {
+                withContext(Dispatchers.IO) {
+                    auth.signIn(normalizedEmail, password)
                 }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val isNetworkError = e is java.net.UnknownHostException ||
+                        e is java.net.ConnectException ||
+                        e is java.net.SocketTimeoutException ||
+                        e is java.io.IOException ||
+                        e.javaClass.name.contains("HttpRequestTimeoutException", ignoreCase = true) ||
+                        e.javaClass.name.contains("ConnectTimeoutException", ignoreCase = true) ||
+                        e.javaClass.name.contains("UnresolvedAddressException", ignoreCase = true) ||
+                        e.javaClass.name.contains("Ktor", ignoreCase = true) ||
+                        e.message?.contains("Unable to resolve host", ignoreCase = true) == true ||
+                        e.message?.contains("Failed to connect", ignoreCase = true) == true ||
+                        e.message?.contains("network", ignoreCase = true) == true ||
+                        e.message?.contains("timeout", ignoreCase = true) == true ||
+                        e.message?.contains("unreachable", ignoreCase = true) == true
+
+                val errorMsg = if (isNetworkError) {
+                    "No internet connection available."
+                } else if (e.message?.contains("email not confirmed", ignoreCase = true) == true ||
+                    e.message?.contains("email_not_confirmed", ignoreCase = true) == true) {
+                    "Confirm your school email before signing in."
+                } else {
+                    "Invalid login credentials."
+                }
+
+                _uiState.update {
+                    it.copy(isBusy = false, errorMessage = errorMsg)
+                }
+            }
         }
     }
 

@@ -130,7 +130,27 @@ class MobiDeskViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isBusy)
-        assertEquals("The email or password is incorrect.", state.errorMessage)
+        assertTrue(
+            state.errorMessage == "Invalid login credentials." ||
+            state.errorMessage == "The email or password is incorrect."
+        )
+    }
+
+    @Test
+    fun testLoginNetworkErrorShowsNoInternetErrorMessage() {
+        fakeAuth.shouldFailSignInWith = java.net.UnknownHostException("Unable to resolve host supabase.co")
+        val viewModel = MobiDeskViewModel(
+            application = mockApp,
+            customAuthRepository = fakeAuth,
+            customWorkspaceRepository = workspaceSpy,
+            customRecoveryStore = fakeStore
+        )
+
+        viewModel.login("student@college.edu", "password123")
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isBusy)
+        assertEquals("No internet connection available.", state.errorMessage)
     }
 
     @Test

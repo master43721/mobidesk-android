@@ -57,11 +57,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -699,6 +701,7 @@ private fun SignInScreen(
     onSignIn: () -> Unit,
     onForgotPassword: () -> Unit
 ) {
+    var showOnboarding by rememberSaveable { mutableStateOf(true) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -709,7 +712,38 @@ private fun SignInScreen(
     ) {
         Column(Modifier.widthIn(max = 520.dp).fillMaxWidth()) {
             BrandLockup()
-            Spacer(Modifier.height(52.dp))
+
+            if (showOnboarding) {
+                Spacer(Modifier.height(20.dp))
+                OnboardingCards(
+                    onDismiss = { showOnboarding = false }
+                )
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick = { showOnboarding = false },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        "Skip to Sign In →",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(16.dp))
+                TextButton(
+                    onClick = { showOnboarding = true },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text(
+                        "// [ VIEW WORKSPACE INTRO ]",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF00B0FF)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(32.dp))
             Text("Your Windows workspace,\nwherever you study.", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(12.dp))
             Text(
@@ -749,8 +783,28 @@ private fun SignInScreen(
                 shape = RoundedCornerShape(14.dp)
             )
             if (state.errorMessage != null) {
-                Spacer(Modifier.height(12.dp))
-                InlineNotice(state.errorMessage, isError = true)
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ErrorOutline,
+                        contentDescription = "Error",
+                        tint = Color(0xFFE53935),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = state.errorMessage,
+                        color = Color(0xFFE53935),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
             }
             if (!state.serviceConfigured) {
                 Spacer(Modifier.height(12.dp))

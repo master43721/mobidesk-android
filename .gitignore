@@ -26,6 +26,8 @@ temp-*/
 *.hprof
 *.bundle
 *.bmp
+*.apk
+*.aab
 
 # OS/editor
 .DS_Store
