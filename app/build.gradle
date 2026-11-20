@@ -21,8 +21,8 @@ android {
         applicationId 'com.mobidesk.android'
         minSdk rootProject.ext.minApi
         targetSdk rootProject.ext.targetApi
-        versionCode 1
-        versionName '0.3.0'
+        versionCode 4
+        versionName '0.4.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField 'String', 'SUPABASE_URL', "\"${supabaseUrl}\""
         buildConfigField 'String', 'SUPABASE_PUBLISHABLE_KEY', "\"${supabasePublishableKey}\""

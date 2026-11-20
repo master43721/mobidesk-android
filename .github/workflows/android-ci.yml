@@ -69,6 +69,7 @@ jobs:
             "cmake;4.1.2"
           test -s "$ANDROID_HOME/platforms/android-35/android.jar"
           test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/zipalign"
 
       - name: Cache FreeRDP native dependency archives
         uses: actions/cache@v4
@@ -97,25 +98,53 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest
 
-      - name: Validate candidate APK integrity, signature, and alignment
+      - name: 16KB Page-Align, Sign, and Validate Candidate APK
         shell: bash
         run: |
           set -euo pipefail
-          apk="app/build/outputs/apk/release/app-release.apk"
-          test -s "$apk"
-          unzip -tq "$apk"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
-          python3 scripts/inspect_manifest.py "$apk"
-          sha256sum "$apk"
-          stat --printf='Candidate APK size: %s bytes\n' "$apk"
+          raw_apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$raw_apk"
+
+          echo "=== Step 1: 16KB Page Alignment with zipalign ==="
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -v -P 16 4 \
+            "$raw_apk" \
+            MobiDesk-aligned.apk
+
+          echo "=== Step 2: V1+V2+V3 Signing with apksigner ==="
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks app/mobidesk-ci.keystore \
+            --ks-pass pass:android \
+            --ks-key-alias androiddebugkey \
+            --key-pass pass:android \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --v4-signing-enabled false \
+            --out MobiDesk-v0.4.0-Stable.apk \
+            MobiDesk-aligned.apk
+
+          echo "=== Step 3: Verify 16KB Page Alignment ==="
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.4.0-Stable.apk
+
+          echo "=== Step 4: Verify APK Signature (V1+V2+V3) ==="
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose MobiDesk-v0.4.0-Stable.apk
+
+          echo "=== Step 5: Archive and Manifest Validation ==="
+          unzip -tq MobiDesk-v0.4.0-Stable.apk
+          python3 scripts/inspect_manifest.py MobiDesk-v0.4.0-Stable.apk
+          sha256sum MobiDesk-v0.4.0-Stable.apk
+          stat --printf='Candidate APK size: %s bytes\n' MobiDesk-v0.4.0-Stable.apk
+
+          # Overwrite raw release APK with the 16KB-aligned and signed artifact
+          cp MobiDesk-v0.4.0-Stable.apk app/build/outputs/apk/release/app-release.apk
 
       - name: Stage candidate APK artifacts
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/candidate-apks
-          cp app/build/outputs/apk/release/app-release.apk build/candidate-apks/app-release.apk
-          cp app/build/outputs/apk/release/app-release.apk build/candidate-apks/app-debug.apk
+          cp MobiDesk-v0.4.0-Stable.apk build/candidate-apks/app-release.apk
+          cp MobiDesk-v0.4.0-Stable.apk build/candidate-apks/app-debug.apk
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk build/candidate-apks/app-debug-androidTest.apk
           ls -la build/candidate-apks/
 
@@ -127,19 +156,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Prepare direct APK for release
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: |
-          cp app/build/outputs/apk/release/app-release.apk MobiDesk-v0.3.0-Stable.apk
-
       - name: Publish direct APK to GitHub Releases (latest-apk)
         if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: latest-apk
-          name: "MobiDesk v0.3.0 (Latest Build)"
-          files: MobiDesk-v0.3.0-Stable.apk
+          name: "MobiDesk v0.4.0 (Latest Build)"
+          files: MobiDesk-v0.4.0-Stable.apk
           overwrite_files: true
 
       - name: Upload JVM test reports
