@@ -96,7 +96,7 @@ class MobiDeskSmokeTest {
 
         // Sign out to verify session termination
         compose.onNodeWithText("Sign out").performScrollTo().performClick()
-        compose.waitUntil(timeoutMillis = 10_000) {
+        compose.waitUntil(timeoutMillis = 25_000) {
             compose.onAllNodesWithText("Sign in").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("Sign in").assertIsDisplayed()

@@ -1,5 +1,6 @@
 package com.mobidesk.android
 
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import com.mobidesk.android.data.WindowsGuestCredentials
@@ -12,7 +13,7 @@ import org.junit.Test
 
 class WindowsCredentialDialogUiTest {
     @get:Rule
-    val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun guestCredentialDialogInputsAndValidation() {
