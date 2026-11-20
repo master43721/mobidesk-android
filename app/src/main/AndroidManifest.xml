@@ -35,6 +35,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Host activity for Compose isolated component UI testing -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true" />
+
         <!-- Restrict unused upstream FreeRDP UI entry points; MobiDesk owns the exported app routes. -->
         <activity
             android:name="com.freerdp.freerdpcore.presentation.ShortcutsActivity"
