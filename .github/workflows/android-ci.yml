@@ -116,6 +116,7 @@ jobs:
             --ks-pass pass:android \
             --ks-key-alias androiddebugkey \
             --key-pass pass:android \
+            --min-sdk-version 21 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
@@ -127,7 +128,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.4.0-Stable.apk
 
           echo "=== Step 4: Verify APK Signature (V1+V2+V3) ==="
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose MobiDesk-v0.4.0-Stable.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 MobiDesk-v0.4.0-Stable.apk
 
           echo "=== Step 5: Archive and Manifest Validation ==="
           unzip -tq MobiDesk-v0.4.0-Stable.apk
