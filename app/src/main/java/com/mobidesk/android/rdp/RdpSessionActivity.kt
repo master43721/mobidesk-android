@@ -1,21 +1,21 @@
 package com.mobidesk.android.rdp
 
+import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
-import android.view.InputDevice
 import android.view.KeyEvent
-import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -35,18 +35,18 @@ import com.freerdp.freerdpcore.presentation.SessionInputManager
 import com.freerdp.freerdpcore.presentation.SessionView
 import com.freerdp.freerdpcore.presentation.TouchPointerView
 import com.freerdp.freerdpcore.services.LibFreeRDP
-import com.freerdp.freerdpcore.utils.Mouse
+import kotlin.math.max
+import kotlin.math.min
 
 /**
- * Dedicated Native RDP Session Activity (FP-11).
+ * Dedicated Native RDP Session Activity (FP-11 / v0.5.0).
  *
- * Security & Presentation:
- * 1. Screen recording allowed for user capture and demo workflows (FLAG_SECURE disabled).
- * 2. Forced landscape orientation (sensorLandscape) for authentic 16:9 PC workstation experience.
- * 3. Fluid Microsoft Windows App-style direct touch input & absolute cursor coordinate translation.
- * 4. Cyberpunk loading screen overlay dismissed on the first Windows desktop frame.
- * 5. Consumes ephemeral parameters from [RdpSessionCarrier]; zero Intent extra credential persistence.
- * 6. Deterministic teardown and zeroing on [onDestroy] or user disconnect.
+ * UX & Architecture Improvements:
+ * 1. Crash-safe [RdpTouchController] consuming 100% of touch events to prevent 2-finger scroll crashes.
+ * 2. Unified Trackpad (laptop feel with free virtual cursor) and Direct Touch modes.
+ * 3. Dynamic edge-to-edge landscape resolution calculated from physical device display metrics.
+ * 4. Sleek collapsible top control pill with mode switch, keyboard toggle, and PC modifier keys bar.
+ * 5. Responsive cyberpunk loader layout with non-black substantive frame detection to eliminate the black screen gap.
  */
 class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
@@ -58,14 +58,23 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
     private var desktopBitmap: Bitmap? = null
     private var floatingToolbar: FloatingToolbar? = null
     private var loadingOverlay: View? = null
+    private var isDismissingLoader = false
+    private var graphicsUpdateCount = 0
+
+    // Touch & Cursor Controller
+    private lateinit var touchController: RdpTouchController
+    private var cursorPointerView: View? = null
+
+    // Top Control Pill & PC Keys UI
+    private var topControlContainer: LinearLayout? = null
+    private var pillBody: LinearLayout? = null
+    private var keysBar: LinearLayout? = null
+    private var modeButton: TextView? = null
+    private var keyboardButton: TextView? = null
+    private var collapseHandle: TextView? = null
+    private var isPillCollapsed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // FLAG_SECURE removed to allow session recording for student demo & MVP UX
-        // window.setFlags(
-        //     WindowManager.LayoutParams.FLAG_SECURE,
-        //     WindowManager.LayoutParams.FLAG_SECURE
-        // )
-
         super.onCreate(savedInstanceState)
         hideSystemBars()
 
@@ -83,47 +92,43 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         touchPointerView = findViewById(R.id.touchPointerView)
         val keyboard: ExtendedKeyboardView = findViewById(R.id.extended_keyboard)
 
-        // Disable and hide clunky overlays so they never block the workspace canvas
+        // Disable and hide legacy clunky overlays so they never block the workspace canvas
         touchPointerView?.visibility = View.GONE
         keyboard.visibility = View.GONE
         findViewById<View?>(R.id.floating_toolbar_container)?.visibility = View.GONE
         scrollView.setScrollEnabled(false)
 
-        // Center the session view inside the container
+        // Center session view inside the rail container
         findViewById<FrameLayout>(R.id.railContainer)?.let { rc ->
             (rc.layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.CENTER
         }
         (sessionView.layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.CENTER
+        sessionView.isFocusable = true
+        sessionView.isFocusableInTouchMode = true
 
         inputManager = SessionInputManager(this, scrollView, sessionView, touchPointerView, keyboard)
         sessionView.setSessionViewListener(inputManager)
         touchPointerView?.setTouchPointerListener(inputManager)
-        sessionView.setScaleGestureDetector(
-            ScaleGestureDetector(this, inputManager!!.pinchZoomListener)
-        )
 
-        // Fluid Microsoft-style direct touch input: translates raw screen taps and drags
-        // directly to LibFreeRDP cursor events with absolute coordinates.
-        setupDirectTouchInput()
-
-        floatingToolbar = FloatingToolbar(this, object : FloatingToolbar.Listener {
-            override fun onToggleTouchPointer() {
-                inputManager?.toggleTouchPointer()
-            }
-
-            override fun onToggleKeyboard() {
-                inputManager?.toggleKeyboard()
-            }
-        })
-
-        // Inject Cyberpunk Loading Screen Overlay
         val rootView = findViewById<ViewGroup>(R.id.session_root_view)
+
+        // 1. Setup crash-safe touch controller and virtual cursor
+        setupTouchController(rootView)
+
+        // 2. Setup sleek collapsible top control pill & PC Extra Keys Bar
+        setupTopControlPill(rootView)
+
+        // 3. Inject Cyberpunk Loading Screen Overlay
         val overlay = createCyberpunkLoadingOverlay()
         loadingOverlay = overlay
         rootView.addView(overlay)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                if (keysBar?.visibility == View.VISIBLE) {
+                    toggleSoftKeyboard()
+                    return
+                }
                 if (inputManager?.handleKeyboardBack() == true) return
                 if (inputManager?.handleBackAsAltF4() == true) return
                 disconnectAndExit()
@@ -133,89 +138,358 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         sessionManager = RdpSessionManager(this)
         sessionManager.setListener(this)
 
-        // Launch session with standard 16:9 PC landscape resolution
+        // Dynamically compute edge-to-edge landscape resolution from device display metrics
+        val dm = resources.displayMetrics
+        val screenW = max(dm.widthPixels, dm.heightPixels)
+        val screenH = min(dm.widthPixels, dm.heightPixels)
+        val targetHeight = 720
+        val calculatedWidth = (((targetHeight.toFloat() * screenW / screenH).toInt()) / 4) * 4
+        val targetWidth = calculatedWidth.coerceIn(1280, 1920)
+
+        // Launch session with calculated edge-to-edge native landscape resolution
         sessionManager.startSession(
             grant = sessionData.grant,
             credentials = sessionData.credentials,
             relayUrl = sessionData.relayUrl,
-            desktopWidth = 1280,
-            desktopHeight = 720
+            desktopWidth = targetWidth,
+            desktopHeight = targetHeight
         )
     }
 
-    private fun setupDirectTouchInput() {
-        var isDirectTouchDown = false
+    // =========================================================================
+    // Touch Controller & Cursor Indicator
+    // =========================================================================
 
-        sessionView.setOnTouchListener { view, event ->
-            // Pass physical external mouse events to FreeRDP's mouse handler
-            if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
-                return@setOnTouchListener false
+    private fun setupTouchController(rootView: ViewGroup) {
+        touchController = RdpTouchController(
+            context = this,
+            sessionView = sessionView,
+            instanceProvider = { sessionManager.getSessionState()?.instance ?: 0L }
+        )
+        sessionView.setOnTouchListener(touchController)
+
+        // Sleek cyan virtual cursor indicator for Trackpad mode
+        val cursor = View(this).apply {
+            layoutParams = RelativeLayout.LayoutParams(dpToPx(16), dpToPx(16))
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#4400E5FF"))
+                setStroke(dpToPx(2), Color.parseColor("#00E5FF"))
             }
+            background = bg
+            elevation = 35f
+            isClickable = false
+            isFocusable = false
+            visibility = View.VISIBLE
+        }
+        cursorPointerView = cursor
+        rootView.addView(cursor)
 
-            // Multi-touch gestures (e.g. 2-finger scroll/pinch/tap):
-            // Release single finger drag and delegate to SessionView
-            if (event.pointerCount > 1) {
-                if (isDirectTouchDown) {
-                    isDirectTouchDown = false
-                    val inst = sessionManager.getSessionState()?.instance ?: 0L
-                    if (inst != 0L) {
-                        val zoom = sessionView.zoom.coerceAtLeast(0.01f)
-                        val touchX = (event.x / zoom).toInt().coerceIn(0, 1279)
-                        val touchY = (event.y / zoom).toInt().coerceIn(0, 719)
-                        LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getLeftButtonEvent(this, false))
+        touchController.cursorListener = object : RdpTouchController.CursorListener {
+            override fun onCursorMoved(desktopX: Int, desktopY: Int, screenX: Float, screenY: Float) {
+                runOnUiThread {
+                    cursorPointerView?.let { cp ->
+                        if (touchController.mode == RdpTouchController.InputMode.TRACKPAD) {
+                            cp.visibility = View.VISIBLE
+                            cp.x = screenX - (cp.width / 2f)
+                            cp.y = screenY - (cp.height / 2f)
+                        } else {
+                            cp.visibility = View.GONE
+                        }
                     }
-                    inputManager?.onSessionViewEndTouch()
                 }
-                return@setOnTouchListener false
             }
 
-            val inst = sessionManager.getSessionState()?.instance ?: 0L
-            if (inst == 0L) {
-                return@setOnTouchListener false
-            }
-
-            val zoom = sessionView.zoom.coerceAtLeast(0.01f)
-            val currentDesktopW = desktopBitmap?.width ?: 1280
-            val currentDesktopH = desktopBitmap?.height ?: 720
-            val touchX = (event.x / zoom).toInt().coerceIn(0, currentDesktopW - 1)
-            val touchY = (event.y / zoom).toInt().coerceIn(0, currentDesktopH - 1)
-
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                    isDirectTouchDown = true
-                    inputManager?.onSessionViewBeginTouch()
-
-                    // Absolute cursor move + left click down
-                    LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getMoveEvent())
-                    LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getLeftButtonEvent(this, true))
-                    true
+            override fun onModeChanged(mode: RdpTouchController.InputMode) {
+                runOnUiThread {
+                    updateModeButton(mode)
+                    cursorPointerView?.visibility =
+                        if (mode == RdpTouchController.InputMode.TRACKPAD) View.VISIBLE else View.GONE
                 }
-                MotionEvent.ACTION_MOVE -> {
-                    view.parent?.requestDisallowInterceptTouchEvent(true)
-                    // Fluid absolute cursor drag
-                    LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getMoveEvent())
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    isDirectTouchDown = false
-                    // Release left button at absolute cursor position
-                    LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getLeftButtonEvent(this, false))
-                    inputManager?.onSessionViewEndTouch()
-                    true
-                }
-                MotionEvent.ACTION_CANCEL -> {
-                    if (isDirectTouchDown) {
-                        isDirectTouchDown = false
-                        LibFreeRDP.sendCursorEvent(inst, touchX, touchY, Mouse.getLeftButtonEvent(this, false))
-                        inputManager?.onSessionViewEndTouch()
-                    }
-                    true
-                }
-                else -> false
             }
         }
     }
+
+    // =========================================================================
+    // Collapsible Top Control Pill & PC Extra Keys Bar
+    // =========================================================================
+
+    private fun setupTopControlPill(rootView: ViewGroup) {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_TOP)
+                addRule(RelativeLayout.CENTER_HORIZONTAL)
+                topMargin = dpToPx(6)
+            }
+            elevation = 45f
+        }
+        topControlContainer = container
+
+        // 1. Horizontal Glass Pill
+        val pill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(20).toFloat()
+                setColor(Color.parseColor("#D90B101D")) // Dark glass
+                setStroke(dpToPx(1), Color.parseColor("#3300E5FF"))
+            }
+            background = bg
+            setPadding(dpToPx(10), dpToPx(4), dpToPx(10), dpToPx(4))
+        }
+        pillBody = pill
+
+        // Collapse / Expand Handle
+        val handle = TextView(this).apply {
+            text = "▲"
+            setTextColor(Color.parseColor("#80A0C0"))
+            textSize = 10f
+            typeface = Typeface.MONOSPACE
+            gravity = Gravity.CENTER
+            setPadding(dpToPx(6), dpToPx(4), dpToPx(8), dpToPx(4))
+            setOnClickListener { togglePillCollapse() }
+        }
+        collapseHandle = handle
+        pill.addView(handle)
+
+        // Mode Toggle Button (Trackpad / Direct Touch)
+        val modeBtn = createPillButton(
+            text = "🖱 Trackpad",
+            textColor = Color.parseColor("#00E5FF")
+        ) {
+            val nextMode = if (touchController.mode == RdpTouchController.InputMode.TRACKPAD) {
+                RdpTouchController.InputMode.DIRECT_TOUCH
+            } else {
+                RdpTouchController.InputMode.TRACKPAD
+            }
+            touchController.mode = nextMode
+        }
+        modeButton = modeBtn
+        pill.addView(modeBtn)
+
+        // Keyboard Button (Toggles Soft Keyboard + PC Keys Bar)
+        val kbdBtn = createPillButton(
+            text = "⌨ Keyboard",
+            textColor = Color.parseColor("#00E5FF")
+        ) {
+            toggleSoftKeyboard()
+        }
+        keyboardButton = kbdBtn
+        pill.addView(kbdBtn)
+
+        // Disconnect Button
+        val exitBtn = createPillButton(
+            text = "✕ Exit",
+            textColor = Color.parseColor("#FF4466")
+        ) {
+            disconnectAndExit()
+        }
+        pill.addView(exitBtn)
+
+        container.addView(pill)
+
+        // 2. PC Extra Keys Bar (Esc, Tab, Ctrl, Alt, Win, Del, ←, ↑, ↓, →)
+        val keys = createPcKeysBar()
+        keysBar = keys
+        container.addView(keys)
+
+        rootView.addView(container)
+    }
+
+    private fun createPcKeysBar(): LinearLayout {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(10).toFloat()
+                setColor(Color.parseColor("#E60B101D"))
+                setStroke(dpToPx(1), Color.parseColor("#2600E5FF"))
+            }
+            background = bg
+            setPadding(dpToPx(6), dpToPx(4), dpToPx(6), dpToPx(4))
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dpToPx(4)
+            }
+            layoutParams = lp
+            visibility = View.GONE
+        }
+
+        // Action Keys
+        bar.addView(createRegularKey("Esc", R.integer.keycode_esc))
+        bar.addView(createRegularKey("Tab", R.integer.keycode_tab))
+
+        // Sticky Modifier Keys
+        bar.addView(createModifierKey("Ctrl", R.integer.keycode_toggle_ctrl))
+        bar.addView(createModifierKey("Alt", R.integer.keycode_toggle_alt))
+        bar.addView(createModifierKey("Win", R.integer.keycode_toggle_win))
+
+        // Delete & Arrow Keys
+        bar.addView(createRegularKey("Del", R.integer.keycode_delete))
+        bar.addView(createRegularKey("←", R.integer.keycode_left))
+        bar.addView(createRegularKey("↑", R.integer.keycode_up))
+        bar.addView(createRegularKey("↓", R.integer.keycode_down))
+        bar.addView(createRegularKey("→", R.integer.keycode_right))
+
+        return bar
+    }
+
+    private fun createPillButton(
+        text: String,
+        textColor: Int,
+        bgColor: Int = Color.parseColor("#1C2433"),
+        onClick: () -> Unit
+    ): TextView {
+        return TextView(this).apply {
+            this.text = text
+            setTextColor(textColor)
+            textSize = 11f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+            val bg = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(14).toFloat()
+                setColor(bgColor)
+                setStroke(dpToPx(1), Color.parseColor("#2600E5FF"))
+            }
+            background = bg
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginEnd = dpToPx(4)
+            }
+            layoutParams = lp
+            setOnClickListener { onClick() }
+        }
+    }
+
+    private fun createModifierKey(label: String, resId: Int): TextView {
+        var isStickyActive = false
+        lateinit var tv: TextView
+        val normalBg = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(6).toFloat()
+            setColor(Color.parseColor("#1E2536"))
+            setStroke(dpToPx(1), Color.parseColor("#3300E5FF"))
+        }
+
+        tv = TextView(this).apply {
+            text = label
+            setTextColor(Color.parseColor("#00E5FF"))
+            textSize = 10f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            minWidth = dpToPx(36)
+            minHeight = dpToPx(30)
+            setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
+            background = normalBg
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginEnd = dpToPx(3)
+            }
+            layoutParams = lp
+
+            setOnClickListener {
+                isStickyActive = !isStickyActive
+                if (isStickyActive) {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
+                        cornerRadius = dpToPx(6).toFloat()
+                        setColor(Color.parseColor("#00E5FF"))
+                    }
+                    setTextColor(Color.BLACK)
+                } else {
+                    background = normalBg
+                    setTextColor(Color.parseColor("#00E5FF"))
+                }
+                inputManager?.onKey(resources.getInteger(resId))
+            }
+        }
+        return tv
+    }
+
+    private fun createRegularKey(label: String, resId: Int): TextView {
+        return TextView(this).apply {
+            text = label
+            setTextColor(Color.WHITE)
+            textSize = 10f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            minWidth = dpToPx(34)
+            minHeight = dpToPx(30)
+            setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(6).toFloat()
+                setColor(Color.parseColor("#1E2536"))
+                setStroke(dpToPx(1), Color.parseColor("#22FFFFFF"))
+            }
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginEnd = dpToPx(3)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                inputManager?.onKey(resources.getInteger(resId))
+            }
+        }
+    }
+
+    private fun updateModeButton(mode: RdpTouchController.InputMode) {
+        modeButton?.text = if (mode == RdpTouchController.InputMode.TRACKPAD) {
+            "🖱 Trackpad"
+        } else {
+            "👆 Touch"
+        }
+    }
+
+    private fun togglePillCollapse() {
+        isPillCollapsed = !isPillCollapsed
+        collapseHandle?.text = if (isPillCollapsed) "▼" else "▲"
+        modeButton?.visibility = if (isPillCollapsed) View.GONE else View.VISIBLE
+        keyboardButton?.visibility = if (isPillCollapsed) View.GONE else View.VISIBLE
+        // Also hide keysBar if collapsing
+        if (isPillCollapsed && keysBar?.visibility == View.VISIBLE) {
+            toggleSoftKeyboard()
+        }
+    }
+
+    private fun toggleSoftKeyboard() {
+        val willOpen = keysBar?.visibility != View.VISIBLE
+        keysBar?.visibility = if (willOpen) View.VISIBLE else View.GONE
+        keyboardButton?.setTextColor(
+            if (willOpen) Color.parseColor("#00FFCC") else Color.parseColor("#00E5FF")
+        )
+
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        if (willOpen) {
+            sessionView.isFocusable = true
+            sessionView.isFocusableInTouchMode = true
+            sessionView.requestFocus()
+            imm?.showSoftInput(sessionView, InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            imm?.hideSoftInputFromWindow(sessionView.windowToken, 0)
+        }
+    }
+
+    // =========================================================================
+    // Cyberpunk Loading Overlay & Smooth Fade-Out
+    // =========================================================================
 
     private fun createCyberpunkLoadingOverlay(): View {
         val overlay = FrameLayout(this).apply {
@@ -233,29 +507,37 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER
-            )
+            ).apply {
+                leftMargin = dpToPx(32)
+                rightMargin = dpToPx(32)
+            }
         }
 
         // Subtitle badge: "// [ SECURE WORKSPACE LINK ] //"
         val badge = TextView(this).apply {
             text = "// [ SECURE WORKSPACE LINK ] //"
             setTextColor(Color.parseColor("#00FFCC"))
-            textSize = 11f
+            textSize = 12f
             typeface = Typeface.MONOSPACE
-            letterSpacing = 0.2f
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dpToPx(16))
+            letterSpacing = 0.18f
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(16)
+            }
         }
         container.addView(badge)
 
         // Progress spinner with neon cyan tint
         val spinner = ProgressBar(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(56), dpToPx(56)).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(52), dpToPx(52)).apply {
                 gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = dpToPx(24)
+                bottomMargin = dpToPx(20)
             }
             isIndeterminate = true
             indeterminateTintList = ColorStateList.valueOf(Color.parseColor("#00E5FF"))
@@ -266,12 +548,17 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         val title = TextView(this).apply {
             text = "MobiDesk // CONNECTING TO CLOUD WORKSPACE"
             setTextColor(Color.parseColor("#00E5FF"))
-            textSize = 15f
+            textSize = 16f
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
-            letterSpacing = 0.12f
-            gravity = Gravity.CENTER
+            letterSpacing = 0.1f
+            gravity = Gravity.CENTER_HORIZONTAL
             setShadowLayer(14f, 0f, 0f, Color.parseColor("#00E5FF"))
-            setPadding(dpToPx(16), 0, dpToPx(16), dpToPx(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(10)
+            }
         }
         container.addView(title)
 
@@ -279,22 +566,31 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         val subtitle = TextView(this).apply {
             text = "ESTABLISHING ENCRYPTED DESKTOP STREAM..."
             setTextColor(Color.parseColor("#80A0C0"))
-            textSize = 11f
+            textSize = 12f
             typeface = Typeface.MONOSPACE
-            letterSpacing = 0.1f
-            gravity = Gravity.CENTER
-            setPadding(0, 0, 0, dpToPx(16))
+            letterSpacing = 0.08f
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(14)
+            }
         }
         container.addView(subtitle)
 
         // Technical specs tag
         val specs = TextView(this).apply {
-            text = "[ 16:9 PC RESOLUTION // DIRECT TOUCH ENGINE ]"
+            text = "[ NATIVE RESOLUTION // TRACKPAD & TOUCH ENGINE ]"
             setTextColor(Color.parseColor("#FF007F"))
-            textSize = 9f
+            textSize = 10f
             typeface = Typeface.MONOSPACE
-            letterSpacing = 0.15f
-            gravity = Gravity.CENTER
+            letterSpacing = 0.12f
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
         container.addView(specs)
 
@@ -354,32 +650,69 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
             inputManager?.attachSession(session.instance, bitmap)
             inputManager?.setScreenSize(width, height)
 
-            // Scale to fit landscape device display preserving 16:9 aspect ratio
+            // Scale to fit landscape device display preserving native aspect ratio
             val dm = resources.displayMetrics
-            val screenW = maxOf(dm.widthPixels, dm.heightPixels)
-            val screenH = minOf(dm.widthPixels, dm.heightPixels)
-            val fitZoom = minOf(screenW.toFloat() / width, screenH.toFloat() / height)
+            val screenW = max(dm.widthPixels, dm.heightPixels)
+            val screenH = min(dm.widthPixels, dm.heightPixels)
+            val fitZoom = min(screenW.toFloat() / width, screenH.toFloat() / height)
             if (fitZoom > 0f) {
                 sessionView.zoom = fitZoom
             }
+            touchController.setDesktopSize(width, height)
         }
     }
 
     override fun onGraphicsUpdate(x: Int, y: Int, width: Int, height: Int) {
-        // Instantly dismiss the cyberpunk loading overlay when the first frame arrives
-        if (loadingOverlay?.visibility != View.GONE) {
-            runOnUiThread {
-                loadingOverlay?.visibility = View.GONE
-            }
-        }
-
         val session = sessionManager.getSessionState()
         val bitmap = desktopBitmap
         if (session != null && bitmap != null) {
             LibFreeRDP.updateGraphics(session.instance, bitmap, x, y, width, height)
             sessionView.addInvalidRegion(Rect(x, y, x + width, y + height))
             sessionView.invalidateRegion()
+
+            graphicsUpdateCount++
+
+            // Smoothly dismiss cyberpunk loader only once non-black substantive desktop frame arrives
+            if (loadingOverlay != null && !isDismissingLoader) {
+                val hasContent = hasSubstantiveContent(bitmap, x, y, width, height)
+                // Fallback: dismiss after 6 substantive updates or when non-black pixels are found
+                if (hasContent || (graphicsUpdateCount >= 6 && width >= 200 && height >= 200)) {
+                    isDismissingLoader = true
+                    runOnUiThread {
+                        loadingOverlay?.animate()
+                            ?.alpha(0f)
+                            ?.setDuration(350)
+                            ?.withEndAction {
+                                loadingOverlay?.visibility = View.GONE
+                                loadingOverlay = null
+                            }
+                            ?.start()
+                    }
+                }
+            }
         }
+    }
+
+    private fun hasSubstantiveContent(bitmap: Bitmap, x: Int, y: Int, w: Int, h: Int): Boolean {
+        if (w < 16 || h < 16) return false
+        try {
+            val stepX = max(1, w / 8)
+            val stepY = max(1, h / 8)
+            var nonBlackCount = 0
+            for (sampleY in (y + stepY) until (y + h) step stepY) {
+                for (sampleX in (x + stepX) until (x + w) step stepX) {
+                    if (sampleX < bitmap.width && sampleY < bitmap.height) {
+                        val pixel = bitmap.getPixel(sampleX, sampleY)
+                        // Non-black pixel check
+                        if ((pixel and 0x00FFFFFF) != 0) {
+                            nonBlackCount++
+                            if (nonBlackCount >= 3) return true
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) {}
+        return false
     }
 
     override fun onError(message: String, isFatal: Boolean) {
@@ -392,6 +725,20 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         }
     }
 
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (keysBar?.visibility == View.VISIBLE) {
+                toggleSoftKeyboard()
+                return true
+            }
+            return super.dispatchKeyEvent(event)
+        }
+        if (inputManager?.onAndroidKeyEvent(event) == true) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
         return inputManager?.onAndroidKeyEvent(event) ?: super.onKeyDown(keyCode, event)
@@ -400,6 +747,13 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyUp(keyCode, event)
         return inputManager?.onAndroidKeyEvent(event) ?: super.onKeyUp(keyCode, event)
+    }
+
+    override fun onKeyMultiple(keyCode: Int, repeatCount: Int, event: KeyEvent?): Boolean {
+        if (event != null && inputManager?.onAndroidKeyEvent(event) == true) {
+            return true
+        }
+        return super.onKeyMultiple(keyCode, repeatCount, event)
     }
 
     private fun disconnectAndExit() {

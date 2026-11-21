@@ -121,31 +121,31 @@ jobs:
             --v2-signing-enabled true \
             --v3-signing-enabled true \
             --v4-signing-enabled false \
-            --out MobiDesk-v0.4.0-Stable.apk \
+            --out MobiDesk-v0.5.0-Stable.apk \
             MobiDesk-aligned.apk
 
           echo "=== Step 3: Verify 16KB Page Alignment ==="
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.4.0-Stable.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.5.0-Stable.apk
 
           echo "=== Step 4: Verify APK Signature (V1+V2+V3) ==="
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 MobiDesk-v0.4.0-Stable.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 MobiDesk-v0.5.0-Stable.apk
 
           echo "=== Step 5: Archive and Manifest Validation ==="
-          unzip -tq MobiDesk-v0.4.0-Stable.apk
-          python3 scripts/inspect_manifest.py MobiDesk-v0.4.0-Stable.apk
-          sha256sum MobiDesk-v0.4.0-Stable.apk
-          stat --printf='Candidate APK size: %s bytes\n' MobiDesk-v0.4.0-Stable.apk
+          unzip -tq MobiDesk-v0.5.0-Stable.apk
+          python3 scripts/inspect_manifest.py MobiDesk-v0.5.0-Stable.apk
+          sha256sum MobiDesk-v0.5.0-Stable.apk
+          stat --printf='Candidate APK size: %s bytes\n' MobiDesk-v0.5.0-Stable.apk
 
           # Overwrite raw release APK with the 16KB-aligned and signed artifact
-          cp MobiDesk-v0.4.0-Stable.apk app/build/outputs/apk/release/app-release.apk
+          cp MobiDesk-v0.5.0-Stable.apk app/build/outputs/apk/release/app-release.apk
 
       - name: Stage candidate APK artifacts
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/candidate-apks
-          cp MobiDesk-v0.4.0-Stable.apk build/candidate-apks/app-release.apk
-          cp MobiDesk-v0.4.0-Stable.apk build/candidate-apks/app-debug.apk
+          cp MobiDesk-v0.5.0-Stable.apk build/candidate-apks/app-release.apk
+          cp MobiDesk-v0.5.0-Stable.apk build/candidate-apks/app-debug.apk
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk build/candidate-apks/app-debug-androidTest.apk
           ls -la build/candidate-apks/
 
@@ -162,8 +162,8 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: latest-apk
-          name: "MobiDesk v0.4.0 (Latest Build)"
-          files: MobiDesk-v0.4.0-Stable.apk
+          name: "MobiDesk v0.5.0 (Latest Build)"
+          files: MobiDesk-v0.5.0-Stable.apk
           overwrite_files: true
 
       - name: Upload JVM test reports
