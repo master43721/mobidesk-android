@@ -13,19 +13,19 @@ import kotlin.math.abs
 import kotlin.math.hypot
 
 /**
- * Dedicated, crash-safe touch controller for FreeRDP sessions.
+ * Dedicated, crash-safe touch controller for FreeRDP sessions (v0.6.0).
  *
- * Implements two live input modes:
- * 1. [InputMode.TRACKPAD]: Laptop touchpad feel with a free virtual cursor.
- *    - 1-finger relative movement with sensitivity.
- *    - 1-finger tap: left click.
- *    - 1-finger double-tap & drag: left-button drag.
- *    - 2-finger tap: right click.
- *    - 2-finger vertical drag: smooth mouse wheel scroll.
- * 2. [InputMode.DIRECT_TOUCH]: Direct touch mapping.
- *    - 1-finger tap/drag: maps touch directly to desktop coordinates and clicks/drags.
- *    - 2-finger tap: right click at midpoint.
- *    - 2-finger vertical drag: smooth mouse wheel scroll.
+ * Capabilities:
+ * 1. Two live input modes:
+ *    - [InputMode.TRACKPAD]: Laptop touchpad feel with a free virtual cursor (single Windows pointer).
+ *      - 1-finger relative movement with sensitivity.
+ *      - 1-finger short tap: left click.
+ *      - 1-finger double-tap & drag: left-button drag.
+ *    - [InputMode.DIRECT_TOUCH]: Direct touch mapping accounting for zoom and pan.
+ * 2. Smooth 2-finger pinch-to-zoom (1.0x to 3.0x) and pan clamping on [sessionView].
+ * 3. 2-finger tap: right click.
+ * 4. 2-finger parallel vertical drag: smooth mouse wheel scroll.
+ * 5. Single accurate cursor: No secondary overlay; coordinates strictly clamped to desktop bounds.
  *
  * Invariant: Consumes 100% of MotionEvents (always returns true) so multi-touch NEVER
  * falls through to legacy SessionView / DoubleGestureDetector / ScrollView2D.
@@ -44,6 +44,8 @@ class RdpTouchController(
         private const val MAX_TAP_SLOP_DP = 24f
         private const val SCROLL_STEP_DP = 16f
         private const val TRACKPAD_SENSITIVITY = 1.4f
+        private const val MIN_ZOOM = 1.0f
+        private const val MAX_ZOOM = 3.0f
     }
 
     enum class InputMode {
@@ -51,18 +53,22 @@ class RdpTouchController(
         DIRECT_TOUCH
     }
 
-    interface CursorListener {
-        fun onCursorMoved(desktopX: Int, desktopY: Int, screenX: Float, screenY: Float)
+    private enum class TwoFingerGesture {
+        UNDECIDED,
+        PINCH_ZOOM_PAN,
+        SCROLL
+    }
+
+    interface ModeListener {
         fun onModeChanged(mode: InputMode)
     }
 
-    var cursorListener: CursorListener? = null
+    var modeListener: ModeListener? = null
 
     var mode: InputMode = InputMode.TRACKPAD
         set(value) {
             field = value
-            cursorListener?.onModeChanged(value)
-            notifyCursorPosition()
+            modeListener?.onModeChanged(value)
         }
 
     private var desktopWidth: Int = 1280
@@ -74,7 +80,15 @@ class RdpTouchController(
     var cursorY: Float = 360f
         private set
 
-    // Touch slop and scroll step in physical pixels
+    // Pinch-to-zoom & Pan state
+    var userZoom: Float = 1.0f
+        private set
+    var userPanX: Float = 0f
+        private set
+    var userPanY: Float = 0f
+        private set
+
+    // Touch metrics in physical pixels
     private val density = context.resources.displayMetrics.density
     private val maxTapSlopPx = MAX_TAP_SLOP_DP * density
     private val scrollStepPx = SCROLL_STEP_DP * density
@@ -97,22 +111,34 @@ class RdpTouchController(
     // 2-finger tracking
     private var isTwoFingerDown = false
     private var downTime2F = 0L
-    private var downMidX2F = 0f
-    private var downMidY2F = 0f
-    private var lastMidY2F = 0f
+    private var initialSpan = 0f
+    private var lastSpan = 0f
+    private var initialMidX = 0f
+    private var initialMidY = 0f
+    private var lastMidX = 0f
+    private var lastMidY = 0f
     private var accumulatedScrollY = 0f
-    private var isTwoFingerScrolling = false
+    private var twoFingerGesture = TwoFingerGesture.UNDECIDED
 
     fun setDesktopSize(width: Int, height: Int) {
         desktopWidth = maxOf(width, 1)
         desktopHeight = maxOf(height, 1)
         cursorX = cursorX.coerceIn(0f, (desktopWidth - 1).toFloat())
         cursorY = cursorY.coerceIn(0f, (desktopHeight - 1).toFloat())
-        notifyCursorPosition()
+    }
+
+    /**
+     * Resets user zoom and pan back to 1.0x (full view).
+     */
+    fun resetZoom() {
+        userZoom = 1.0f
+        userPanX = 0f
+        userPanY = 0f
+        applyTransform()
     }
 
     override fun onTouch(view: View, event: MotionEvent): Boolean {
-        // Prevent parent from intercepting any touch events
+        // Prevent parent container from intercepting any touch events
         view.parent?.requestDisallowInterceptTouchEvent(true)
 
         // Pass physical mouse events safely to FreeRDP if attached
@@ -130,7 +156,7 @@ class RdpTouchController(
             Log.e(TAG, "Unhandled touch controller error", t)
         }
 
-        // Always consume 100% of touch events to prevent fallthrough crashes
+        // Invariant: Always consume 100% of touch events to prevent fallthrough crashes
         return true
     }
 
@@ -145,7 +171,7 @@ class RdpTouchController(
             MotionEvent.ACTION_DOWN -> {
                 isOneFingerDown = true
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
                 downTime1F = event.eventTime
                 downX1F = event.x
                 downY1F = event.y
@@ -166,11 +192,19 @@ class RdpTouchController(
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (pointerCount == 2) {
                     isTwoFingerDown = true
-                    isTwoFingerScrolling = false
                     downTime2F = event.eventTime
-                    downMidX2F = (event.getX(0) + event.getX(1)) / 2f
-                    downMidY2F = (event.getY(0) + event.getY(1)) / 2f
-                    lastMidY2F = downMidY2F
+                    twoFingerGesture = TwoFingerGesture.UNDECIDED
+
+                    val span = hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
+                    val midX = (event.getX(0) + event.getX(1)) / 2f
+                    val midY = (event.getY(0) + event.getY(1)) / 2f
+
+                    initialSpan = span
+                    lastSpan = span
+                    initialMidX = midX
+                    initialMidY = midY
+                    lastMidX = midX
+                    lastMidY = midY
                     accumulatedScrollY = 0f
 
                     // Cancel 1-finger drag if user places second finger
@@ -184,9 +218,9 @@ class RdpTouchController(
             MotionEvent.ACTION_MOVE -> {
                 if (pointerCount == 1 && !isTwoFingerDown) {
                     // 1-finger relative cursor movement
-                    val zoom = sessionView.zoom.coerceAtLeast(0.01f)
-                    val dx = (event.x - lastX1F) / zoom * TRACKPAD_SENSITIVITY
-                    val dy = (event.y - lastY1F) / zoom * TRACKPAD_SENSITIVITY
+                    val effectiveZoom = (sessionView.zoom * userZoom).coerceAtLeast(0.01f)
+                    val dx = (event.x - lastX1F) / effectiveZoom * TRACKPAD_SENSITIVITY
+                    val dy = (event.y - lastY1F) / effectiveZoom * TRACKPAD_SENSITIVITY
                     lastX1F = event.x
                     lastY1F = event.y
 
@@ -194,28 +228,8 @@ class RdpTouchController(
                     cursorY = (cursorY + dy).coerceIn(0f, (desktopHeight - 1).toFloat())
 
                     sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getMoveEvent())
-                    notifyCursorPosition()
                 } else if (pointerCount >= 2 && isTwoFingerDown) {
-                    // 2-finger vertical scroll
-                    val midY = (event.getY(0) + event.getY(1)) / 2f
-                    val deltaY = midY - lastMidY2F
-                    lastMidY2F = midY
-                    accumulatedScrollY += deltaY
-
-                    if (abs(midY - downMidY2F) > touchSlopPx) {
-                        isTwoFingerScrolling = true
-                    }
-
-                    // Throttle wheel scroll steps
-                    while (abs(accumulatedScrollY) >= scrollStepPx) {
-                        val scrollDown = accumulatedScrollY < 0 // swiping up scrolls content down
-                        sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getScrollEvent(context, scrollDown))
-                        if (scrollDown) {
-                            accumulatedScrollY += scrollStepPx
-                        } else {
-                            accumulatedScrollY -= scrollStepPx
-                        }
-                    }
+                    handleTwoFingerMove(event)
                 }
             }
 
@@ -224,16 +238,17 @@ class RdpTouchController(
                     val duration = event.eventTime - downTime2F
                     val midX = (event.getX(0) + event.getX(1)) / 2f
                     val midY = (event.getY(0) + event.getY(1)) / 2f
-                    val distMoved = hypot(midX - downMidX2F, midY - downMidY2F)
+                    val distMoved = hypot(midX - initialMidX, midY - initialMidY)
 
-                    // 2-finger tap: right click
-                    if (!isTwoFingerScrolling && duration < TAP_TIMEOUT_MS && distMoved < maxTapSlopPx) {
+                    // 2-finger tap: right click at current cursor position
+                    if (twoFingerGesture == TwoFingerGesture.UNDECIDED && duration < TAP_TIMEOUT_MS && distMoved < maxTapSlopPx) {
                         sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getRightButtonEvent(context, true))
                         sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getRightButtonEvent(context, false))
                     }
 
                     isTwoFingerDown = false
-                    isTwoFingerScrolling = false
+                    twoFingerGesture = TwoFingerGesture.UNDECIDED
+
                     // Reset 1-finger tracking to remaining finger
                     val remainingIdx = if (event.actionIndex == 0) 1 else 0
                     lastX1F = event.getX(remainingIdx)
@@ -249,7 +264,7 @@ class RdpTouchController(
                     val duration = event.eventTime - downTime1F
                     val distMoved = hypot(event.x - downX1F, event.y - downY1F)
 
-                    // 1-finger tap: left click
+                    // 1-finger tap: left click at current cursor position
                     if (duration < TAP_TIMEOUT_MS && distMoved < maxTapSlopPx) {
                         sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getLeftButtonEvent(context, true))
                         sendCursorEvent(cursorX.toInt(), cursorY.toInt(), Mouse.getLeftButtonEvent(context, false))
@@ -262,7 +277,7 @@ class RdpTouchController(
 
                 isOneFingerDown = false
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
             }
 
             MotionEvent.ACTION_CANCEL -> {
@@ -272,7 +287,7 @@ class RdpTouchController(
                 }
                 isOneFingerDown = false
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
             }
         }
     }
@@ -288,7 +303,7 @@ class RdpTouchController(
             MotionEvent.ACTION_DOWN -> {
                 isOneFingerDown = true
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
                 downTime1F = event.eventTime
                 downX1F = event.x
                 downY1F = event.y
@@ -296,7 +311,6 @@ class RdpTouchController(
                 val (desktopX, desktopY) = screenToDesktop(event.x, event.y)
                 cursorX = desktopX.toFloat()
                 cursorY = desktopY.toFloat()
-                notifyCursorPosition()
 
                 sendCursorEvent(desktopX, desktopY, Mouse.getMoveEvent())
                 sendCursorEvent(desktopX, desktopY, Mouse.getLeftButtonEvent(context, true))
@@ -305,11 +319,19 @@ class RdpTouchController(
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (pointerCount == 2) {
                     isTwoFingerDown = true
-                    isTwoFingerScrolling = false
                     downTime2F = event.eventTime
-                    downMidX2F = (event.getX(0) + event.getX(1)) / 2f
-                    downMidY2F = (event.getY(0) + event.getY(1)) / 2f
-                    lastMidY2F = downMidY2F
+                    twoFingerGesture = TwoFingerGesture.UNDECIDED
+
+                    val span = hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
+                    val midX = (event.getX(0) + event.getX(1)) / 2f
+                    val midY = (event.getY(0) + event.getY(1)) / 2f
+
+                    initialSpan = span
+                    lastSpan = span
+                    initialMidX = midX
+                    initialMidY = midY
+                    lastMidX = midX
+                    lastMidY = midY
                     accumulatedScrollY = 0f
 
                     // Release 1-finger touch down when second finger arrives
@@ -323,28 +345,9 @@ class RdpTouchController(
                     val (desktopX, desktopY) = screenToDesktop(event.x, event.y)
                     cursorX = desktopX.toFloat()
                     cursorY = desktopY.toFloat()
-                    notifyCursorPosition()
                     sendCursorEvent(desktopX, desktopY, Mouse.getMoveEvent())
                 } else if (pointerCount >= 2 && isTwoFingerDown) {
-                    val midY = (event.getY(0) + event.getY(1)) / 2f
-                    val deltaY = midY - lastMidY2F
-                    lastMidY2F = midY
-                    accumulatedScrollY += deltaY
-
-                    if (abs(midY - downMidY2F) > touchSlopPx) {
-                        isTwoFingerScrolling = true
-                    }
-
-                    val (desktopX, desktopY) = screenToDesktop(downMidX2F, midY)
-                    while (abs(accumulatedScrollY) >= scrollStepPx) {
-                        val scrollDown = accumulatedScrollY < 0
-                        sendCursorEvent(desktopX, desktopY, Mouse.getScrollEvent(context, scrollDown))
-                        if (scrollDown) {
-                            accumulatedScrollY += scrollStepPx
-                        } else {
-                            accumulatedScrollY -= scrollStepPx
-                        }
-                    }
+                    handleTwoFingerMove(event)
                 }
             }
 
@@ -353,17 +356,17 @@ class RdpTouchController(
                     val duration = event.eventTime - downTime2F
                     val midX = (event.getX(0) + event.getX(1)) / 2f
                     val midY = (event.getY(0) + event.getY(1)) / 2f
-                    val distMoved = hypot(midX - downMidX2F, midY - downMidY2F)
+                    val distMoved = hypot(midX - initialMidX, midY - initialMidY)
 
                     // 2-finger tap: right click at midpoint
-                    if (!isTwoFingerScrolling && duration < TAP_TIMEOUT_MS && distMoved < maxTapSlopPx) {
+                    if (twoFingerGesture == TwoFingerGesture.UNDECIDED && duration < TAP_TIMEOUT_MS && distMoved < maxTapSlopPx) {
                         val (desktopX, desktopY) = screenToDesktop(midX, midY)
                         sendCursorEvent(desktopX, desktopY, Mouse.getRightButtonEvent(context, true))
                         sendCursorEvent(desktopX, desktopY, Mouse.getRightButtonEvent(context, false))
                     }
 
                     isTwoFingerDown = false
-                    isTwoFingerScrolling = false
+                    twoFingerGesture = TwoFingerGesture.UNDECIDED
                 }
             }
 
@@ -374,7 +377,7 @@ class RdpTouchController(
                 }
                 isOneFingerDown = false
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
             }
 
             MotionEvent.ACTION_CANCEL -> {
@@ -382,9 +385,126 @@ class RdpTouchController(
                 sendCursorEvent(desktopX, desktopY, Mouse.getLeftButtonEvent(context, false))
                 isOneFingerDown = false
                 isTwoFingerDown = false
-                isTwoFingerScrolling = false
+                twoFingerGesture = TwoFingerGesture.UNDECIDED
             }
         }
+    }
+
+    // =========================================================================
+    // Two-Finger Gesture Handler (Pinch-to-Zoom & Pan vs. Mouse Wheel Scroll)
+    // =========================================================================
+
+    private fun handleTwoFingerMove(event: MotionEvent) {
+        val span = hypot(event.getX(0) - event.getX(1), event.getY(0) - event.getY(1))
+        val midX = (event.getX(0) + event.getX(1)) / 2f
+        val midY = (event.getY(0) + event.getY(1)) / 2f
+
+        val spanDelta = abs(span - initialSpan)
+        val midYDelta = abs(midY - initialMidY)
+        val midXDelta = abs(midX - initialMidX)
+
+        // Classify gesture if still undecided
+        if (twoFingerGesture == TwoFingerGesture.UNDECIDED) {
+            val pinchThreshold = 22f * density
+            val scrollThreshold = 14f * density
+
+            if (spanDelta > pinchThreshold) {
+                twoFingerGesture = TwoFingerGesture.PINCH_ZOOM_PAN
+            } else if (midYDelta > scrollThreshold && spanDelta < 12f * density) {
+                twoFingerGesture = TwoFingerGesture.SCROLL
+            } else if (midXDelta > 20f * density || midYDelta > 20f * density) {
+                twoFingerGesture = if (spanDelta > 14f * density) {
+                    TwoFingerGesture.PINCH_ZOOM_PAN
+                } else {
+                    TwoFingerGesture.SCROLL
+                }
+            }
+        }
+
+        when (twoFingerGesture) {
+            TwoFingerGesture.PINCH_ZOOM_PAN -> {
+                if (lastSpan > 10f) {
+                    val scaleFactor = span / lastSpan
+                    val newZoom = (userZoom * scaleFactor).coerceIn(MIN_ZOOM, MAX_ZOOM)
+
+                    val dMidX = midX - lastMidX
+                    val dMidY = midY - lastMidY
+
+                    // Zoom towards pinch center
+                    val focusViewX = (midX - userPanX) / userZoom
+                    val focusViewY = (midY - userPanY) / userZoom
+
+                    userZoom = newZoom
+                    userPanX = midX - (focusViewX * newZoom) + dMidX
+                    userPanY = midY - (focusViewY * newZoom) + dMidY
+
+                    clampPan()
+                    applyTransform()
+                }
+
+                lastSpan = span
+                lastMidX = midX
+                lastMidY = midY
+            }
+
+            TwoFingerGesture.SCROLL -> {
+                val deltaY = midY - lastMidY
+                lastMidY = midY
+                lastSpan = span
+                accumulatedScrollY += deltaY
+
+                val (desktopX, desktopY) = if (mode == InputMode.TRACKPAD) {
+                    Pair(cursorX.toInt(), cursorY.toInt())
+                } else {
+                    screenToDesktop(midX, midY)
+                }
+
+                // Throttle mouse wheel events
+                while (abs(accumulatedScrollY) >= scrollStepPx) {
+                    val scrollDown = accumulatedScrollY < 0 // swiping up scrolls content down
+                    sendCursorEvent(desktopX, desktopY, Mouse.getScrollEvent(context, scrollDown))
+                    if (scrollDown) {
+                        accumulatedScrollY += scrollStepPx
+                    } else {
+                        accumulatedScrollY -= scrollStepPx
+                    }
+                }
+            }
+
+            TwoFingerGesture.UNDECIDED -> {
+                lastSpan = span
+                lastMidX = midX
+                lastMidY = midY
+            }
+        }
+    }
+
+    private fun clampPan() {
+        val viewW = sessionView.width.toFloat().coerceAtLeast(1f)
+        val viewH = sessionView.height.toFloat().coerceAtLeast(1f)
+
+        if (userZoom <= 1.0f) {
+            userPanX = 0f
+            userPanY = 0f
+            return
+        }
+
+        val minPanX = -viewW * (userZoom - 1f)
+        val maxPanX = 0f
+        val minPanY = -viewH * (userZoom - 1f)
+        val maxPanY = 0f
+
+        userPanX = userPanX.coerceIn(minPanX, maxPanX)
+        userPanY = userPanY.coerceIn(minPanY, maxPanY)
+    }
+
+    private fun applyTransform() {
+        sessionView.pivotX = 0f
+        sessionView.pivotY = 0f
+        sessionView.scaleX = userZoom
+        sessionView.scaleY = userZoom
+        sessionView.translationX = userPanX
+        sessionView.translationY = userPanY
     }
 
     private fun handlePhysicalMouseEvent(event: MotionEvent) {
@@ -430,24 +550,16 @@ class RdpTouchController(
     }
 
     // =========================================================================
-    // Helper Methods
+    // Coordinate Mapping (Accounting for Zoom and Pan)
     // =========================================================================
 
     private fun screenToDesktop(screenX: Float, screenY: Float): Pair<Int, Int> {
-        val zoom = sessionView.zoom.coerceAtLeast(0.01f)
-        val x = (screenX / zoom).toInt().coerceIn(0, desktopWidth - 1)
-        val y = (screenY / zoom).toInt().coerceIn(0, desktopHeight - 1)
+        val viewX = (screenX - userPanX) / userZoom.coerceAtLeast(0.01f)
+        val viewY = (screenY - userPanY) / userZoom.coerceAtLeast(0.01f)
+        val fitZoom = sessionView.zoom.coerceAtLeast(0.01f)
+        val x = (viewX / fitZoom).toInt().coerceIn(0, desktopWidth - 1)
+        val y = (viewY / fitZoom).toInt().coerceIn(0, desktopHeight - 1)
         return Pair(x, y)
-    }
-
-    private fun desktopToScreen(desktopX: Float, desktopY: Float): Pair<Float, Float> {
-        val zoom = sessionView.zoom.coerceAtLeast(0.01f)
-        return Pair(desktopX * zoom, desktopY * zoom)
-    }
-
-    private fun notifyCursorPosition() {
-        val (screenX, screenY) = desktopToScreen(cursorX, cursorY)
-        cursorListener?.onCursorMoved(cursorX.toInt(), cursorY.toInt(), screenX, screenY)
     }
 
     private fun sendCursorEvent(x: Int, y: Int, flags: Int) {

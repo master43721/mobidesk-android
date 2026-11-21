@@ -13,6 +13,7 @@ executables-apks/
 
 # Local signing/configuration
 *.jks
+*.p12
 *.keystore
 !app/mobidesk-ci.keystore
 release.properties.local

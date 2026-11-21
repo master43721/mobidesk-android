@@ -1,5 +1,6 @@
 package com.mobidesk.android.rdp
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -12,7 +13,9 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
@@ -24,6 +27,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -35,18 +39,20 @@ import com.freerdp.freerdpcore.presentation.SessionInputManager
 import com.freerdp.freerdpcore.presentation.SessionView
 import com.freerdp.freerdpcore.presentation.TouchPointerView
 import com.freerdp.freerdpcore.services.LibFreeRDP
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Dedicated Native RDP Session Activity (FP-11 / v0.5.0).
+ * Dedicated Native RDP Session Activity (FP-11 / v0.6.0).
  *
  * UX & Architecture Improvements:
- * 1. Crash-safe [RdpTouchController] consuming 100% of touch events to prevent 2-finger scroll crashes.
- * 2. Unified Trackpad (laptop feel with free virtual cursor) and Direct Touch modes.
- * 3. Dynamic edge-to-edge landscape resolution calculated from physical device display metrics.
- * 4. Sleek collapsible top control pill with mode switch, keyboard toggle, and PC modifier keys bar.
- * 5. Responsive cyberpunk loader layout with non-black substantive frame detection to eliminate the black screen gap.
+ * 1. True Edge-to-Edge full screen with display cutout short edges (no black sidebars).
+ * 2. Real physical screen metrics resolution calculation for authentic full landscape view.
+ * 3. Single accurate Windows mouse cursor (no double-cursor or edge drift).
+ * 4. Crash-safe [RdpTouchController] with 2-finger pinch-to-zoom (1.0x-3.0x), pan, 2-finger scroll & right-click.
+ * 5. Draggable, collapsible top pill with "1x" reset zoom, safe exit confirmation, and soft keyboard + PC modifier keys.
+ * 6. Responsive cyberpunk loader layout with non-black substantive frame detection.
  */
 class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
@@ -61,16 +67,17 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
     private var isDismissingLoader = false
     private var graphicsUpdateCount = 0
 
-    // Touch & Cursor Controller
+    // Touch Controller
     private lateinit var touchController: RdpTouchController
-    private var cursorPointerView: View? = null
 
-    // Top Control Pill & PC Keys UI
+    // Draggable Top Control Pill & PC Keys UI
     private var topControlContainer: LinearLayout? = null
     private var pillBody: LinearLayout? = null
     private var keysBar: LinearLayout? = null
     private var modeButton: TextView? = null
     private var keyboardButton: TextView? = null
+    private var resetZoomButton: TextView? = null
+    private var exitButton: TextView? = null
     private var collapseHandle: TextView? = null
     private var isPillCollapsed = false
 
@@ -87,12 +94,18 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
         setContentView(R.layout.session)
 
+        val rootView = findViewById<ViewGroup>(R.id.session_root_view)
+        rootView.fitsSystemWindows = false
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, _ -> WindowInsetsCompat.CONSUMED }
+
         scrollView = findViewById(R.id.sessionScrollView)
+        scrollView.fitsSystemWindows = false
         sessionView = findViewById(R.id.sessionView)
+        sessionView.fitsSystemWindows = false
         touchPointerView = findViewById(R.id.touchPointerView)
         val keyboard: ExtendedKeyboardView = findViewById(R.id.extended_keyboard)
 
-        // Disable and hide legacy clunky overlays so they never block the workspace canvas
+        // Disable and hide legacy clunky overlays
         touchPointerView?.visibility = View.GONE
         keyboard.visibility = View.GONE
         findViewById<View?>(R.id.floating_toolbar_container)?.visibility = View.GONE
@@ -100,6 +113,7 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
         // Center session view inside the rail container
         findViewById<FrameLayout>(R.id.railContainer)?.let { rc ->
+            rc.fitsSystemWindows = false
             (rc.layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.CENTER
         }
         (sessionView.layoutParams as? FrameLayout.LayoutParams)?.gravity = Gravity.CENTER
@@ -110,12 +124,10 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         sessionView.setSessionViewListener(inputManager)
         touchPointerView?.setTouchPointerListener(inputManager)
 
-        val rootView = findViewById<ViewGroup>(R.id.session_root_view)
+        // 1. Setup crash-safe touch controller with pinch-zoom & pan
+        setupTouchController()
 
-        // 1. Setup crash-safe touch controller and virtual cursor
-        setupTouchController(rootView)
-
-        // 2. Setup sleek collapsible top control pill & PC Extra Keys Bar
+        // 2. Setup draggable, collapsible top control pill & PC Extra Keys Bar
         setupTopControlPill(rootView)
 
         // 3. Inject Cyberpunk Loading Screen Overlay
@@ -131,17 +143,17 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
                 }
                 if (inputManager?.handleKeyboardBack() == true) return
                 if (inputManager?.handleBackAsAltF4() == true) return
-                disconnectAndExit()
+                confirmDisconnect()
             }
         })
 
         sessionManager = RdpSessionManager(this)
         sessionManager.setListener(this)
 
-        // Dynamically compute edge-to-edge landscape resolution from device display metrics
-        val dm = resources.displayMetrics
-        val screenW = max(dm.widthPixels, dm.heightPixels)
-        val screenH = min(dm.widthPixels, dm.heightPixels)
+        // Dynamically compute edge-to-edge landscape resolution from physical screen metrics
+        val (realW, realH) = getRealScreenDimensions()
+        val screenW = max(realW, realH)
+        val screenH = min(realW, realH)
         val targetHeight = 720
         val calculatedWidth = (((targetHeight.toFloat() * screenW / screenH).toInt()) / 4) * 4
         val targetWidth = calculatedWidth.coerceIn(1280, 1920)
@@ -156,11 +168,23 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         )
     }
 
+    private fun getRealScreenDimensions(): Pair<Int, Int> {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.maximumWindowMetrics.bounds
+            Pair(bounds.width(), bounds.height())
+        } else {
+            val dm = android.util.DisplayMetrics()
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(dm)
+            Pair(dm.widthPixels, dm.heightPixels)
+        }
+    }
+
     // =========================================================================
-    // Touch Controller & Cursor Indicator
+    // Touch Controller (Single Real Cursor, Pinch-to-Zoom & Pan)
     // =========================================================================
 
-    private fun setupTouchController(rootView: ViewGroup) {
+    private fun setupTouchController() {
         touchController = RdpTouchController(
             context = this,
             sessionView = sessionView,
@@ -168,50 +192,17 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         )
         sessionView.setOnTouchListener(touchController)
 
-        // Sleek cyan virtual cursor indicator for Trackpad mode
-        val cursor = View(this).apply {
-            layoutParams = RelativeLayout.LayoutParams(dpToPx(16), dpToPx(16))
-            val bg = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#4400E5FF"))
-                setStroke(dpToPx(2), Color.parseColor("#00E5FF"))
-            }
-            background = bg
-            elevation = 35f
-            isClickable = false
-            isFocusable = false
-            visibility = View.VISIBLE
-        }
-        cursorPointerView = cursor
-        rootView.addView(cursor)
-
-        touchController.cursorListener = object : RdpTouchController.CursorListener {
-            override fun onCursorMoved(desktopX: Int, desktopY: Int, screenX: Float, screenY: Float) {
-                runOnUiThread {
-                    cursorPointerView?.let { cp ->
-                        if (touchController.mode == RdpTouchController.InputMode.TRACKPAD) {
-                            cp.visibility = View.VISIBLE
-                            cp.x = screenX - (cp.width / 2f)
-                            cp.y = screenY - (cp.height / 2f)
-                        } else {
-                            cp.visibility = View.GONE
-                        }
-                    }
-                }
-            }
-
+        touchController.modeListener = object : RdpTouchController.ModeListener {
             override fun onModeChanged(mode: RdpTouchController.InputMode) {
                 runOnUiThread {
                     updateModeButton(mode)
-                    cursorPointerView?.visibility =
-                        if (mode == RdpTouchController.InputMode.TRACKPAD) View.VISIBLE else View.GONE
                 }
             }
         }
     }
 
     // =========================================================================
-    // Collapsible Top Control Pill & PC Extra Keys Bar
+    // Draggable & Collapsible Top Control Pill
     // =========================================================================
 
     private fun setupTopControlPill(rootView: ViewGroup) {
@@ -241,19 +232,61 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
                 setStroke(dpToPx(1), Color.parseColor("#3300E5FF"))
             }
             background = bg
-            setPadding(dpToPx(10), dpToPx(4), dpToPx(10), dpToPx(4))
+            setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
         }
         pillBody = pill
 
-        // Collapse / Expand Handle
+        // Collapse / Expand Handle with Horizontal Dragging
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        var dragStartX = 0f
+        var initialTransX = 0f
+        var isDraggingPill = false
+
         val handle = TextView(this).apply {
             text = "▲"
             setTextColor(Color.parseColor("#80A0C0"))
             textSize = 10f
             typeface = Typeface.MONOSPACE
             gravity = Gravity.CENTER
-            setPadding(dpToPx(6), dpToPx(4), dpToPx(8), dpToPx(4))
-            setOnClickListener { togglePillCollapse() }
+            setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
+
+            setOnTouchListener { v, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        dragStartX = event.rawX
+                        initialTransX = container.translationX
+                        isDraggingPill = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - dragStartX
+                        if (abs(dx) > touchSlop) {
+                            isDraggingPill = true
+                        }
+                        if (isDraggingPill) {
+                            val (realW, realH) = getRealScreenDimensions()
+                            val screenW = max(realW, realH)
+                            val pillW = container.width.coerceAtLeast(dpToPx(50))
+                            val maxOffset = (screenW - pillW) / 2f
+                            container.translationX = (initialTransX + dx).coerceIn(-maxOffset, maxOffset)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!isDraggingPill) {
+                            v.performClick()
+                            togglePillCollapse()
+                        }
+                        isDraggingPill = false
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        isDraggingPill = false
+                        true
+                    }
+                    else -> false
+                }
+            }
         }
         collapseHandle = handle
         pill.addView(handle)
@@ -273,6 +306,16 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         modeButton = modeBtn
         pill.addView(modeBtn)
 
+        // "1x" Reset Zoom Button
+        val resetZoomBtn = createPillButton(
+            text = "1x",
+            textColor = Color.parseColor("#00E5FF")
+        ) {
+            touchController.resetZoom()
+        }
+        resetZoomButton = resetZoomBtn
+        pill.addView(resetZoomBtn)
+
         // Keyboard Button (Toggles Soft Keyboard + PC Keys Bar)
         val kbdBtn = createPillButton(
             text = "⌨ Keyboard",
@@ -283,13 +326,14 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         keyboardButton = kbdBtn
         pill.addView(kbdBtn)
 
-        // Disconnect Button
+        // Disconnect Button with Confirmation
         val exitBtn = createPillButton(
             text = "✕ Exit",
             textColor = Color.parseColor("#FF4466")
         ) {
-            disconnectAndExit()
+            confirmDisconnect()
         }
+        exitButton = exitBtn
         pill.addView(exitBtn)
 
         container.addView(pill)
@@ -300,6 +344,17 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
         container.addView(keys)
 
         rootView.addView(container)
+    }
+
+    private fun confirmDisconnect() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Disconnect")
+            .setMessage("Disconnect from Windows PC?")
+            .setPositiveButton("Disconnect") { _, _ ->
+                disconnectAndExit()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun createPcKeysBar(): LinearLayout {
@@ -461,9 +516,14 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
     private fun togglePillCollapse() {
         isPillCollapsed = !isPillCollapsed
         collapseHandle?.text = if (isPillCollapsed) "▼" else "▲"
-        modeButton?.visibility = if (isPillCollapsed) View.GONE else View.VISIBLE
-        keyboardButton?.visibility = if (isPillCollapsed) View.GONE else View.VISIBLE
-        // Also hide keysBar if collapsing
+        val buttonVisibility = if (isPillCollapsed) View.GONE else View.VISIBLE
+
+        modeButton?.visibility = buttonVisibility
+        keyboardButton?.visibility = buttonVisibility
+        resetZoomButton?.visibility = buttonVisibility
+        exitButton?.visibility = buttonVisibility
+
+        // When collapsed, close the keys bar if it was open
         if (isPillCollapsed && keysBar?.visibility == View.VISIBLE) {
             toggleSoftKeyboard()
         }
@@ -516,7 +576,7 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
             }
         }
 
-        // Subtitle badge: "// [ SECURE WORKSPACE LINK ] //"
+        // Subtitle badge
         val badge = TextView(this).apply {
             text = "// [ SECURE WORKSPACE LINK ] //"
             setTextColor(Color.parseColor("#00FFCC"))
@@ -581,7 +641,7 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
 
         // Technical specs tag
         val specs = TextView(this).apply {
-            text = "[ NATIVE RESOLUTION // TRACKPAD & TOUCH ENGINE ]"
+            text = "[ NATIVE RESOLUTION // PINCH-ZOOM & TRACKPAD ENGINE ]"
             setTextColor(Color.parseColor("#FF007F"))
             textSize = 10f
             typeface = Typeface.MONOSPACE
@@ -605,15 +665,15 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
     private fun hideSystemBars() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller.hide(WindowInsetsCompat.Type.systemBars())
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-        }
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -650,11 +710,11 @@ class RdpSessionActivity : ComponentActivity(), RdpSessionListener {
             inputManager?.attachSession(session.instance, bitmap)
             inputManager?.setScreenSize(width, height)
 
-            // Scale to fit landscape device display preserving native aspect ratio
-            val dm = resources.displayMetrics
-            val screenW = max(dm.widthPixels, dm.heightPixels)
-            val screenH = min(dm.widthPixels, dm.heightPixels)
-            val fitZoom = min(screenW.toFloat() / width, screenH.toFloat() / height)
+            // Scale to fill landscape device display with zero black sidebars
+            val (realW, realH) = getRealScreenDimensions()
+            val screenW = max(realW, realH)
+            val screenH = min(realW, realH)
+            val fitZoom = max(screenW.toFloat() / width, screenH.toFloat() / height)
             if (fitZoom > 0f) {
                 sessionView.zoom = fitZoom
             }

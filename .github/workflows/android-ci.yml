@@ -99,53 +99,84 @@ jobs:
         run: ./gradlew --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest
 
       - name: 16KB Page-Align, Sign, and Validate Candidate APK
+        env:
+          KEYSTORE_B64: ${{ secrets.MOBIDESK_RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.MOBIDESK_KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.MOBIDESK_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.MOBIDESK_KEY_PASS }}
         shell: bash
         run: |
           set -euo pipefail
           raw_apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$raw_apk"
 
-          echo "=== Step 1: 16KB Page Alignment with zipalign ==="
+          echo "=== Step 1: Decode Release Keystore ==="
+          echo "$KEYSTORE_B64" | base64 -d > release.p12
+          test -s release.p12
+
+          echo "=== Step 2: 16KB Page Alignment with zipalign ==="
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -f -v -P 16 4 \
             "$raw_apk" \
             MobiDesk-aligned.apk
 
-          echo "=== Step 2: V1+V2+V3 Signing with apksigner ==="
+          echo "=== Step 3: V1+V2+V3 Signing with apksigner (Release Keystore) ==="
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
-            --ks app/mobidesk-ci.keystore \
-            --ks-pass pass:android \
-            --ks-key-alias androiddebugkey \
-            --key-pass pass:android \
+            --ks release.p12 \
+            --ks-type PKCS12 \
+            --ks-pass "pass:$KEYSTORE_PASS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass "pass:$KEY_PASS" \
             --min-sdk-version 21 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
             --v4-signing-enabled false \
-            --out MobiDesk-v0.5.0-Stable.apk \
+            --out MobiDesk-v0.6.0-Stable.apk \
             MobiDesk-aligned.apk
 
-          echo "=== Step 3: Verify 16KB Page Alignment ==="
-          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.5.0-Stable.apk
+          echo "=== Step 4: Sign androidTest APK with same Release Keystore ==="
+          test_apk="app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+          if [ -f "$test_apk" ]; then
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+              --ks release.p12 \
+              --ks-type PKCS12 \
+              --ks-pass "pass:$KEYSTORE_PASS" \
+              --ks-key-alias "$KEY_ALIAS" \
+              --key-pass "pass:$KEY_PASS" \
+              --min-sdk-version 21 \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
+              --v4-signing-enabled false \
+              "$test_apk"
+            echo "androidTest APK signed with release keystore successfully."
+          fi
 
-          echo "=== Step 4: Verify APK Signature (V1+V2+V3) ==="
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --min-sdk-version 21 MobiDesk-v0.5.0-Stable.apk
+          # Clean up temporary keystore file
+          rm -f release.p12
 
-          echo "=== Step 5: Archive and Manifest Validation ==="
-          unzip -tq MobiDesk-v0.5.0-Stable.apk
-          python3 scripts/inspect_manifest.py MobiDesk-v0.5.0-Stable.apk
-          sha256sum MobiDesk-v0.5.0-Stable.apk
-          stat --printf='Candidate APK size: %s bytes\n' MobiDesk-v0.5.0-Stable.apk
+          echo "=== Step 5: Verify 16KB Page Alignment ==="
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v -P 16 4 MobiDesk-v0.6.0-Stable.apk
+
+          echo "=== Step 6: Verify APK Signature (V1+V2+V3) ==="
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs --min-sdk-version 21 MobiDesk-v0.6.0-Stable.apk
+
+          echo "=== Step 7: Archive and Manifest Validation ==="
+          unzip -tq MobiDesk-v0.6.0-Stable.apk
+          python3 scripts/inspect_manifest.py MobiDesk-v0.6.0-Stable.apk
+          sha256sum MobiDesk-v0.6.0-Stable.apk
+          stat --printf='Candidate APK size: %s bytes\n' MobiDesk-v0.6.0-Stable.apk
 
           # Overwrite raw release APK with the 16KB-aligned and signed artifact
-          cp MobiDesk-v0.5.0-Stable.apk app/build/outputs/apk/release/app-release.apk
+          cp MobiDesk-v0.6.0-Stable.apk app/build/outputs/apk/release/app-release.apk
 
       - name: Stage candidate APK artifacts
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/candidate-apks
-          cp MobiDesk-v0.5.0-Stable.apk build/candidate-apks/app-release.apk
-          cp MobiDesk-v0.5.0-Stable.apk build/candidate-apks/app-debug.apk
+          cp MobiDesk-v0.6.0-Stable.apk build/candidate-apks/app-release.apk
+          cp MobiDesk-v0.6.0-Stable.apk build/candidate-apks/app-debug.apk
           cp app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk build/candidate-apks/app-debug-androidTest.apk
           ls -la build/candidate-apks/
 
@@ -162,8 +193,8 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: latest-apk
-          name: "MobiDesk v0.5.0 (Latest Build)"
-          files: MobiDesk-v0.5.0-Stable.apk
+          name: "MobiDesk v0.6.0 (Latest Build)"
+          files: MobiDesk-v0.6.0-Stable.apk
           overwrite_files: true
 
       - name: Upload JVM test reports
